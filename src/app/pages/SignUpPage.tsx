@@ -37,6 +37,7 @@ const academicPrograms = [
       { value: "AB_PSYCH", label: "BA in Psychology" }
     ]
   },
+  
   {
     college: "College of Technology and Engineering (COTE)",
     programs: [
