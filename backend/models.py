@@ -134,12 +134,13 @@ class ISORequirement(Base):
     __tablename__ = "iso_requirements"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     program = Column(String(50), nullable=False) # e.g. BSIT, BEED, BSED_MATH
-    iso_clause = Column(String(50), nullable=False) # e.g. Clause 6.1, Clause 7.1, Clause 7.2, Clause 7.5, Clause 8.1 & 8.5, Clause 8.4, Clause 8.6 & 10.2, Clause 9.1
+    iso_clause = Column(String(100), nullable=False) # e.g. Clause 6.1, Clause 7.1.5.2, Clause 8.1 & 8.5
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     auditee_office = Column(String(255), nullable=False) # e.g. Director of Instruction, HRMO, Registrar, Finance, BAC, SAO, Document Controller, Library Services
     risk_level = Column(String(20), default="Medium") # High, Medium, Low
     status = Column(String(50), default="Not Compliant") # Compliant, Pending, Not Compliant
+    cycle_year = Column(String(50), default="2025 Surveillance", nullable=False) # e.g. 2024 Initial Audit, 2025 Surveillance, 2026 Recertification
     created_at = Column(DateTime, default=datetime.utcnow)
 
     evidences = relationship("ISOEvidence", back_populates="requirement", cascade="all, delete-orphan")
@@ -178,6 +179,7 @@ class IQADaySchedule(Base):
     __tablename__ = "iqa_day_schedules"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     program = Column(String(50), default="GLOBAL")
+    cycle_year = Column(String(50), default="2025 Surveillance", nullable=False)
     day_number = Column(Integer, nullable=False)
     day_date = Column(String(50), nullable=False)
     title = Column(String(255), nullable=False)

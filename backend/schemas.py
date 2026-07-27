@@ -160,6 +160,7 @@ class ISORequirementCreate(BaseModel):
     description: str
     auditee_office: str
     risk_level: Optional[str] = "Medium"
+    cycle_year: Optional[str] = "2025 Surveillance"
 
 class ISOEvidenceResponse(BaseModel):
     id: uuid.UUID
@@ -181,11 +182,15 @@ class ISORequirementResponse(BaseModel):
     auditee_office: str
     risk_level: str
     status: str
+    cycle_year: str = "2025 Surveillance"
     created_at: datetime
     evidences: list[ISOEvidenceResponse] = []
 
     class Config:
         from_attributes = True
+
+class ISOCycleCreate(BaseModel):
+    cycle_year: str
 
 class ISOStatusUpdate(BaseModel):
     status: str # Compliant, Pending, Not Compliant
@@ -223,6 +228,7 @@ class IQAScheduleResponse(BaseModel):
 
 
 class IQADayScheduleCreate(BaseModel):
+    cycle_year: str = "2025 Surveillance"
     day_number: int
     day_date: str
     title: str
@@ -231,6 +237,7 @@ class IQADayScheduleCreate(BaseModel):
 class IQADayScheduleResponse(BaseModel):
     id: uuid.UUID
     program: str
+    cycle_year: str = "2025 Surveillance"
     day_number: int
     day_date: str
     title: str

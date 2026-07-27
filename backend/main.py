@@ -7,10 +7,11 @@ from typing import List, Optional
 
 # Third-party imports
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form, Body, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form, Body, Request, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from pydantic import BaseModel, EmailStr
 from groq import Groq
 from supabase import create_client, Client
@@ -323,6 +324,14 @@ class SettingsSchema(BaseModel):
     rag_max_chunks: int
 
 models.Base.metadata.create_all(bind=engine)
+
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE iso_requirements ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
+        conn.execute(text("ALTER TABLE iqa_day_schedules ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
+        conn.commit()
+except Exception as _mig_err:
+    pass
 
 app = FastAPI(
     title="CTU Institutional Knowledge System API",
@@ -3130,13 +3139,72 @@ DEFAULT_ISO_CLAUSES = [
 ]
 
 
-@app.get("/iso/requirements/{program}", response_model=List[schemas.ISORequirementResponse])
-def get_iso_requirements(program: str, db: Session = Depends(get_db)):
-    """Retrieves or seeds ISO 9001:2015 clause checklists for the campus (Institutional QMS)."""
+@app.get("/iso/cycles", response_model=List[str])
+def get_iso_cycles(db: Session = Depends(get_db)):
+    """Retrieves all distinct audit cycle years present in the system, sorted."""
+    cycles = db.query(models.ISORequirement.cycle_year).distinct().all()
+    cycle_list = [c[0] for c in cycles if c[0]]
+    defaults = ["2026 Recertification", "2025 Surveillance", "2024 Initial Audit"]
+    for d in defaults:
+        if d not in cycle_list:
+            cycle_list.append(d)
+    return sorted(cycle_list, reverse=True)
+
+
+@app.post("/iso/cycles/init", response_model=List[schemas.ISORequirementResponse])
+def initialize_iso_cycle(
+    payload: schemas.ISOCycleCreate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Initializes a new ISO Audit Cycle (e.g. '2026 Surveillance') with clean baseline clauses."""
     target_prog = "GLOBAL"
-    existing = db.query(models.ISORequirement).filter(models.ISORequirement.program == target_prog).all()
+    new_cycle = payload.cycle_year.strip()
+    if not new_cycle:
+        raise HTTPException(status_code=400, detail="Cycle year cannot be empty.")
+
+    existing = db.query(models.ISORequirement).filter(
+        models.ISORequirement.program == target_prog,
+        models.ISORequirement.cycle_year == new_cycle
+    ).all()
+
+    if existing:
+        return existing
+
+    seeded_reqs = []
+    for item in DEFAULT_ISO_CLAUSES:
+        req = models.ISORequirement(
+            program=target_prog,
+            iso_clause=item["iso_clause"],
+            title=item["title"],
+            description=item["description"],
+            auditee_office=item["auditee_office"],
+            risk_level=item["risk_level"],
+            status="Not Compliant",
+            cycle_year=new_cycle
+        )
+        db.add(req)
+        seeded_reqs.append(req)
+
+    db.commit()
+    for r in seeded_reqs:
+        db.refresh(r)
+    return seeded_reqs
+
+
+@app.get("/iso/requirements/{program}", response_model=List[schemas.ISORequirementResponse])
+def get_iso_requirements(program: str, cycle_year: Optional[str] = "2025 Surveillance", db: Session = Depends(get_db)):
+    """Retrieves or seeds ISO 9001:2015 clause checklists for the campus (Institutional QMS) per cycle year."""
+    target_prog = "GLOBAL"
+    target_cycle = cycle_year or "2025 Surveillance"
+
+    existing = db.query(models.ISORequirement).filter(
+        models.ISORequirement.program == target_prog,
+        models.ISORequirement.cycle_year == target_cycle
+    ).all()
+
     if not existing:
-        # Seed default 8 ISO Clauses from iso program final.pdf for campus-wide QMS
+        # Seed default 8 ISO Clauses for this target cycle year
         seeded_reqs = []
         for item in DEFAULT_ISO_CLAUSES:
             req = models.ISORequirement(
@@ -3146,7 +3214,8 @@ def get_iso_requirements(program: str, db: Session = Depends(get_db)):
                 description=item["description"],
                 auditee_office=item["auditee_office"],
                 risk_level=item["risk_level"],
-                status="Not Compliant"
+                status="Not Compliant",
+                cycle_year=target_cycle
             )
             db.add(req)
             seeded_reqs.append(req)
@@ -3163,7 +3232,7 @@ def create_iso_requirement(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin)
 ):
-    """Admin creates a new ISO requirement item."""
+    """Admin creates a new ISO requirement item for a specific cycle year."""
     new_req = models.ISORequirement(
         program=payload.program,
         iso_clause=payload.iso_clause,
@@ -3171,7 +3240,8 @@ def create_iso_requirement(
         description=payload.description,
         auditee_office=payload.auditee_office,
         risk_level=payload.risk_level or "Medium",
-        status="Not Compliant"
+        status="Not Compliant",
+        cycle_year=payload.cycle_year or "2025 Surveillance"
     )
     db.add(new_req)
     db.commit()
@@ -3196,6 +3266,8 @@ def update_iso_requirement(
     req.description = payload.description
     req.auditee_office = payload.auditee_office
     req.risk_level = payload.risk_level or req.risk_level
+    if payload.cycle_year:
+        req.cycle_year = payload.cycle_year
     db.commit()
     db.refresh(req)
     return req
@@ -3417,25 +3489,12 @@ DEFAULT_IQA_DAYS = [
 
 
 @app.get("/iso/schedule-days", response_model=List[schemas.IQADayScheduleResponse])
-def get_iqa_schedule_days(db: Session = Depends(get_db)):
-    """Retrieves or seeds dynamic IQA Audit Days for the campus QMS."""
-    days = db.query(models.IQADaySchedule).filter(models.IQADaySchedule.program == "GLOBAL").order_by(models.IQADaySchedule.day_number.asc()).all()
-    if not days:
-        seeded = []
-        for d in DEFAULT_IQA_DAYS:
-            item = models.IQADaySchedule(
-                program="GLOBAL",
-                day_number=d["day_number"],
-                day_date=d["day_date"],
-                title=d["title"],
-                scope=d["scope"]
-            )
-            db.add(item)
-            seeded.append(item)
-        db.commit()
-        for s in seeded: db.refresh(s)
-        return seeded
-    return days
+def get_iqa_schedule_days(cycle_year: str = Query("2025 Surveillance"), db: Session = Depends(get_db)):
+    """Retrieves dynamic IQA Audit Days for the campus QMS filtered by cycle year."""
+    return db.query(models.IQADaySchedule).filter(
+        models.IQADaySchedule.program == "GLOBAL",
+        models.IQADaySchedule.cycle_year == cycle_year
+    ).order_by(models.IQADaySchedule.day_number.asc()).all()
 
 
 @app.post("/iso/schedule-days", response_model=schemas.IQADayScheduleResponse, status_code=status.HTTP_201_CREATED)
@@ -3447,6 +3506,7 @@ def create_iqa_schedule_day(
     """Admin creates a new dynamic IQA Audit Day."""
     new_day = models.IQADaySchedule(
         program="GLOBAL",
+        cycle_year=payload.cycle_year,
         day_number=payload.day_number,
         day_date=payload.day_date,
         title=payload.title,
