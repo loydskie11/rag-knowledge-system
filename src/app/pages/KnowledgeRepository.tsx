@@ -1,7 +1,21 @@
 import { useState, useRef, useEffect } from "react"
-import { Search, Filter, Upload, Download, Edit, Archive, Clock, Eye, CheckCircle, FileText, UploadCloud, X, Loader2, AlertCircle } from "lucide-react"
+import { Search, Filter, Upload, Download, Edit, Archive, Clock, Eye, CheckCircle, FileText, UploadCloud, X, Loader2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react"
 import axios from "axios"
 import { useRole } from "../contexts/RoleContext"
+
+export interface BackgroundUploadTask {
+  id: string
+  docName: string
+  category: string
+  office: string
+  version: string
+  fileName: string
+  progress: number
+  status: 'uploading' | 'vectorizing' | 'completed' | 'error' | 'cancelled'
+  statusText: string
+  abortController: AbortController
+  isVersionUpdate?: boolean
+}
 
 export function KnowledgeRepository() {
   const { userRole } = useRole()
@@ -12,6 +26,10 @@ export function KnowledgeRepository() {
   const canDelete = currentRole === "ADMIN"
 
   const [documents, setDocuments] = useState<any[]>([])
+  
+  // Background Upload Queue State
+  const [activeUploads, setActiveUploads] = useState<BackgroundUploadTask[]>([])
+  const [isQueueMinimized, setIsQueueMinimized] = useState(false)
   
   // --- TOAST NOTIFICATION STATE ---
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
@@ -247,39 +265,133 @@ export function KnowledgeRepository() {
     setShowUpdateModal(true)
   }
 
-  const handleUpdateVersionSubmit = async (e: React.FormEvent) => {
+  // --- BACKGROUND UPLOAD QUEUE HANDLERS ---
+  const cancelUploadTask = (taskId: string) => {
+    setActiveUploads(prev => prev.map(t => {
+      if (t.id === taskId) {
+        t.abortController.abort()
+        return { ...t, status: 'cancelled', statusText: 'Upload cancelled by user', progress: 0 }
+      }
+      return t
+    }))
+  }
+
+  const removeUploadTask = (taskId: string) => {
+    setActiveUploads(prev => prev.filter(t => t.id !== taskId))
+  }
+
+  const startBackgroundUpload = async (
+    taskId: string,
+    endpoint: string,
+    submitData: FormData,
+    controller: AbortController,
+    docName: string,
+    isVersionUpdate = false
+  ) => {
+    try {
+      await axios.post(endpoint, submitData, {
+        signal: controller.signal,
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent) => {
+          const loaded = progressEvent.loaded || 0
+          const total = progressEvent.total || 1
+          const uploadPercentage = Math.min(50, Math.round((loaded * 50) / total))
+          
+          setActiveUploads(prev => prev.map(t => {
+            if (t.id === taskId && t.status !== 'cancelled') {
+              const statusText = uploadPercentage < 50 
+                ? `Transferring document file (${uploadPercentage * 2}%)...` 
+                : 'Analyzing document content & indexing...'
+              const status = uploadPercentage < 50 ? 'uploading' : 'vectorizing'
+              return { ...t, progress: uploadPercentage, statusText, status }
+            }
+            return t
+          }))
+        }
+      })
+
+      // Update to processing step
+      setActiveUploads(prev => prev.map(t => {
+        if (t.id === taskId && t.status !== 'cancelled') {
+          return { ...t, progress: 85, status: 'vectorizing', statusText: 'Finalizing document record...' }
+        }
+        return t
+      }))
+
+      // Complete task
+      setTimeout(() => {
+        setActiveUploads(prev => prev.map(t => {
+          if (t.id === taskId && t.status !== 'cancelled') {
+            return { ...t, progress: 100, status: 'completed', statusText: 'Document active & searchable!' }
+          }
+          return t
+        }))
+
+        // Refresh documents list
+        axios.get("http://localhost:8000/documents").then(res => setDocuments(res.data)).catch(console.error)
+        showToast(isVersionUpdate ? `New version of "${docName}" successfully published!` : `"${docName}" successfully added to repository!`, 'success')
+      }, 600)
+
+    } catch (error: any) {
+      if (axios.isCancel(error) || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+        setActiveUploads(prev => prev.map(t => {
+          if (t.id === taskId) {
+            return { ...t, status: 'cancelled', statusText: 'Upload cancelled by user', progress: 0 }
+          }
+          return t
+        }))
+        showToast(`Upload of "${docName}" was cancelled.`, 'error')
+      } else {
+        setActiveUploads(prev => prev.map(t => {
+          if (t.id === taskId) {
+            return { ...t, status: 'error', statusText: 'Document processing failed.', progress: 0 }
+          }
+          return t
+        }))
+        showToast(`Upload of "${docName}" failed. Please check network.`, 'error')
+      }
+    }
+  }
+
+  const handleUpdateVersionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!updateFile || !updateFormData.version || !updateFormData.effectivityDate) {
+    if (!updateFile || !updateFormData.version || !updateFormData.effectivityDate || !docToUpdate) {
       showToast("Please provide the new file, version, and effectivity date.", "error");
       return;
     }
 
-    setIsUpdatingVersion(true);
-    
+    const taskId = "update_" + Date.now()
+    const controller = new AbortController()
+
     const submitData = new FormData();
     submitData.append("file", updateFile);
     submitData.append("old_document_name", docToUpdate.name);
     submitData.append("new_version", updateFormData.version);
     submitData.append("new_effectivity_date", updateFormData.effectivityDate);
 
-    try {
-      await axios.post("http://localhost:8000/upload-new-version", submitData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-      
-      setShowUpdateModal(false);
-      setUpdateFile(null);
-      setDocToUpdate(null);
-      
-      const res = await axios.get("http://localhost:8000/documents");
-      setDocuments(res.data);
-      showToast("New version successfully published!", "success");
-    } catch (error) {
-      console.error("Failed to update version:", error);
-      showToast("Failed to upload the new version.", "error");
-    } finally {
-      setIsUpdatingVersion(false);
+    const newTask: BackgroundUploadTask = {
+      id: taskId,
+      docName: docToUpdate.name,
+      category: docToUpdate.category || "Document",
+      office: docToUpdate.office || "",
+      version: updateFormData.version,
+      fileName: updateFile.name,
+      progress: 5,
+      status: 'uploading',
+      statusText: 'Initializing version update...',
+      abortController: controller,
+      isVersionUpdate: true
     }
+
+    setActiveUploads(prev => [...prev, newTask])
+
+    // Immediately close modal & reset fields so user can navigate away
+    setShowUpdateModal(false);
+    setUpdateFile(null);
+    setDocToUpdate(null);
+    showToast(`Version update for "${docToUpdate.name}" started in background!`, 'success')
+
+    startBackgroundUpload(taskId, "http://localhost:8000/upload-new-version", submitData, controller, newTask.docName, true)
   }
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }
@@ -305,12 +417,15 @@ export function KnowledgeRepository() {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
-  const handleUploadSubmit = async () => {
+  const handleUploadSubmit = () => {
     if (!selectedFile || !formData.name || !formData.version || !formData.effectivityDate) {
       showToast("Please fill out all fields and select a file.", "error")
       return
     }
-    setIsUploading(true)
+
+    const taskId = "task_" + Date.now()
+    const controller = new AbortController()
+
     const submitData = new FormData()
     submitData.append("file", selectedFile)
     submitData.append("name", formData.name)
@@ -319,21 +434,28 @@ export function KnowledgeRepository() {
     submitData.append("version", formData.version)
     submitData.append("effectivity_date", formData.effectivityDate)
 
-    try {
-      await axios.post("http://localhost:8000/upload-document", submitData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      })
-      setShowUploadModal(false)
-      setSelectedFile(null)
-      setFormData({ name: "", category: "Policy", office: "Academic Affairs", version: "", effectivityDate: "" })
-      const res = await axios.get("http://localhost:8000/documents");
-      setDocuments(res.data);
-      showToast("Document successfully uploaded!", "success")
-    } catch (error) {
-      showToast("Upload failed. Please check your connection.", "error")
-    } finally {
-      setIsUploading(false)
+    const newTask: BackgroundUploadTask = {
+      id: taskId,
+      docName: formData.name,
+      category: formData.category,
+      office: formData.office,
+      version: formData.version,
+      fileName: selectedFile.name,
+      progress: 5,
+      status: 'uploading',
+      statusText: 'Initializing upload...',
+      abortController: controller
     }
+
+    setActiveUploads(prev => [...prev, newTask])
+    
+    // Immediately close modal & reset fields so user can leave
+    setShowUploadModal(false)
+    setSelectedFile(null)
+    setFormData({ name: "", category: "Policy", office: "Academic Affairs", version: "", effectivityDate: "" })
+    showToast(`Upload of "${newTask.docName}" started in background!`, 'success')
+
+    startBackgroundUpload(taskId, "http://localhost:8000/upload-document", submitData, controller, newTask.docName)
   }
 
   return (
@@ -379,6 +501,17 @@ export function KnowledgeRepository() {
               </button>
             )}
 
+            {activeUploads.some(t => t.status === 'uploading' || t.status === 'vectorizing') && (
+              <button
+                onClick={() => setIsQueueMinimized(false)}
+                className="flex items-center gap-2 px-3.5 py-2 bg-orange-50 text-[#D97E00] border border-[#FF9501]/30 rounded-lg text-xs font-bold animate-pulse cursor-pointer shadow-xs"
+                title="View active ingestion progress"
+              >
+                <UploadCloud className="h-4 w-4 text-[#FF9501] animate-bounce" />
+                <span>Ingesting ({activeUploads.filter(t => t.status === 'uploading' || t.status === 'vectorizing').length})</span>
+              </button>
+            )}
+
             {canUpload && (
               <button
                 onClick={() => setShowUploadModal(true)}
@@ -391,6 +524,7 @@ export function KnowledgeRepository() {
           </div>
         </div>
 
+        {/* Search and Filters Bar */}
         <div className="bg-white p-5 rounded-lg border border-[#E5E7EB] shadow-sm">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1 relative">
@@ -925,6 +1059,103 @@ export function KnowledgeRepository() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* --- BACKGROUND INGESTION TASK MANAGER FLOATING PANEL --- */}
+      {activeUploads.length > 0 && (
+        <div className="fixed top-20 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 border-t-4 border-t-[#FF9501] overflow-hidden animate-in slide-in-from-top-5 fade-in duration-300">
+          {/* Header */}
+          <div className="px-4 py-3 bg-[#1F2937] text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UploadCloud className="h-4 w-4 text-[#FF9501] animate-bounce" />
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Ingestion Queue ({activeUploads.filter(t => t.status === 'uploading' || t.status === 'vectorizing').length} Active)
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsQueueMinimized(!isQueueMinimized)}
+                className="p-1 text-gray-300 hover:text-white rounded hover:bg-white/10 transition-colors cursor-pointer"
+                title={isQueueMinimized ? "Expand Queue" : "Minimize Queue"}
+              >
+                {isQueueMinimized ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          {!isQueueMinimized && (
+            <div className="p-4 max-h-72 overflow-y-auto divide-y divide-gray-100 space-y-3">
+              {activeUploads.map((task) => (
+                <div key={task.id} className="pt-2 first:pt-0 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-gray-900 text-xs truncate max-w-[180px]" title={task.docName}>
+                          {task.docName}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-orange-100 text-[#D97E00] text-[9px] font-extrabold uppercase rounded">
+                          v{task.version}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 truncate mt-0.5" title={task.fileName}>{task.fileName}</p>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {(task.status === 'uploading' || task.status === 'vectorizing') && (
+                        <button
+                          onClick={() => cancelUploadTask(task.id)}
+                          className="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 text-[10px] font-bold uppercase rounded transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Cancel Upload Task"
+                        >
+                          <X className="h-3 w-3" /> Cancel
+                        </button>
+                      )}
+
+                      {(task.status === 'completed' || task.status === 'error' || task.status === 'cancelled') && (
+                        <button
+                          onClick={() => removeUploadTask(task.id)}
+                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors cursor-pointer"
+                          title="Dismiss Task"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="space-y-1">
+                    <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          task.status === 'completed'
+                            ? 'bg-[#006837]'
+                            : task.status === 'error' || task.status === 'cancelled'
+                            ? 'bg-red-500'
+                            : 'bg-[#FF9501] animate-pulse'
+                        }`}
+                        style={{ width: `${task.status === 'completed' ? 100 : task.progress}%` }}
+                      ></div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                      <span className="flex items-center gap-1">
+                        {(task.status === 'uploading' || task.status === 'vectorizing') && (
+                          <Loader2 className="h-3 w-3 animate-spin text-[#FF9501]" />
+                        )}
+                        {task.status === 'completed' && <CheckCircle className="h-3 w-3 text-[#006837]" />}
+                        {task.status === 'cancelled' && <AlertCircle className="h-3 w-3 text-red-500" />}
+                        {task.statusText}
+                      </span>
+                      <span className="font-bold text-gray-700">{task.status === 'completed' ? '100%' : `${task.progress}%`}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       

@@ -76,6 +76,7 @@ export function LoginPage() {
       sessionStorage.setItem('userEmail', response.data.email);
       sessionStorage.setItem('userRole', response.data.role);
       sessionStorage.setItem('userDepartment', response.data.department);
+      sessionStorage.setItem('userAdministrativeOffice', response.data.administrative_office || '');
       
       setUserRole(response.data.role);
       navigate("/app");

@@ -26,23 +26,29 @@ model = SentenceTransformer('all-MiniLM-L6-v2')
 def add_to_vector_db(text, metadata):
     # Check if supabase was actually initialized before using it
     if supabase is None:
-        print("[WARNING] search_knowledge called but supabase client is not initialized!")
-        return []
+        print("[WARNING] add_to_vector_db called but supabase client is not initialized!")
+        return 0
     
     # Split text into chunks of 500 characters
     chunks = [text[i:i+500] for i in range(0, len(text), 500)]
+    if not chunks:
+        return 0
     
-    for chunk in chunks:
-        # Generate the embedding (the "math" version of the text)
-        embedding = model.encode(chunk).tolist()
-        
-        # Insert into the document_sections table we created in the SQL editor
-        supabase.table("document_sections").insert({
+    # Batch encode all embeddings in memory at once (10x faster and atomic)
+    embeddings = model.encode(chunks).tolist()
+    
+    # Construct bulk insertion payload
+    records = [
+        {
             "content": chunk,
             "metadata": metadata,
-            "embedding": embedding
-        }).execute()
-        
+            "embedding": emb
+        }
+        for chunk, emb in zip(chunks, embeddings)
+    ]
+    
+    # Perform single atomic bulk insertion into Supabase
+    supabase.table("document_sections").insert(records).execute()
     return len(chunks)
 
 def search_knowledge(question: str, match_count: int = 3, excluded_categories: list = None):

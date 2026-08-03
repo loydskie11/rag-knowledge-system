@@ -51,51 +51,47 @@ OCR_FALLBACK_THRESHOLD = 50
 
 def extract_pdf_text(contents: bytes) -> str:
     """
-    Extract text from a PDF with per-page OCR fallback.
-
-    Strategy:
-    - For each page, try PyPDF2 first (fast).
-    - If a page yields fewer than OCR_FALLBACK_THRESHOLD characters,
-      it likely contains an embedded image/table — render the page
-      as an image and run PaddleOCR on it instead.
-    - This correctly handles:
-        1. Normal text PDFs      → PyPDF2 only (fast)
-        2. Fully scanned PDFs    → OCR every page
-        3. Mixed PDFs (e.g. Student Handbook with image tables)
-                                 → PyPDF2 for text pages, OCR for image pages
+    Fast, robust PDF text extraction with PyMuPDF (fitz) and selective OCR fallback.
+    Prevents long OCR delays on multi-page PDFs with mixed text/graphic pages.
     """
     import fitz
 
     extracted_text = ""
-    pdf_reader    = PyPDF2.PdfReader(io.BytesIO(contents))
-    pdf_document  = fitz.open(stream=contents, filetype="pdf")
-    ocr_instance  = None  # lazy-init only if needed
+    pdf_document = fitz.open(stream=contents, filetype="pdf")
 
-    for page_num, page in enumerate(pdf_reader.pages):
-        page_text = page.extract_text() or ""
+    # 1. Fast text extraction using PyMuPDF across all pages
+    for page in pdf_document:
+        text = page.get_text() or ""
+        if text.strip():
+            extracted_text += text + "\n"
 
-        if len(page_text.strip()) >= OCR_FALLBACK_THRESHOLD:
-            # Enough text from PyPDF2 — use it directly
-            extracted_text += page_text + "\n"
-        else:
-            # Too little text → page is likely an image/table scan → use OCR
+    # 2. If document contains sufficient text (>100 chars), return immediately! (0.1s processing time)
+    if len(extracted_text.strip()) > 100:
+        pdf_document.close()
+        return extracted_text
+
+    # 3. Fallback: If entire document yields < 100 chars (scanned document), run OCR on scanned pages
+    ocr_text = ""
+    ocr_instance = None
+    max_ocr_pages = min(len(pdf_document), 30)  # Safety cap at 30 pages for OCR scans
+
+    for page_num in range(max_ocr_pages):
+        page_text = pdf_document[page_num].get_text() or ""
+        if len(page_text.strip()) < 30:
             if ocr_instance is None:
                 ocr_instance = get_ocr()
-
             fitz_page = pdf_document.load_page(page_num)
-            pix       = fitz_page.get_pixmap(dpi=150)
-            img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
-                pix.height, pix.width, pix.n
-            )
-            if pix.n == 4:  # RGBA → RGB
+            pix = fitz_page.get_pixmap(dpi=120)
+            img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+            if pix.n == 4:
                 img_array = img_array[:, :, :3]
-
-            ocr_text = run_ocr(ocr_instance, img_array)
-            # Prefer OCR result; if OCR also yields nothing, keep PyPDF2 text
-            extracted_text += (ocr_text if ocr_text.strip() else page_text) + "\n"
+            page_ocr = run_ocr(ocr_instance, img_array)
+            ocr_text += (page_ocr if page_ocr.strip() else page_text) + "\n"
+        else:
+            ocr_text += page_text + "\n"
 
     pdf_document.close()
-    return extracted_text
+    return ocr_text if ocr_text.strip() else extracted_text
 
 
 def supabase_query_with_retry(query_fn, retries=3, delay=1):
@@ -250,6 +246,7 @@ class UserCreateRequest(BaseModel):
     email:     str
     role:      str
     password:  str
+    administrative_office: Optional[str] = None
 
 class ChangePasswordRequest(BaseModel):
     email: str
@@ -329,6 +326,10 @@ try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE iso_requirements ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
         conn.execute(text("ALTER TABLE iqa_day_schedules ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS administrative_office VARCHAR(255);"))
+        conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS actual_completion_date VARCHAR(50);"))
+        conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_date VARCHAR(50);"))
+        conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_notes TEXT;"))
         conn.commit()
 except Exception as _mig_err:
     pass
@@ -547,6 +548,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         hashed_password=hashed_pwd,
         role=user.role.upper(),
         department=user.department,
+        administrative_office=user.administrative_office,
         is_verified=auto_verify
     )
     db.add(new_user)
@@ -692,6 +694,7 @@ def login_user(
         "email":        user.email,
         "role":         user.role,
         "department":   user_dept,
+        "administrative_office": user.administrative_office or "",
     }
 
 
@@ -869,6 +872,7 @@ def create_user_admin(request: UserCreateRequest, db: Session = Depends(get_db))
         hashed_password=hashed_pwd,
         role=request.role.upper(),
         department="ADMIN" if request.role.upper() == "ADMIN" else "Unassigned",
+        administrative_office=request.administrative_office,
         is_verified=True
     )
     db.add(new_user)
@@ -903,7 +907,7 @@ def create_user_admin(request: UserCreateRequest, db: Session = Depends(get_db))
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/upload-document")
-async def upload_document(
+def upload_document(
     file:             UploadFile = File(...),
     name:             str = Form(...),
     category:         str = Form(...),
@@ -913,7 +917,7 @@ async def upload_document(
     uploaded_by:      str = Form(None),   # pass userEmail from the frontend
     db: Session = Depends(get_db),        # ← added so we can fan-out notifications
 ):
-    contents       = await file.read()
+    contents       = file.file.read()
     extracted_text = ""
 
     try:
@@ -993,7 +997,7 @@ async def upload_document(
 
 
 @app.post("/upload-new-version")
-async def upload_new_version(
+def upload_new_version(
     file:                 UploadFile = File(...),
     old_document_name:    str = Form(...),
     new_version:          str = Form(...),
@@ -1017,7 +1021,7 @@ async def upload_new_version(
                 chunk_meta['status'] = "Archived"
                 supabase.table("document_sections").update({"metadata": chunk_meta}).eq("id", chunk['id']).execute()
 
-        contents       = await file.read()
+        contents       = file.file.read()
         extracted_text = ""
         filename_lower = file.filename.lower()
 
@@ -3553,6 +3557,147 @@ def delete_iqa_schedule_day(
     db.delete(item)
     db.commit()
     return {"message": "IQA Audit Day deleted successfully."}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QMS OPPORTUNITIES & ACTION PLANS (MRC Form 6)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/qms/action-plans", response_model=List[schemas.QMSActionPlanResponse])
+def get_qms_action_plans(
+    cycle_year: str = Query("2025 Surveillance"),
+    office: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Retrieves QMS Action Plans filtered by cycle year and optional auditee office."""
+    query = db.query(models.QMSActionPlan).filter(models.QMSActionPlan.cycle_year == cycle_year)
+    if office and office != "all":
+        query = query.filter(models.QMSActionPlan.auditee_office == office)
+    return query.order_by(models.QMSActionPlan.created_at.desc()).all()
+
+
+@app.post("/qms/action-plans", response_model=schemas.QMSActionPlanResponse, status_code=status.HTTP_201_CREATED)
+def create_qms_action_plan(
+    payload: schemas.QMSActionPlanCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Creates a new digital QMS Action Plan (MRC Form 6 Opportunities)."""
+    new_plan = models.QMSActionPlan(
+        cycle_year=payload.cycle_year,
+        auditee_office=payload.auditee_office,
+        process_area=payload.process_area,
+        opportunity_type=payload.opportunity_type,
+        opportunity_description=payload.opportunity_description,
+        action_plan=payload.action_plan,
+        target_date=payload.target_date,
+        personnel_responsible=payload.personnel_responsible,
+        status=payload.status or "In Progress",
+        created_by=current_user.email
+    )
+    db.add(new_plan)
+    db.commit()
+    db.refresh(new_plan)
+    return new_plan
+
+
+@app.put("/qms/action-plans/{plan_id}", response_model=schemas.QMSActionPlanResponse)
+def update_qms_action_plan(
+    plan_id: str,
+    payload: schemas.QMSActionPlanUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Updates an existing digital QMS Action Plan."""
+    plan = db.query(models.QMSActionPlan).filter(models.QMSActionPlan.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="QMS Action Plan not found.")
+
+    if payload.auditee_office is not None: plan.auditee_office = payload.auditee_office
+    if payload.process_area is not None: plan.process_area = payload.process_area
+    if payload.opportunity_type is not None: plan.opportunity_type = payload.opportunity_type
+    if payload.opportunity_description is not None: plan.opportunity_description = payload.opportunity_description
+    if payload.action_plan is not None: plan.action_plan = payload.action_plan
+    if payload.target_date is not None: plan.target_date = payload.target_date
+    if payload.personnel_responsible is not None: plan.personnel_responsible = payload.personnel_responsible
+    if payload.status is not None: 
+        plan.status = payload.status
+        if payload.status == "Completed" and not plan.actual_completion_date and not payload.actual_completion_date:
+            plan.actual_completion_date = datetime.utcnow().strftime("%Y-%m-%d")
+
+    if payload.actual_completion_date is not None: plan.actual_completion_date = payload.actual_completion_date
+    if payload.assessment_date is not None: plan.assessment_date = payload.assessment_date
+    if payload.assessment_notes is not None: plan.assessment_notes = payload.assessment_notes
+
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+@app.delete("/qms/action-plans/{plan_id}")
+def delete_qms_action_plan(
+    plan_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Deletes a QMS Action Plan."""
+    plan = db.query(models.QMSActionPlan).filter(models.QMSActionPlan.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="QMS Action Plan not found.")
+    db.delete(plan)
+    db.commit()
+    return {"message": "QMS Action Plan successfully deleted."}
+
+
+@app.post("/qms/action-plans/{plan_id}/upload-evidence")
+def upload_qms_action_plan_evidence(
+    plan_id: str,
+    file: UploadFile = File(...),
+    document_name: str = Form(...),
+    uploaded_by: str = Form("Faculty User"),
+    db: Session = Depends(get_db)
+):
+    """Uploads an evidence file attached directly to a QMS Action Plan."""
+    plan = db.query(models.QMSActionPlan).filter(models.QMSActionPlan.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="QMS Action Plan not found.")
+
+    contents = file.file.read()
+    file_path = f"qms_evidences/{uuid.uuid4()}_{file.filename}"
+    
+    file_url = f"http://localhost:8000/uploads/{file_path}"
+    try:
+        if supabase:
+            supabase.storage.from_("repository").upload(file_path, contents)
+            file_url = supabase.storage.from_("repository").get_public_url(file_path)
+    except Exception as e:
+        print(f"Supabase upload notice: {e}")
+
+    evidence = models.QMSEvidence(
+        action_plan_id=plan.id,
+        document_name=document_name or file.filename,
+        file_url=file_url,
+        uploaded_by=uploaded_by
+    )
+    db.add(evidence)
+    db.commit()
+    db.refresh(evidence)
+
+    return {"message": "Evidence file attached to Action Plan successfully!", "evidence_id": str(evidence.id), "file_url": file_url}
+
+
+@app.delete("/qms/action-plans/evidence/{evidence_id}")
+def delete_qms_evidence(
+    evidence_id: str,
+    db: Session = Depends(get_db)
+):
+    """Deletes an evidence file attached to a QMS Action Plan."""
+    evidence = db.query(models.QMSEvidence).filter(models.QMSEvidence.id == evidence_id).first()
+    if not evidence:
+        raise HTTPException(status_code=404, detail="QMS Evidence file not found.")
+    db.delete(evidence)
+    db.commit()
+    return {"message": "Attached evidence file removed."}
 
 
 

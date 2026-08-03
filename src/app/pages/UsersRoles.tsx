@@ -2,6 +2,25 @@ import { useState, useEffect } from "react";
 import { Search, UserPlus, Ban, UserX, CheckCircle, Clock, XCircle, AlertCircle, X, ShieldAlert, Unlock, Loader2 } from "lucide-react";
 import axios from "axios";
 
+export const ISO_OFFICES_16 = [
+  "Finance/Budget/Accounting/Cashier",
+  "Student Affairs Services",
+  "Registrar/MIS",
+  "HRMO",
+  "Document Controller",
+  "Management/Leadership",
+  "Educational Delivery Processes",
+  "Maintenance/General Services",
+  "Research and Development",
+  "Extension",
+  "Production and Resource Generation",
+  "Library Services",
+  "Procurement/BAC",
+  "Supply/Property Custodian",
+  "DRRM",
+  "Gender and Development"
+];
+
 export function UsersRoles() {
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,7 +40,12 @@ export function UsersRoles() {
   // --- MODAL STATES ---
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [addUserData, setAddUserData] = useState({ name: "", email: "", role: "", password: "" });
+  const [addUserData, setAddUserData] = useState({ name: "", email: "", role: "", password: "", administrative_office: "" });
+
+  // Edit User State
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
 
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [userToReject, setUserToReject] = useState<any>(null);
@@ -118,7 +142,7 @@ export function UsersRoles() {
   const handleAddUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addUserData.name || !addUserData.email || !addUserData.role || !addUserData.password) {
-      showToast("Please fill out all fields.", "error");
+      showToast("Please fill out all required fields.", "error");
       return;
     }
     setIsCreating(true);
@@ -127,17 +151,45 @@ export function UsersRoles() {
         full_name: addUserData.name,
         email: addUserData.email,
         role: addUserData.role,
-        password: addUserData.password
+        password: addUserData.password,
+        administrative_office: addUserData.administrative_office || null
       });
 
       showToast(`${addUserData.role} ${addUserData.name} created successfully!`, "success");
       setShowAddUserModal(false);
-      setAddUserData({ name: "", email: "", role: "", password: "" });
+      setAddUserData({ name: "", email: "", role: "", password: "", administrative_office: "" });
       fetchUsers();
     } catch (error: any) {
       showToast(error.response?.data?.detail || "Failed to create user.", "error");
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleEditUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser || !editingUser.full_name) {
+      showToast("Please fill out all required fields.", "error");
+      return;
+    }
+    setIsUpdatingUser(true);
+    try {
+      await axios.put("http://localhost:8000/users/profile", {
+        email: editingUser.email,
+        new_email: editingUser.email,
+        full_name: editingUser.full_name,
+        program: editingUser.department || "BSIT",
+        administrative_office: editingUser.administrative_office || null
+      });
+
+      showToast(`User ${editingUser.full_name} updated successfully!`, "success");
+      setShowEditUserModal(false);
+      setEditingUser(null);
+      fetchUsers();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update user.", "error");
+    } finally {
+      setIsUpdatingUser(false);
     }
   };
 
@@ -301,13 +353,14 @@ export function UsersRoles() {
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">ISO Admin Office</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredUsers.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">No users found matching your filters.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500 font-medium">No users found matching your filters.</td></tr>
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50 transition-colors">
@@ -323,6 +376,15 @@ export function UsersRoles() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
+                      <span className={`px-3 py-1 text-xs font-bold rounded-lg border ${
+                        user.administrative_office 
+                          ? 'bg-orange-50 text-[#D97E00] border-[#FF9501]/30'
+                          : 'bg-gray-50 text-gray-400 border-gray-200 font-normal'
+                      }`}>
+                        {user.administrative_office || "Academic Only"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
                         (user.status || 'Active') === 'Active' 
                         ? 'bg-green-50 border-green-200 text-green-700' 
@@ -331,7 +393,14 @@ export function UsersRoles() {
                         {user.status || "Active"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-6 py-4 text-center flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => { setEditingUser({ ...user }); setShowEditUserModal(true); }}
+                        className="px-2.5 py-1 text-xs font-bold text-[#FF9501] bg-orange-50 hover:bg-orange-100 border border-[#FF9501]/30 rounded-lg transition-colors cursor-pointer"
+                        title="Edit User & Office Assignment"
+                      >
+                        Edit Office
+                      </button>
                       {user.role !== 'ADMIN' && (
                         (user.status || 'Active') === 'Active' ? (
                           <button 
@@ -392,6 +461,23 @@ export function UsersRoles() {
                 </select>
               </div>
 
+              {addUserData.role !== "STUDENT" && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Administrative Office (ISO Matrix Decoupled)</label>
+                  <select 
+                    name="administrative_office" 
+                    value={addUserData.administrative_office} 
+                    onChange={handleAddUserChange} 
+                    className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                  >
+                    <option value="">None / Unassigned (Academic Only)</option>
+                    {ISO_OFFICES_16.map((off) => (
+                      <option key={off} value={off}>{off}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Temporary Password</label>
                 <input type="password" name="password" value={addUserData.password} onChange={handleAddUserChange} className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="Enter secure password" />
@@ -403,6 +489,68 @@ export function UsersRoles() {
                 </button>
                 <button type="submit" disabled={isCreating} className="flex-1 px-5 py-3 text-sm font-bold bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer">
                    {isCreating ? <><Loader2 className="h-4 w-4 animate-spin"/> Creating...</> : "Create Account"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT USER & OFFICE ASSIGNMENT MODAL --- */}
+      {showEditUserModal && editingUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F5F7FA]">
+              <h2 className="text-xl font-bold text-[#1F2937]">Edit User & Office Assignment</h2>
+              <button onClick={() => setShowEditUserModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleEditUserSubmit} className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Full Name</label>
+                <input 
+                  type="text" 
+                  value={editingUser.full_name || ""} 
+                  onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })} 
+                  className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501]" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Email Address</label>
+                <input 
+                  type="email" 
+                  value={editingUser.email || ""} 
+                  disabled 
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 cursor-not-allowed" 
+                />
+              </div>
+
+              {editingUser.role !== "STUDENT" && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Administrative Office (Decoupled ISO Matrix)</label>
+                  <select 
+                    value={editingUser.administrative_office || ""} 
+                    onChange={(e) => setEditingUser({ ...editingUser, administrative_office: e.target.value })} 
+                    className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                  >
+                    <option value="">None / Unassigned (Academic Only)</option>
+                    {ISO_OFFICES_16.map((off) => (
+                      <option key={off} value={off}>{off}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Assigning an office will automatically default their ISO Audit Dashboard to that office.</p>
+                </div>
+              )}
+            
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setShowEditUserModal(false)} className="flex-1 px-5 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isUpdatingUser} className="flex-1 px-5 py-3 text-sm font-bold bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer">
+                   {isUpdatingUser ? <><Loader2 className="h-4 w-4 animate-spin"/> Saving...</> : "Save Office Assignment"}
                 </button>
               </div>
             </form>

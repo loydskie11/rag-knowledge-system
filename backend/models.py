@@ -13,6 +13,7 @@ class User(Base):
     hashed_password = Column(Text, nullable=False)
     role = Column(String(50), default="STUDENT")
     department = Column(String(255), nullable=True)
+    administrative_office = Column(String(255), nullable=True)
     is_verified = Column(Boolean, default=False)
     status = Column(String(50), default="Active")
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -185,6 +186,40 @@ class IQADaySchedule(Base):
     title = Column(String(255), nullable=False)
     scope = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class QMSActionPlan(Base):
+    __tablename__ = "qms_action_plans"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cycle_year = Column(String(50), default="2025 Surveillance", nullable=False)
+    auditee_office = Column(String(255), nullable=False)
+    process_area = Column(String(255), nullable=False)
+    opportunity_type = Column(String(50), default="Process") # Process, People, Paper, Risk/Opportunity
+    opportunity_description = Column(Text, nullable=False)
+    action_plan = Column(Text, nullable=False)
+    target_date = Column(String(50), nullable=False)
+    personnel_responsible = Column(String(255), nullable=False)
+    status = Column(String(50), default="In Progress") # Proposed, In Progress, Completed, Overdue
+    actual_completion_date = Column(String(50), nullable=True) # e.g. "2025-09-10"
+    assessment_date = Column(String(50), nullable=True) # e.g. "2025-09-12"
+    assessment_notes = Column(Text, nullable=True) # Auditor/Lead remarks
+    created_by = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    evidences = relationship("QMSEvidence", back_populates="action_plan", cascade="all, delete-orphan")
+
+
+class QMSEvidence(Base):
+    __tablename__ = "qms_evidences"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    action_plan_id = Column(UUID(as_uuid=True), ForeignKey("qms_action_plans.id", ondelete="CASCADE"), nullable=False)
+    document_name = Column(String(255), nullable=False)
+    file_url = Column(String, nullable=False)
+    uploaded_by = Column(String(255), nullable=False)
+    upload_date = Column(DateTime, default=datetime.utcnow)
+
+    action_plan = relationship("QMSActionPlan", back_populates="evidences")
 
 
 

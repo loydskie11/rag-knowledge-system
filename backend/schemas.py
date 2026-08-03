@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 import uuid
-from typing import Optional
+from typing import Optional, List
 
 # What the user sends us when they sign up
 class UserCreate(BaseModel):
@@ -12,6 +12,7 @@ class UserCreate(BaseModel):
     course: Optional[str] = None  # NEW
     year: Optional[str] = None    # NEW
     department: Optional[str] = None
+    administrative_office: Optional[str] = None
 
 # What we send back to the user (Notice we DO NOT send the password back!)
 class UserResponse(BaseModel):
@@ -20,6 +21,7 @@ class UserResponse(BaseModel):
     role: str
     full_name: Optional[str] = None  # NEW
     department: Optional[str] = None
+    administrative_office: Optional[str] = None
     is_verified: bool                # NEW
     status: Optional[str] = "Active"
     created_at: datetime
@@ -35,6 +37,7 @@ class Token(BaseModel):
     email: str      # NEW
     role: str       # NEW
     department: str or "BSIT"
+    administrative_office: Optional[str] = None
 
 # --- NEW: ANNOUNCEMENT SCHEMAS ---
 class AnnouncementCreate(BaseModel):
@@ -243,6 +246,68 @@ class IQADayScheduleResponse(BaseModel):
     title: str
     scope: str
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class QMSEvidenceResponse(BaseModel):
+    id: uuid.UUID
+    action_plan_id: uuid.UUID
+    document_name: str
+    file_url: str
+    uploaded_by: str
+    upload_date: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class QMSActionPlanCreate(BaseModel):
+    cycle_year: str = "2025 Surveillance"
+    auditee_office: str
+    process_area: str
+    opportunity_type: str = "Process"
+    opportunity_description: str
+    action_plan: str
+    target_date: str
+    personnel_responsible: str
+    status: str = "In Progress"
+    actual_completion_date: Optional[str] = None
+    assessment_date: Optional[str] = None
+    assessment_notes: Optional[str] = None
+
+class QMSActionPlanUpdate(BaseModel):
+    auditee_office: Optional[str] = None
+    process_area: Optional[str] = None
+    opportunity_type: Optional[str] = None
+    opportunity_description: Optional[str] = None
+    action_plan: Optional[str] = None
+    target_date: Optional[str] = None
+    personnel_responsible: Optional[str] = None
+    status: Optional[str] = None
+    actual_completion_date: Optional[str] = None
+    assessment_date: Optional[str] = None
+    assessment_notes: Optional[str] = None
+
+class QMSActionPlanResponse(BaseModel):
+    id: uuid.UUID
+    cycle_year: str
+    auditee_office: str
+    process_area: str
+    opportunity_type: str
+    opportunity_description: str
+    action_plan: str
+    target_date: str
+    personnel_responsible: str
+    status: str
+    actual_completion_date: Optional[str] = None
+    assessment_date: Optional[str] = None
+    assessment_notes: Optional[str] = None
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+    evidences: Optional[List[QMSEvidenceResponse]] = []
 
     class Config:
         from_attributes = True
