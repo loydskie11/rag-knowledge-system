@@ -80,6 +80,7 @@ export function AccreditationSupport() {
   const [showIsoUploadModal, setShowIsoUploadModal] = useState(false);
   const [selectedIsoReq, setSelectedIsoReq] = useState<any>(null);
   const [isoOfficeFilter, setIsoOfficeFilter] = useState("all");
+  const [isoSearchQuery, setIsoSearchQuery] = useState("");
 
   // ISO Audit Cycle Year & Expanded Clause States
   const [selectedIsoCycleYear, setSelectedIsoCycleYear] = useState("2025 Surveillance");
@@ -92,10 +93,10 @@ export function AccreditationSupport() {
   // Add ISO Requirement States
   const [showAddIsoReqModal, setShowAddIsoReqModal] = useState(false);
   const [newIsoReq, setNewIsoReq] = useState({
-    iso_clause: "Clause 6.1",
+    iso_clause: "",
     title: "",
     description: "",
-    auditee_office: "Finance/Budget/Accounting/Cashier",
+    auditee_office: ISO_OFFICES_16[0],
     risk_level: "Medium"
   });
   const [isAddingIsoReq, setIsAddingIsoReq] = useState(false);
@@ -122,6 +123,7 @@ export function AccreditationSupport() {
   const [qmsOfficeFilter, setQmsOfficeFilter] = useState("all");
   const [qmsTypeFilter, setQmsTypeFilter] = useState("all");
   const [qmsStatusFilter, setQmsStatusFilter] = useState("all");
+  const [qmsSearchQuery, setQmsSearchQuery] = useState("");
 
   const [showAddQmsModal, setShowAddQmsModal] = useState(false);
   const [isAddingQms, setIsAddingQms] = useState(false);
@@ -838,10 +840,10 @@ export function AccreditationSupport() {
       });
       showToast(`New ISO Clause (${newIsoReq.iso_clause}) added to ${selectedIsoCycleYear}!`, "success");
       setNewIsoReq({
-        iso_clause: "Clause 6.1",
+        iso_clause: "",
         title: "",
         description: "",
-        auditee_office: "Director of Instruction (DOI) & SAO",
+        auditee_office: ISO_OFFICES_16[0],
         risk_level: "Medium"
       });
       setShowAddIsoReqModal(false);
@@ -979,10 +981,35 @@ export function AccreditationSupport() {
     }
   };
 
-  // Calculate ISO Compliance Math
-  const isoCompliantCount = isoRequirements.filter(r => r.status === 'Compliant').length;
-  const isoTotalCount = isoRequirements.length;
+  // --- DYNAMIC ISO COMPLIANCE MATH & SEARCH FILTERING ---
+  const filteredIsoReqs = isoRequirements.filter(req => {
+    const matchesOffice = isoOfficeFilter === "all" || req.auditee_office === isoOfficeFilter;
+    const q = isoSearchQuery.toLowerCase().trim();
+    const matchesQuery = !q ||
+      (req.iso_clause && req.iso_clause.toLowerCase().includes(q)) ||
+      (req.title && req.title.toLowerCase().includes(q)) ||
+      (req.description && req.description.toLowerCase().includes(q)) ||
+      (req.auditee_office && req.auditee_office.toLowerCase().includes(q));
+    return matchesOffice && matchesQuery;
+  });
+  const isoTotalCount = filteredIsoReqs.length;
+  const isoCompliantCount = filteredIsoReqs.filter(r => r.status === 'Compliant').length;
   const isoCompliancePercentage = isoTotalCount === 0 ? 0 : Math.round((isoCompliantCount / isoTotalCount) * 100);
+
+  // --- DYNAMIC QMS ACTION PLANS FILTERING ---
+  const filteredQmsPlans = qmsActionPlans.filter(p => {
+    const matchesOffice = qmsOfficeFilter === 'all' || p.auditee_office === qmsOfficeFilter;
+    const matchesType = qmsTypeFilter === 'all' || p.opportunity_type === qmsTypeFilter;
+    const matchesStatus = qmsStatusFilter === 'all' || p.status === qmsStatusFilter;
+    const q = qmsSearchQuery.toLowerCase().trim();
+    const matchesQuery = !q ||
+      (p.process_area && p.process_area.toLowerCase().includes(q)) ||
+      (p.opportunity_description && p.opportunity_description.toLowerCase().includes(q)) ||
+      (p.action_plan && p.action_plan.toLowerCase().includes(q)) ||
+      (p.personnel_responsible && p.personnel_responsible.toLowerCase().includes(q)) ||
+      (p.auditee_office && p.auditee_office.toLowerCase().includes(q));
+    return matchesOffice && matchesType && matchesStatus && matchesQuery;
+  });
 
   // Calculate CHED Compliance Math
   const chedCompliantCount = chedRequirements.filter(r => r.status === 'Compliant').length;
@@ -1714,9 +1741,11 @@ export function AccreditationSupport() {
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-gray-100 bg-white">
                   <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total ISO Clauses ({selectedIsoCycleYear})</p>
-                      <h3 className="text-2xl font-bold text-[#1F2937] mt-0.5">{isoTotalCount} Clauses</h3>
-                      <p className="text-[11px] text-[#6B7280]">Covering 8 Auditee Offices</p>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Audit Requirements ({selectedIsoCycleYear})</p>
+                      <h3 className="text-2xl font-bold text-[#1F2937] mt-0.5">{isoTotalCount} Checkpoints</h3>
+                      <p className="text-[11px] text-[#6B7280]">
+                        {isoOfficeFilter === 'all' ? 'Across 16 Auditee Offices' : 'For Selected Office'}
+                      </p>
                     </div>
                     <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-[#FF9501] shadow-sm">
                       <FileBadge className="h-5 w-5" />
@@ -1737,7 +1766,7 @@ export function AccreditationSupport() {
                   <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-bold text-[#D97E00] uppercase tracking-wider">Pending Evidence</p>
-                      <h3 className="text-2xl font-bold text-[#D97E00] mt-0.5">{isoTotalCount - isoCompliantCount} Clauses</h3>
+                      <h3 className="text-2xl font-bold text-[#D97E00] mt-0.5">{isoTotalCount - isoCompliantCount} Checkpoints</h3>
                       <p className="text-[11px] text-[#D97E00]">Requires office proof</p>
                     </div>
                     <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-[#FF9501] shadow-sm">
@@ -1803,6 +1832,23 @@ export function AccreditationSupport() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
+                    {/* ISO Search Input Bar */}
+                    <div className="relative min-w-[180px] sm:min-w-[220px]">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={isoSearchQuery}
+                        onChange={(e) => setIsoSearchQuery(e.target.value)}
+                        placeholder="Search clause code, title, or keywords..."
+                        className="w-full pl-9 pr-7 py-2 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] shadow-2xs"
+                      />
+                      {isoSearchQuery && (
+                        <button onClick={() => setIsoSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+
                     <div className="flex items-center gap-2">
                       <Building className="h-4 w-4 text-[#FF9501] shrink-0" />
                       <label className="text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Filter Office:</label>
@@ -1827,7 +1873,7 @@ export function AccreditationSupport() {
                     </div>
 
                     <div className="text-xs text-gray-500 font-semibold whitespace-nowrap">
-                      <span className="hidden sm:inline">Showing </span>{isoRequirements.filter((req) => isoOfficeFilter === "all" || req.auditee_office === isoOfficeFilter).length}<span className="hidden sm:inline"> of {isoTotalCount} ISO Clauses</span><span className="sm:hidden"> clauses</span>
+                      <span className="hidden sm:inline">Showing </span>{filteredIsoReqs.length}<span className="hidden sm:inline"> of {isoRequirements.length} Checkpoints</span><span className="sm:hidden"> checkpoints</span>
                     </div>
                   </div>
                 </div>
@@ -1939,34 +1985,42 @@ export function AccreditationSupport() {
                             <option value="Overdue">Overdue</option>
                           </select>
                         </div>
+
+                        {/* QMS Search Bar Input */}
+                        <div className="relative min-w-[200px] flex-1 max-w-xs">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={qmsSearchQuery}
+                            onChange={(e) => setQmsSearchQuery(e.target.value)}
+                            placeholder="Search process area, plan, or personnel..."
+                            className="w-full pl-9 pr-7 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] shadow-2xs"
+                          />
+                          {qmsSearchQuery && (
+                            <button onClick={() => setQmsSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="text-xs text-gray-500 font-bold">
-                        Showing {qmsActionPlans.filter(p => 
-                          (qmsOfficeFilter === 'all' || p.auditee_office === qmsOfficeFilter) &&
-                          (qmsTypeFilter === 'all' || p.opportunity_type === qmsTypeFilter) &&
-                          (qmsStatusFilter === 'all' || p.status === qmsStatusFilter)
-                        ).length} Action Plan(s)
+                        Showing {filteredQmsPlans.length} Action Plan(s)
                       </div>
                     </div>
 
                     {/* Action Plans List / Cards */}
                     {isLoadingQmsPlans ? (
                       <div className="py-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#FF9501]" /></div>
-                    ) : qmsActionPlans.length === 0 ? (
+                    ) : filteredQmsPlans.length === 0 ? (
                       <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500 space-y-3">
                         <Sparkles className="h-10 w-10 text-gray-300 mx-auto" />
-                        <h4 className="font-bold text-gray-700">No Digital QMS Action Plans Recorded</h4>
-                        <p className="text-xs text-gray-500">Click "Create Action Plan" to record a new Process, People, or Paper opportunity.</p>
+                        <h4 className="font-bold text-gray-700">No Digital QMS Action Plans Found</h4>
+                        <p className="text-xs text-gray-500">Try adjusting your search query or filters.</p>
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {qmsActionPlans
-                          .filter(p => 
-                            (qmsOfficeFilter === 'all' || p.auditee_office === qmsOfficeFilter) &&
-                            (qmsTypeFilter === 'all' || p.opportunity_type === qmsTypeFilter) &&
-                            (qmsStatusFilter === 'all' || p.status === qmsStatusFilter)
-                          )
+                        {filteredQmsPlans
                           .map((plan) => {
                             const isOverdue = plan.status !== 'Completed' && new Date(plan.target_date) < new Date();
                             return (
@@ -3120,7 +3174,7 @@ export function AccreditationSupport() {
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Preset Clause Templates (Click to insert):</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {["Clause 6.1", "Clause 7.1", "Clause 7.1.5.2", "Clause 7.2", "Clause 7.5", "Clause 8.1 & 8.5", "Clause 8.4", "Clause 8.6 & 10.2", "Clause 9.1 & 9.1.2"].map((preset) => (
+                  {Array.from(new Set(isoRequirements.map(r => r.iso_clause))).filter(Boolean).map((preset) => (
                     <button
                       key={preset}
                       type="button"
@@ -3243,7 +3297,7 @@ export function AccreditationSupport() {
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Preset Clause Templates (Click to insert):</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {["Clause 6.1", "Clause 7.1", "Clause 7.1.5.2", "Clause 7.2", "Clause 7.5", "Clause 8.1 & 8.5", "Clause 8.4", "Clause 8.6 & 10.2", "Clause 9.1 & 9.1.2"].map((preset) => (
+                  {Array.from(new Set(isoRequirements.map(r => r.iso_clause))).filter(Boolean).map((preset) => (
                     <button
                       key={preset}
                       type="button"

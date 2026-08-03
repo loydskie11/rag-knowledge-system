@@ -3083,66 +3083,6 @@ async def upload_paper_trail_attachment(file: UploadFile = File(...)):
 # ISO 9001:2015 QUALITY MANAGEMENT SYSTEM (QMS) & IQA ENDPOINTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-DEFAULT_ISO_CLAUSES = [
-    {
-        "iso_clause": "Clause 6.1",
-        "title": "Actions to Address Risks & Opportunities in Education",
-        "description": "Assessment of risk planning for student services (resource limitations, student attrition) and leveraging opportunities (new program development, technology integration).",
-        "auditee_office": "Director of Instruction (DOI) & SAO",
-        "risk_level": "High"
-    },
-    {
-        "iso_clause": "Clause 7.1",
-        "title": "Resource Management & Financial Adequacy",
-        "description": "Evaluation of financial processes, resource acquisition, storage, property custody, asset tracking, and budget allocation.",
-        "auditee_office": "Property Custodian & Finance",
-        "risk_level": "Medium"
-    },
-    {
-        "iso_clause": "Clause 7.2",
-        "title": "Faculty Competence & Professional Training",
-        "description": "Review of processes for determining faculty qualifications, ongoing professional development, loading distribution, and competency enhancement.",
-        "auditee_office": "Human Resources Management Office (HRMO)",
-        "risk_level": "High"
-    },
-    {
-        "iso_clause": "Clause 7.5",
-        "title": "Control of Documented Information & Records",
-        "description": "Verification of system for managing QMS policies, procedures, inventory assets, CMO compliance records, and nonconformity reports.",
-        "auditee_office": "Document Controller & Registrar",
-        "risk_level": "Medium"
-    },
-    {
-        "iso_clause": "Clause 8.1 & 8.5",
-        "title": "Curriculum Design, CMO Compliance & Instruction",
-        "description": "Assessment of systematic process for designing, developing, and revising academic curricula adhering to CHED Memorandum Orders and teaching standards.",
-        "auditee_office": "College Deans & Program Chairs",
-        "risk_level": "High"
-    },
-    {
-        "iso_clause": "Clause 8.4",
-        "title": "Control of Externally Provided Services",
-        "description": "Audit of external service providers, BAC procurement procedures, canteen/dormitory services, and supply management affecting student welfare.",
-        "auditee_office": "BAC / Procurement & Supply",
-        "risk_level": "Medium"
-    },
-    {
-        "iso_clause": "Clause 8.6 & 10.2",
-        "title": "Nonconforming Outputs & Corrective Actions",
-        "description": "Scrutiny of controls for nonconforming outputs, student assessment methodologies, evaluation, and implementing corrective actions for QMS improvement.",
-        "auditee_office": "Quality Assurance & Deans",
-        "risk_level": "High"
-    },
-    {
-        "iso_clause": "Clause 9.1 & 9.1.2",
-        "title": "Performance Evaluation & Student Satisfaction",
-        "description": "Enrolment data management, student record-keeping, student satisfaction monitoring, data integrity, and internal quality audit (IQA) reporting.",
-        "auditee_office": "Registrar & MIS",
-        "risk_level": "Medium"
-    }
-]
-
-
 @app.get("/iso/cycles", response_model=List[str])
 def get_iso_cycles(db: Session = Depends(get_db)):
     """Retrieves all distinct audit cycle years present in the system, sorted."""
@@ -3161,7 +3101,7 @@ def initialize_iso_cycle(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin)
 ):
-    """Initializes a new ISO Audit Cycle (e.g. '2026 Surveillance') with clean baseline clauses."""
+    """Initializes a new ISO Audit Cycle (e.g. '2026 Surveillance')."""
     target_prog = "GLOBAL"
     new_cycle = payload.cycle_year.strip()
     if not new_cycle:
@@ -3172,33 +3112,12 @@ def initialize_iso_cycle(
         models.ISORequirement.cycle_year == new_cycle
     ).all()
 
-    if existing:
-        return existing
-
-    seeded_reqs = []
-    for item in DEFAULT_ISO_CLAUSES:
-        req = models.ISORequirement(
-            program=target_prog,
-            iso_clause=item["iso_clause"],
-            title=item["title"],
-            description=item["description"],
-            auditee_office=item["auditee_office"],
-            risk_level=item["risk_level"],
-            status="Not Compliant",
-            cycle_year=new_cycle
-        )
-        db.add(req)
-        seeded_reqs.append(req)
-
-    db.commit()
-    for r in seeded_reqs:
-        db.refresh(r)
-    return seeded_reqs
+    return existing
 
 
 @app.get("/iso/requirements/{program}", response_model=List[schemas.ISORequirementResponse])
 def get_iso_requirements(program: str, cycle_year: Optional[str] = "2025 Surveillance", db: Session = Depends(get_db)):
-    """Retrieves or seeds ISO 9001:2015 clause checklists for the campus (Institutional QMS) per cycle year."""
+    """Retrieves ISO 9001:2015 clause checklists for the campus (Institutional QMS) per cycle year."""
     target_prog = "GLOBAL"
     target_cycle = cycle_year or "2025 Surveillance"
 
@@ -3207,26 +3126,6 @@ def get_iso_requirements(program: str, cycle_year: Optional[str] = "2025 Surveil
         models.ISORequirement.cycle_year == target_cycle
     ).all()
 
-    if not existing:
-        # Seed default 8 ISO Clauses for this target cycle year
-        seeded_reqs = []
-        for item in DEFAULT_ISO_CLAUSES:
-            req = models.ISORequirement(
-                program=target_prog,
-                iso_clause=item["iso_clause"],
-                title=item["title"],
-                description=item["description"],
-                auditee_office=item["auditee_office"],
-                risk_level=item["risk_level"],
-                status="Not Compliant",
-                cycle_year=target_cycle
-            )
-            db.add(req)
-            seeded_reqs.append(req)
-        db.commit()
-        for r in seeded_reqs:
-            db.refresh(r)
-        return seeded_reqs
     return existing
 
 
