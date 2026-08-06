@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import {
   Search, Filter, Plus, FileCheck, Clock, CheckCircle2, AlertCircle,
   FileText, Send, Building, User, Download, Printer, X, Loader2,
-  ChevronRight, Eye, History, QrCode, Tag, MessageSquare, ExternalLink
+  ChevronRight, Eye, History, QrCode, Tag, MessageSquare, ExternalLink,
+  Inbox, Globe, MapPin, Flag
 } from "lucide-react";
 import axios from "axios";
 import { useRole } from "../contexts/RoleContext";
@@ -328,6 +329,26 @@ export function PaperTrail() {
     return matchesSearch && matchesStatus && matchesOffice && matchesType;
   });
 
+  // Action Board Filtering (Inbox vs Outbox vs Campus All)
+  const actionBoardRecords = filteredRecords.filter((rec) => {
+    const myOffice = sessionStorage.getItem("userAdministrativeOffice") || sessionStorage.getItem("userDepartment") || "";
+    if (actionBoardTab === "inbox") {
+      return (
+        (rec.current_location && rec.current_location.toLowerCase().includes(myOffice.toLowerCase())) ||
+        (rec.office && rec.office.toLowerCase().includes(myOffice.toLowerCase())) ||
+        (rec.recipient_email && rec.recipient_email.toLowerCase() === userEmail.toLowerCase()) ||
+        (rec.status === "Pending Request" && rec.recipient_email === userEmail)
+      );
+    }
+    if (actionBoardTab === "outbox") {
+      return (
+        (rec.sender_email && rec.sender_email.toLowerCase() === userEmail.toLowerCase()) ||
+        (rec.origin_person && rec.origin_person.toLowerCase() === userName.toLowerCase())
+      );
+    }
+    return true;
+  });
+
   // Metrics
   const totalTracked = records.length;
   const pendingReceiving = records.filter((r) => r.status === "Pending Receiving" || r.status === "Forwarded").length;
@@ -383,15 +404,13 @@ export function PaperTrail() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {currentRole === "ADMIN" && (
-              <button
-                onClick={() => setShowRequestModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#1D6FA3] text-white rounded-lg hover:bg-[#15527B] transition-all cursor-pointer shadow-sm active:scale-95 text-sm font-semibold"
-              >
-                <Send className="h-4 w-4" />
-                <span>+ Request Document</span>
-              </button>
-            )}
+            <button
+              onClick={() => setShowRequestModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#1D6FA3] text-white rounded-lg hover:bg-[#15527B] transition-all cursor-pointer shadow-sm active:scale-95 text-sm font-semibold"
+            >
+              <Send className="h-4 w-4" />
+              <span>+ Request Document</span>
+            </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all cursor-pointer shadow-sm active:scale-95 text-sm font-semibold"
@@ -456,6 +475,17 @@ export function PaperTrail() {
         {/* Phase 4: Action Board Tab Switcher (Inbox vs Outbox vs Campus All) */}
         <div className="flex border-b border-gray-200 gap-2 pt-2">
           <button
+            onClick={() => setActionBoardTab("all")}
+            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              actionBoardTab === "all"
+                ? "border-emerald-600 text-emerald-600 bg-emerald-50/50 rounded-t-lg"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <Globe className="h-4 w-4" /> All Campus Documents
+          </button>
+
+          <button
             onClick={() => setActionBoardTab("inbox")}
             className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
               actionBoardTab === "inbox"
@@ -463,7 +493,7 @@ export function PaperTrail() {
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
             }`}
           >
-            <FileCheck className="h-4 w-4" /> 📥 Action Board Inbox (Documents Assigned to Desk)
+            <Inbox className="h-4 w-4" /> Action Board Inbox
           </button>
 
           <button
@@ -474,19 +504,10 @@ export function PaperTrail() {
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
             }`}
           >
-            <Send className="h-4 w-4" /> 📤 Action Board Outbox (Documents Forwarded/Sent)
+            <Send className="h-4 w-4" /> Action Board Outbox 
           </button>
 
-          <button
-            onClick={() => setActionBoardTab("all")}
-            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-              actionBoardTab === "all"
-                ? "border-emerald-600 text-emerald-600 bg-emerald-50/50 rounded-t-lg"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            <Building className="h-4 w-4" /> 🌐 All Campus Documents
-          </button>
+          
         </div>
 
         {/* Filter and Search Bar */}
@@ -559,7 +580,7 @@ export function PaperTrail() {
             <Loader2 className="h-8 w-8 animate-spin text-[#FF9501] mb-3" />
             <p className="text-sm font-medium">Loading paper trail records...</p>
           </div>
-        ) : filteredRecords.length === 0 ? (
+        ) : actionBoardRecords.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-[#6B7280] text-center">
             <FileCheck className="h-12 w-12 text-[#9CA3AF] mb-3 stroke-[1.5]" />
             <h3 className="text-base font-semibold text-[#1F2937]">No Paper Trail Records Found</h3>
@@ -582,8 +603,8 @@ export function PaperTrail() {
                   <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Document Title & Type</th>
                   <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Current Location & Origin</th>
                   <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Status & Type</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Last Updated</th>
                   <th className="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-right">Last Updated</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E7EB]">
@@ -630,8 +651,8 @@ export function PaperTrail() {
 
                       <td className="px-6 py-4">
                         <div className="text-xs font-bold text-[#1F2937] flex items-center gap-1.5">
-                          <Building className="h-3.5 w-3.5 text-[#FF9501]" />
-                          <span>📍 Location: {rec.current_location || rec.office}</span>
+                          <MapPin className="h-3.5 w-3.5 text-[#FF9501]" />
+                          <span>Location: {rec.current_location || rec.office}</span>
                         </div>
                         <div className="text-[11px] text-[#6B7280] pl-5 mt-0.5">
                           Origin: {rec.origin_office || rec.office} ({rec.origin_person || rec.sender_name})
@@ -645,16 +666,7 @@ export function PaperTrail() {
                         </span>
                       </td>
 
-                      <td className="px-6 py-4 text-xs text-[#6B7280]">
-                        {new Date(rec.updated_at).toLocaleString([], {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-
+                      {/* Actions Column (Placed before Last Updated so it's easily accessible) */}
                       <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           {/* Timeline / History */}
@@ -712,6 +724,17 @@ export function PaperTrail() {
                             </button>
                           )}
                         </div>
+                      </td>
+
+                      {/* Last Updated Column (On the far right) */}
+                      <td className="px-6 py-4 text-xs text-[#6B7280] text-right">
+                        {new Date(rec.updated_at).toLocaleString([], {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </td>
                     </tr>
                   );
@@ -1021,16 +1044,16 @@ export function PaperTrail() {
         </div>
       )}
 
-      {/* TOP-DOWN "REQUEST DOCUMENT" MODAL (Phase 3) */}
+      {/* "REQUEST DOCUMENT" MODAL (Phase 3 - Available to Faculty & Admins) */}
       {showRequestModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl border-t-4 border-t-[#1D6FA3] max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
             <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
               <div>
                 <h2 className="text-lg font-bold text-[#1F2937] flex items-center gap-2">
-                  <Send className="h-5 w-5 text-[#1D6FA3]" /> Issue Top-Down Document Request
+                  <Send className="h-5 w-5 text-[#1D6FA3]" /> Issue Document Request (Memo, Resolution, Map, etc.)
                 </h2>
-                <p className="text-xs text-gray-500 mt-0.5">Request a document submission from a faculty member or office</p>
+                <p className="text-xs text-gray-500 mt-0.5">Request official documents (Memos, Board Resolutions, Syllabi) from campus offices or personnel</p>
               </div>
               <button onClick={() => setShowRequestModal(false)} className="p-1.5 hover:bg-[#E5E7EB] rounded-full text-gray-500">
                 <X className="h-5 w-5" />
@@ -1043,7 +1066,7 @@ export function PaperTrail() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Updated Curriculum Map 2026, QMS Grade Sheets"
+                  placeholder="e.g. Memorandum on Midterm Clearance, Board Resolution No. 42"
                   className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
                   value={requestFormData.title}
                   onChange={(e) => setRequestFormData({ ...requestFormData, title: e.target.value })}
@@ -1058,21 +1081,24 @@ export function PaperTrail() {
                     value={requestFormData.document_type}
                     onChange={(e) => setRequestFormData({ ...requestFormData, document_type: e.target.value })}
                   >
+                    <option value="Memo">Memorandum (Memo)</option>
+                    <option value="Resolution">Board / Office Resolution</option>
                     <option value="Curriculum Map">Curriculum Map</option>
                     <option value="Syllabus">Syllabus</option>
                     <option value="Grade Sheet">Grade Sheet</option>
                     <option value="Clearance Form">Clearance Form</option>
                     <option value="Accreditation Document">Accreditation Document</option>
                     <option value="Administrative Report">Administrative Report</option>
+                    <option value="Other">Other Document</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#1F2937] mb-1">Target Office</label>
+                  <label className="block text-xs font-bold text-[#1F2937] mb-1">Target Office <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. BSIT, HRMO, Registrar"
+                    placeholder="e.g. Dean's Office, HRMO, Registrar, Academic Affairs"
                     className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
                     value={requestFormData.office}
                     onChange={(e) => setRequestFormData({ ...requestFormData, office: e.target.value })}
@@ -1081,20 +1107,18 @@ export function PaperTrail() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1F2937] mb-1">Target Faculty Name & Email <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-bold text-[#1F2937] mb-1">Target Contact Person (Optional)</label>
                 <div className="grid grid-cols-2 gap-3">
                   <input
                     type="text"
-                    required
-                    placeholder="Faculty Name (e.g. John Doe)"
+                    placeholder="Person Name (e.g. Dr. Jane Smith)"
                     className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
                     value={requestFormData.target_person_name}
                     onChange={(e) => setRequestFormData({ ...requestFormData, target_person_name: e.target.value })}
                   />
                   <input
                     type="email"
-                    required
-                    placeholder="Faculty Email (e.g. john@ctu.edu.ph)"
+                    placeholder="Contact Email (e.g. jane@ctu.edu.ph)"
                     className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
                     value={requestFormData.target_person_email}
                     onChange={(e) => setRequestFormData({ ...requestFormData, target_person_email: e.target.value })}
@@ -1237,18 +1261,18 @@ export function PaperTrail() {
               <div className="p-4 bg-gradient-to-r from-orange-50 via-purple-50 to-blue-50 border border-gray-200 rounded-xl space-y-3">
                 <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">Physical Movement Hops Pipeline</div>
                 <div className="flex items-center flex-wrap gap-2 text-xs font-extrabold text-gray-900">
-                  <span className="px-3 py-1 bg-white border border-gray-300 rounded-lg shadow-2xs">
-                    🏁 Origin: {selectedRecordForTimeline.origin_office || selectedRecordForTimeline.office}
+                  <span className="px-3 py-1 bg-white border border-gray-300 rounded-lg shadow-2xs flex items-center gap-1.5">
+                    <Flag className="h-3.5 w-3.5 text-[#1D6FA3]" /> Origin: {selectedRecordForTimeline.origin_office || selectedRecordForTimeline.office}
                   </span>
                   <ChevronRight className="h-4 w-4 text-gray-400" />
-                  <span className="px-3 py-1 bg-[#FFF4E5] border border-[#FF9501]/40 text-[#D97E00] rounded-lg shadow-2xs">
-                    📍 Current Location: {selectedRecordForTimeline.current_location || selectedRecordForTimeline.office}
+                  <span className="px-3 py-1 bg-[#FFF4E5] border border-[#FF9501]/40 text-[#D97E00] rounded-lg shadow-2xs flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-[#FF9501]" /> Current Location: {selectedRecordForTimeline.current_location || selectedRecordForTimeline.office}
                   </span>
                   {selectedRecordForTimeline.status === "Approved" && (
                     <>
                       <ChevronRight className="h-4 w-4 text-gray-400" />
-                      <span className="px-3 py-1 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg shadow-2xs">
-                        ✅ Approved & Closed
+                      <span className="px-3 py-1 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg shadow-2xs flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Approved & Closed
                       </span>
                     </>
                   )}

@@ -186,6 +186,31 @@ def _notify_role(db: Session, role: str, n_type: str, title: str, message: str) 
         print(f"[_notify_role:{role}] silent failure — {exc}")
 
 
+def _notify_office(db: Session, office_name: str, n_type: str, title: str, message: str) -> None:
+    """
+    Broadcasts a notification to every active user whose administrative_office or department matches office_name.
+    """
+    if not office_name:
+        return
+    try:
+        office_users = (
+            db.query(models.User)
+            .filter(
+                models.User.status != "Disabled",
+                (
+                    (models.User.administrative_office == office_name) |
+                    (models.User.department == office_name)
+                )
+            )
+            .all()
+        )
+        for u in office_users:
+            if u.email:
+                _send_notification(u.email, n_type, title, message)
+    except Exception as exc:
+        print(f"[_notify_office] silent failure — {exc}")
+
+
 def _notify_non_admin(db: Session, n_type: str, title: str, message: str) -> None:
     """
     Send to all active FACULTY and STUDENT users — excludes ADMINs.
@@ -2958,7 +2983,15 @@ def create_paper_trail_record(
 
     # Notifications
     try:
-        if payload.recipient_email:
+        # Office Broadcasting to target office
+        _notify_office(
+            db=db,
+            office_name=payload.office,
+            n_type="info",
+            title=f"New Document Received: {tracking_no}",
+            message=f"{sender_name} released document '{payload.title}' to your office ({payload.office})."
+        )
+        if payload.recipient_email and payload.recipient_email != sender_email:
             _send_notification(
                 user_email=payload.recipient_email,
                 n_type="info",
@@ -2981,31 +3014,32 @@ def create_paper_trail_record(
 def create_top_down_document_request(
     payload: schemas.PaperTrailRequestCreate,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_current_admin)
+    current_user: models.User = Depends(get_current_faculty_or_admin)
 ):
-    """Admin / Director creates a top-down document request assigned to a faculty/office."""
+    """Faculty or Admin/Director creates a document request assigned to an office or person (e.g. Memo, Resolution)."""
     tracking_no = _generate_tracking_number(db)
-    director_name = admin.full_name or "Campus Director / Administrator"
-    director_email = admin.email
-    director_office = getattr(admin, 'administrative_office', None) or getattr(admin, 'department', None) or "Management/Leadership"
+    requester_name = current_user.full_name or "Faculty / User"
+    requester_email = current_user.email
+    requester_role = current_user.role.upper()
+    requester_office = getattr(current_user, 'administrative_office', None) or getattr(current_user, 'department', None) or payload.office
 
     new_record = models.PaperTrailRecord(
         tracking_number=tracking_no,
         title=payload.title,
         document_type=payload.document_type,
         office=payload.office,
-        sender_name=director_name,
-        sender_email=director_email,
-        sender_role="ADMIN",
+        sender_name=requester_name,
+        sender_email=requester_email,
+        sender_role=requester_role,
         recipient_name=payload.target_person_name,
         recipient_email=payload.target_person_email,
-        recipient_role="FACULTY",
-        origin_office=director_office,
-        origin_person=director_name,
+        recipient_role="FACULTY" if requester_role == "ADMIN" else "ADMIN",
+        origin_office=requester_office,
+        origin_person=requester_name,
         current_location=payload.office or f"Desk of {payload.target_person_name}",
         transaction_type="Request",
         status="Pending Request",
-        remarks=payload.instructions or "Please submit requested document."
+        remarks=payload.instructions or f"Request for {payload.document_type}: {payload.title}"
     )
     db.add(new_record)
     db.commit()
@@ -3013,22 +3047,32 @@ def create_top_down_document_request(
 
     initial_log = models.PaperTrailLog(
         record_id=new_record.id,
-        action="Top-Down Document Request Issued",
+        action=f"Document Request Issued ({payload.document_type})",
         status="Pending Request",
-        actor_name=director_name,
-        actor_email=director_email,
-        actor_role="ADMIN",
-        notes=payload.instructions or f"Director requested '{payload.title}' from {payload.target_person_name} ({payload.office})."
+        actor_name=requester_name,
+        actor_email=requester_email,
+        actor_role=requester_role,
+        notes=payload.instructions or f"{requester_name} requested '{payload.title}' ({payload.document_type}) from {payload.office}."
     )
     db.add(initial_log)
     db.commit()
 
     try:
-        _send_notification(
-            user_email=payload.target_person_email,
+        # Notify target person if email provided
+        if payload.target_person_email:
+            _send_notification(
+                user_email=payload.target_person_email,
+                n_type="warning",
+                title=f"Pending Document Request [{tracking_no}]",
+                message=f"{requester_name} has requested document '{payload.title}' ({payload.document_type}). Please upload and fulfill."
+            )
+        # Office Broadcasting to target office staff
+        _notify_office(
+            db=db,
+            office_name=payload.office,
             n_type="warning",
-            title=f"Pending Document Request [{tracking_no}]",
-            message=f"{director_name} has requested document '{payload.title}' ({payload.document_type}). Please upload and fulfill."
+            title=f"Document Request Issued [{tracking_no}]",
+            message=f"{requester_name} requested document '{payload.title}' ({payload.document_type}) from {payload.office}."
         )
     except Exception as exc:
         print(f"[create_top_down_document_request] notification warning: {exc}")
@@ -3070,12 +3114,23 @@ def fulfill_document_request(
     db.refresh(record)
 
     try:
-        _send_notification(
-            user_email=record.sender_email,
-            n_type="success",
-            title=f"Document Request Fulfilled [{record.tracking_number}]",
-            message=f"{user_name} has fulfilled the request for '{record.title}' and routed it to your desk."
-        )
+        # Requester / Originator Tracking notification
+        if record.sender_email:
+            _send_notification(
+                user_email=record.sender_email,
+                n_type="success",
+                title=f"Document Request Fulfilled [{record.tracking_number}]",
+                message=f"{user_name} has fulfilled the request for '{record.title}' and routed it back to your desk."
+            )
+        # Office Broadcasting to origin office
+        if record.origin_office:
+            _notify_office(
+                db=db,
+                office_name=record.origin_office,
+                n_type="success",
+                title=f"Document Request Fulfilled [{record.tracking_number}]",
+                message=f"{user_name} has fulfilled the request for '{record.title}'."
+            )
     except Exception as exc:
         print(f"[fulfill_document_request] notification warning: {exc}")
 
@@ -3179,14 +3234,41 @@ def update_paper_trail_status(
     db.commit()
     db.refresh(record)
 
-    # Notifications
+    # Notifications (Requester Tracking & Office Broadcasting)
     try:
+        # 1. Requester / Originator Tracking: Always notify original person who started trail
         if record.sender_email:
             _send_notification(
                 user_email=record.sender_email,
-                n_type="info",
+                n_type="info" if new_status != "Needs Revision" else "warning",
                 title=f"DTS Movement [{record.tracking_number}]",
                 message=f"Document '{record.title}' action: {action_text} by {payload.actor_name}."
+            )
+
+        # 2. Office Broadcasting to target/current office
+        if action_type == "Forward" and payload.target_office:
+            _notify_office(
+                db=db,
+                office_name=payload.target_office,
+                n_type="info",
+                title=f"Document Forwarded to Office [{record.tracking_number}]",
+                message=f"Document '{record.title}' has been forwarded to {payload.target_office} by {payload.actor_name}."
+            )
+        elif action_type == "Return" and record.origin_office:
+            _notify_office(
+                db=db,
+                office_name=record.origin_office,
+                n_type="warning",
+                title=f"Document Returned for Revision [{record.tracking_number}]",
+                message=f"Document '{record.title}' was returned to {record.origin_office} by {payload.actor_name}."
+            )
+        elif action_type == "Approve":
+            _notify_office(
+                db=db,
+                office_name=record.current_location or record.office,
+                n_type="success",
+                title=f"Document Approved & Closed [{record.tracking_number}]",
+                message=f"Document '{record.title}' was verified, approved, and closed by {payload.actor_name}."
             )
     except Exception as exc:
         print(f"[update_paper_trail_status] notification error: {exc}")
