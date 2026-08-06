@@ -247,6 +247,11 @@ class UserCreateRequest(BaseModel):
     role:      str
     password:  str
     administrative_office: Optional[str] = None
+    is_iqa_auditor: Optional[bool] = False
+
+class UserUpdateRequest(BaseModel):
+    administrative_office: Optional[str] = None
+    is_iqa_auditor: Optional[bool] = False
 
 class ChangePasswordRequest(BaseModel):
     email: str
@@ -327,6 +332,7 @@ try:
         conn.execute(text("ALTER TABLE iso_requirements ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
         conn.execute(text("ALTER TABLE iqa_day_schedules ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS administrative_office VARCHAR(255);"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_iqa_auditor BOOLEAN DEFAULT FALSE;"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS actual_completion_date VARCHAR(50);"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_date VARCHAR(50);"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_notes TEXT;"))
@@ -549,6 +555,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         role=user.role.upper(),
         department=user.department,
         administrative_office=user.administrative_office,
+        is_iqa_auditor=user.is_iqa_auditor or False,
         is_verified=auto_verify
     )
     db.add(new_user)
@@ -695,6 +702,7 @@ def login_user(
         "role":         user.role,
         "department":   user_dept,
         "administrative_office": user.administrative_office or "",
+        "is_iqa_auditor": bool(user.is_iqa_auditor),
     }
 
 
@@ -873,6 +881,7 @@ def create_user_admin(request: UserCreateRequest, db: Session = Depends(get_db))
         role=request.role.upper(),
         department="ADMIN" if request.role.upper() == "ADMIN" else "Unassigned",
         administrative_office=request.administrative_office,
+        is_iqa_auditor=request.is_iqa_auditor or False,
         is_verified=True
     )
     db.add(new_user)
@@ -900,6 +909,25 @@ def create_user_admin(request: UserCreateRequest, db: Session = Depends(get_db))
     )
 
     return {"message": f"{request.role.capitalize()} {request.full_name} created successfully!"}
+
+
+@app.put("/users/{user_id}/details")
+def update_user_details(
+    user_id: str,
+    payload: UserUpdateRequest,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Updates user administrative office and IQA Auditor role designation."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.administrative_office = payload.administrative_office
+    user.is_iqa_auditor = bool(payload.is_iqa_auditor)
+    db.commit()
+    db.refresh(user)
+    return {"message": "User administrative details updated successfully!"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3303,7 +3331,10 @@ def update_iso_status(
     payload: schemas.ISOStatusUpdate,
     db: Session = Depends(get_db)
 ):
-    """Updates ISO clause compliance status (e.g. Compliant, Pending, Not Compliant)."""
+    """Updates ISO clause compliance status (e.g. Compliant, Pending, Not Compliant).
+    BRIDGING NON-CONFORMITIES TO ACTION PLANS (CAR WORKFLOW):
+    When a clause is marked 'Not Compliant', automatically generate a Draft CAR QMS Action Plan (MRC Form 6) assigned to that specific auditee_office!
+    """
     req = db.query(models.ISORequirement).filter(models.ISORequirement.id == req_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="ISO requirement not found.")
@@ -3311,6 +3342,31 @@ def update_iso_status(
     req.status = payload.status
     db.commit()
     db.refresh(req)
+
+    # AUTO-GENERATE CAR (MRC Form 6 Action Plan) IF NON-COMPLIANT
+    if payload.status == "Not Compliant":
+        from datetime import datetime, timedelta
+        target_date_str = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        
+        # Check if an action plan for this audit finding already exists
+        existing_car = db.query(models.QMSActionPlan).filter(
+            models.QMSActionPlan.process_area.like(f"%CAR: {req.iso_clause}%")
+        ).first()
+
+        if not existing_car:
+            car_plan = models.QMSActionPlan(
+                process_area=f"CAR: {req.iso_clause} ({req.title})",
+                opportunity_type="Paper",
+                opportunity_description=f"Audit Non-Conformity under {req.iso_clause}: {req.description}",
+                action_plan=f"Formulate root-cause analysis and corrective measures to close out non-conformity for {req.iso_clause}.",
+                personnel_responsible=f"{req.auditee_office} Head / Designated Quality Officer",
+                target_date=target_date_str,
+                auditee_office=req.auditee_office,
+                status="In Progress"
+            )
+            db.add(car_plan)
+            db.commit()
+
     return req
 
 

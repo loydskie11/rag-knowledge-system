@@ -14,6 +14,7 @@ class User(Base):
     role = Column(String(50), default="STUDENT")
     department = Column(String(255), nullable=True)
     administrative_office = Column(String(255), nullable=True)
+    is_iqa_auditor = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     status = Column(String(50), default="Active")
     created_at = Column(DateTime, default=datetime.utcnow)

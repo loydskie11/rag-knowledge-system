@@ -77,6 +77,7 @@ export function LoginPage() {
       sessionStorage.setItem('userRole', response.data.role);
       sessionStorage.setItem('userDepartment', response.data.department);
       sessionStorage.setItem('userAdministrativeOffice', response.data.administrative_office || '');
+      sessionStorage.setItem('isIqaAuditor', String(response.data.is_iqa_auditor || false));
       
       setUserRole(response.data.role);
       navigate("/app");

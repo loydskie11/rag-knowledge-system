@@ -13,6 +13,7 @@ class UserCreate(BaseModel):
     year: Optional[str] = None    # NEW
     department: Optional[str] = None
     administrative_office: Optional[str] = None
+    is_iqa_auditor: Optional[bool] = False
 
 # What we send back to the user (Notice we DO NOT send the password back!)
 class UserResponse(BaseModel):
@@ -22,6 +23,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None  # NEW
     department: Optional[str] = None
     administrative_office: Optional[str] = None
+    is_iqa_auditor: Optional[bool] = False
     is_verified: bool                # NEW
     status: Optional[str] = "Active"
     created_at: datetime
@@ -36,8 +38,9 @@ class Token(BaseModel):
     full_name: str  # NEW
     email: str      # NEW
     role: str       # NEW
-    department: str or "BSIT"
+    department: Optional[str] = "BSIT"
     administrative_office: Optional[str] = None
+    is_iqa_auditor: Optional[bool] = False
 
 # --- NEW: ANNOUNCEMENT SCHEMAS ---
 class AnnouncementCreate(BaseModel):

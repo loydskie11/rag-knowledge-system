@@ -40,7 +40,7 @@ export function UsersRoles() {
   // --- MODAL STATES ---
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [addUserData, setAddUserData] = useState({ name: "", email: "", role: "", password: "", administrative_office: "" });
+  const [addUserData, setAddUserData] = useState({ name: "", email: "", role: "", password: "", administrative_office: "", is_iqa_auditor: false });
 
   // Edit User State
   const [showEditUserModal, setShowEditUserModal] = useState(false);
@@ -152,12 +152,13 @@ export function UsersRoles() {
         email: addUserData.email,
         role: addUserData.role,
         password: addUserData.password,
-        administrative_office: addUserData.administrative_office || null
+        administrative_office: addUserData.administrative_office || null,
+        is_iqa_auditor: addUserData.is_iqa_auditor
       });
 
       showToast(`${addUserData.role} ${addUserData.name} created successfully!`, "success");
       setShowAddUserModal(false);
-      setAddUserData({ name: "", email: "", role: "", password: "", administrative_office: "" });
+      setAddUserData({ name: "", email: "", role: "", password: "", administrative_office: "", is_iqa_auditor: false });
       fetchUsers();
     } catch (error: any) {
       showToast(error.response?.data?.detail || "Failed to create user.", "error");
@@ -181,6 +182,13 @@ export function UsersRoles() {
         program: editingUser.department || "BSIT",
         administrative_office: editingUser.administrative_office || null
       });
+
+      if (editingUser.id) {
+        await axios.put(`http://localhost:8000/users/${editingUser.id}/details`, {
+          administrative_office: editingUser.administrative_office || null,
+          is_iqa_auditor: Boolean(editingUser.is_iqa_auditor)
+        });
+      }
 
       showToast(`User ${editingUser.full_name} updated successfully!`, "success");
       setShowEditUserModal(false);
@@ -478,6 +486,21 @@ export function UsersRoles() {
                 </div>
               )}
 
+              {addUserData.role === "FACULTY" && (
+                <div className="flex items-center gap-3 p-3 bg-orange-50/70 border border-[#FF9501]/30 rounded-xl">
+                  <input
+                    type="checkbox"
+                    id="add_is_iqa_auditor"
+                    checked={addUserData.is_iqa_auditor}
+                    onChange={(e) => setAddUserData({ ...addUserData, is_iqa_auditor: e.target.checked })}
+                    className="h-4 w-4 text-[#FF9501] focus:ring-[#FF9501] border-gray-300 rounded cursor-pointer"
+                  />
+                  <label htmlFor="add_is_iqa_auditor" className="text-xs font-bold text-gray-800 cursor-pointer">
+                    Designate as Internal Quality Auditor (IQA Auditor) — Grants Campus-Wide Audit Access
+                  </label>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Temporary Password</label>
                 <input type="password" name="password" value={addUserData.password} onChange={handleAddUserChange} className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="Enter secure password" />
@@ -542,6 +565,21 @@ export function UsersRoles() {
                     ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">Assigning an office will automatically default their ISO Audit Dashboard to that office.</p>
+                </div>
+              )}
+
+              {editingUser.role === "FACULTY" && (
+                <div className="flex items-center gap-3 p-3 bg-orange-50/70 border border-[#FF9501]/30 rounded-xl">
+                  <input
+                    type="checkbox"
+                    id="edit_is_iqa_auditor"
+                    checked={Boolean(editingUser.is_iqa_auditor)}
+                    onChange={(e) => setEditingUser({ ...editingUser, is_iqa_auditor: e.target.checked })}
+                    className="h-4 w-4 text-[#FF9501] focus:ring-[#FF9501] border-gray-300 rounded cursor-pointer"
+                  />
+                  <label htmlFor="edit_is_iqa_auditor" className="text-xs font-bold text-gray-800 cursor-pointer">
+                    Designate as Internal Quality Auditor (IQA Auditor) — Grants Campus-Wide Audit Access
+                  </label>
                 </div>
               )}
             

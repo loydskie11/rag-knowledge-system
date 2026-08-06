@@ -9,7 +9,8 @@ export function AccreditationSupport() {
   const userDept = sessionStorage.getItem('userDepartment') || 'BSIT';
   const userName = sessionStorage.getItem('userName') || 'Faculty User';
   const userAdminOffice = sessionStorage.getItem('userAdministrativeOffice') || '';
-  const isOfficeRestricted = userRole !== 'ADMIN' && Boolean(userAdminOffice && ISO_OFFICES_16.includes(userAdminOffice));
+  const userIsIqaAuditor = sessionStorage.getItem('isIqaAuditor') === 'true';
+  const isOfficeRestricted = userRole !== 'ADMIN' && !userIsIqaAuditor && Boolean(userAdminOffice && ISO_OFFICES_16.includes(userAdminOffice));
 
   const [selectedProgram, setSelectedProgram] = useState(userRole === 'FACULTY' ? userDept : "BSIT");
   const [searchQuery, setSearchQuery] = useState("");
@@ -2529,7 +2530,17 @@ export function AccreditationSupport() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {iqaDays.map((day, idx) => (
-                  <div key={day.id || idx} className="p-5 bg-white border border-gray-200 hover:border-[#FF9501] rounded-xl space-y-3 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group">
+                  <div 
+                    key={day.id || idx} 
+                    onClick={() => {
+                      setIsoSubTab("clauses");
+                      // Extract first keyword or clause from title/scope
+                      const searchStr = day.title ? day.title.split(" ")[0] : "";
+                      setIsoSearchQuery(searchStr);
+                      showToast(`Filtered Checkpoints checklist for Audit Day ${day.day_number}!`, "info");
+                    }}
+                    className="p-5 bg-white border border-gray-200 hover:border-[#FF9501] rounded-xl space-y-3 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer"
+                  >
                     <div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                         <span className="px-2.5 py-0.5 bg-[#FF9501] text-white text-[10px] font-extrabold uppercase rounded shadow-2xs">
@@ -2543,18 +2554,22 @@ export function AccreditationSupport() {
 
                       <h4 className="font-bold text-gray-900 text-sm mt-3 group-hover:text-[#FF9501] transition-colors">{day.title}</h4>
                       <p className="text-xs text-gray-600 leading-relaxed mt-1.5">{day.scope}</p>
+
+                      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-1 text-[11px] font-bold text-[#D97E00] group-hover:underline">
+                        <Search className="h-3.5 w-3.5" /> Filter Scheduled Clauses & Evidence
+                      </div>
                     </div>
 
                     {userRole === "ADMIN" && (
-                      <div className="pt-2 border-t border-gray-100 flex items-center justify-end gap-1.5">
+                      <div className="pt-2 border-t border-gray-100 flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => { setEditingIqaDay(day); setShowEditIqaDayModal(true); }}
+                          onClick={(e) => { e.stopPropagation(); setEditingIqaDay(day); setShowEditIqaDayModal(true); }}
                           className="p-1.5 text-gray-400 hover:text-[#FF9501] transition-colors rounded cursor-pointer" title="Edit Day"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => { setDeletingIqaDay(day); setShowDeleteIqaDayModal(true); }}
+                          onClick={(e) => { e.stopPropagation(); setDeletingIqaDay(day); setShowDeleteIqaDayModal(true); }}
                           className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded cursor-pointer" title="Delete Day"
                         >
                           <Archive className="h-4 w-4" />
