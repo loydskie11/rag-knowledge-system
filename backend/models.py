@@ -109,6 +109,10 @@ class PaperTrailRecord(Base):
     recipient_email = Column(String(255), nullable=True)
     recipient_role = Column(String(50), nullable=True)
     status = Column(String(50), default="Pending Receiving") # Pending Receiving, Received, Under Review, Approved, Needs Revision, Released
+    origin_office = Column(String(255), nullable=True)
+    origin_person = Column(String(255), nullable=True)
+    current_location = Column(String(255), nullable=True)
+    transaction_type = Column(String(50), default="Submission") # Submission (bottom-up) or Request (top-down)
     remarks = Column(Text, nullable=True)
     file_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

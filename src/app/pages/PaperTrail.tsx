@@ -33,6 +33,10 @@ interface PaperTrailRecord {
   recipient_name?: string;
   recipient_email?: string;
   recipient_role?: string;
+  origin_office?: string;
+  origin_person?: string;
+  current_location?: string;
+  transaction_type?: string;
   status: string;
   remarks?: string;
   file_url?: string;
@@ -62,13 +66,37 @@ export function PaperTrail() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  // Action Board View Tabs (Inbox vs Outbox vs All)
+  const [actionBoardTab, setActionBoardTab] = useState<"inbox" | "outbox" | "all">("inbox");
+
+  // Top-Down "Request Document" States (Phase 3)
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [requestFormData, setRequestFormData] = useState({
+    title: "",
+    document_type: "Curriculum Map",
+    office: "Academic Affairs",
+    target_person_name: "",
+    target_person_email: "",
+    instructions: "",
+  });
+
+  // "Fulfill Request" States (Phase 3)
+  const [showFulfillModal, setShowFulfillModal] = useState(false);
+  const [selectedRecordForFulfill, setSelectedRecordForFulfill] = useState<PaperTrailRecord | null>(null);
+  const [fulfillFile, setFulfillFile] = useState<File | null>(null);
+  const [fulfillRemarks, setFulfillRemarks] = useState("");
+  const [isSubmittingFulfill, setIsSubmittingFulfill] = useState(false);
+  const fulfillFileInputRef = useRef<HTMLInputElement>(null);
+
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedRecordForStatus, setSelectedRecordForStatus] = useState<PaperTrailRecord | null>(null);
-  const [newStatus, setNewStatus] = useState("Received");
+  const [actionType, setActionType] = useState<"Acknowledge" | "Forward" | "Return" | "Approve">("Acknowledge");
+  const [targetOffice, setTargetOffice] = useState("");
   const [statusNotes, setStatusNotes] = useState("");
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -85,6 +113,7 @@ export function PaperTrail() {
     office: "Academic Affairs",
     recipient_name: "",
     recipient_email: "",
+    transaction_type: "Submission",
     remarks: "",
   });
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -103,7 +132,7 @@ export function PaperTrail() {
       setRecords(res.data || []);
     } catch (err) {
       console.error("Failed to load paper trails", err);
-      showToast("Failed to fetch paper trail records", "error");
+      showToast("Failed to fetch document tracking records", "error");
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +141,80 @@ export function PaperTrail() {
   useEffect(() => {
     fetchPaperTrails();
   }, [currentRole, userEmail]);
+
+  // Submit Top-Down Document Request (Director -> Faculty)
+  const handleRequestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestFormData.title || !requestFormData.target_person_email) {
+      showToast("Please enter document title and target recipient email.", "error");
+      return;
+    }
+
+    setIsSubmittingRequest(true);
+    try {
+      await axios.post(`${API_BASE}/paper-trail/request`, {
+        title: requestFormData.title,
+        document_type: requestFormData.document_type,
+        office: requestFormData.office,
+        target_person_name: requestFormData.target_person_name || "Faculty Member",
+        target_person_email: requestFormData.target_person_email,
+        instructions: requestFormData.instructions || undefined,
+      });
+
+      showToast(`Document Request issued & assigned to ${requestFormData.target_person_name}!`, "success");
+      setShowRequestModal(false);
+      setRequestFormData({
+        title: "",
+        document_type: "Curriculum Map",
+        office: "Academic Affairs",
+        target_person_name: "",
+        target_person_email: "",
+        instructions: "",
+      });
+      fetchPaperTrails();
+    } catch (err) {
+      console.error("Failed to create document request", err);
+      showToast("Failed to issue document request.", "error");
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+
+  // Submit Fulfill Request (Faculty -> Director)
+  const handleFulfillSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRecordForFulfill || !fulfillFile) {
+      showToast("Please select a file to attach for request fulfillment.", "error");
+      return;
+    }
+
+    setIsSubmittingFulfill(true);
+    try {
+      const fileForm = new FormData();
+      fileForm.append("file", fulfillFile);
+      const uploadRes = await axios.post(`${API_BASE}/paper-trail/upload`, fileForm, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const uploadedUrl = uploadRes.data.file_url;
+
+      await axios.put(`${API_BASE}/paper-trail/${selectedRecordForFulfill.id}/fulfill`, {
+        file_url: uploadedUrl,
+        remarks: fulfillRemarks || undefined,
+      });
+
+      showToast(`Request fulfilled! Document routed back to ${selectedRecordForFulfill.sender_name}.`, "success");
+      setShowFulfillModal(false);
+      setSelectedRecordForFulfill(null);
+      setFulfillFile(null);
+      setFulfillRemarks("");
+      fetchPaperTrails();
+    } catch (err) {
+      console.error("Failed to fulfill request", err);
+      showToast("Failed to fulfill document request.", "error");
+    } finally {
+      setIsSubmittingFulfill(false);
+    }
+  };
 
   // Create & Release Document
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -144,11 +247,15 @@ export function PaperTrail() {
         recipient_name: formData.recipient_name || undefined,
         recipient_email: formData.recipient_email || undefined,
         recipient_role: "ADMIN",
+        origin_office: sessionStorage.getItem('userAdministrativeOffice') || sessionStorage.getItem('userDepartment') || formData.office,
+        origin_person: userName,
+        current_location: formData.office,
+        transaction_type: formData.transaction_type,
         remarks: formData.remarks || undefined,
         file_url: uploadedUrl,
       });
 
-      showToast("Paper trail record released and logged successfully!", "success");
+      showToast("Document tracking record created and routed successfully!", "success");
       setShowCreateModal(false);
       setFormData({
         title: "",
@@ -156,41 +263,50 @@ export function PaperTrail() {
         office: "Academic Affairs",
         recipient_name: "",
         recipient_email: "",
+        transaction_type: "Submission",
         remarks: "",
       });
       setAttachedFile(null);
       fetchPaperTrails();
     } catch (err) {
       console.error("Failed to release document", err);
-      showToast("Failed to create paper trail record.", "error");
+      showToast("Failed to create document tracking record.", "error");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Status Update Submit
+  // Status & Routing Action Submit
   const handleStatusSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRecordForStatus) return;
 
+    let computedStatus = "Received";
+    if (actionType === "Forward") computedStatus = "Forwarded";
+    else if (actionType === "Return") computedStatus = "Needs Revision";
+    else if (actionType === "Approve") computedStatus = "Approved";
+
     setIsUpdatingStatus(true);
     try {
       await axios.put(`${API_BASE}/paper-trail/${selectedRecordForStatus.id}/status`, {
-        status: newStatus,
+        status: computedStatus,
+        action_type: actionType,
+        target_office: targetOffice || undefined,
         actor_name: userName,
         actor_email: userEmail,
         actor_role: currentRole,
         notes: statusNotes || undefined,
       });
 
-      showToast(`Status updated to '${newStatus}'!`, "success");
+      showToast(`Routing action completed successfully!`, "success");
       setShowStatusModal(false);
       setSelectedRecordForStatus(null);
+      setTargetOffice("");
       setStatusNotes("");
       fetchPaperTrails();
     } catch (err) {
-      console.error("Failed to update status", err);
-      showToast("Failed to update paper trail status.", "error");
+      console.error("Failed to update routing status", err);
+      showToast("Failed to complete routing action.", "error");
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -202,7 +318,8 @@ export function PaperTrail() {
       rec.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rec.tracking_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rec.sender_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rec.office.toLowerCase().includes(searchQuery.toLowerCase());
+      rec.office.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (rec.current_location && rec.current_location.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus = selectedStatus === "all" || rec.status === selectedStatus;
     const matchesOffice = selectedOffice === "all" || rec.office === selectedOffice;
@@ -213,18 +330,20 @@ export function PaperTrail() {
 
   // Metrics
   const totalTracked = records.length;
-  const pendingReceiving = records.filter((r) => r.status === "Pending Receiving").length;
+  const pendingReceiving = records.filter((r) => r.status === "Pending Receiving" || r.status === "Forwarded").length;
   const approvedCount = records.filter((r) => r.status === "Approved").length;
   const needsRevisionCount = records.filter((r) => r.status === "Needs Revision").length;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "Approved":
-        return { label: "Approved / Paper OK", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 };
+        return { label: "Approved & Closed", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 };
       case "Needs Revision":
         return { label: "Needs Revision", bg: "bg-rose-50 text-rose-700 border-rose-200", icon: AlertCircle };
       case "Received":
-        return { label: "Received by Office", bg: "bg-blue-50 text-blue-700 border-blue-200", icon: FileCheck };
+        return { label: "Received at Office", bg: "bg-blue-50 text-blue-700 border-blue-200", icon: FileCheck };
+      case "Forwarded":
+        return { label: "Forwarded / In Transit", bg: "bg-purple-50 text-purple-700 border-purple-200", icon: Send };
       case "Under Review":
         return { label: "Under Review", bg: "bg-amber-50 text-amber-700 border-amber-200", icon: Clock };
       case "Released":
@@ -258,18 +377,27 @@ export function PaperTrail() {
       <div className="flex-none space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-[#1F2937]">Document Paper Trail</h1>
+            <h1 className="text-2xl font-semibold text-[#1F2937]">Document Tracking System (DTS)</h1>
             <p className="text-sm text-[#6B7280] mt-1">
-              Official receiving, releasing, and verification history between Faculty & Offices
+              Multi-way office routing engine & physical / digital document location tracking
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {currentRole === "ADMIN" && (
+              <button
+                onClick={() => setShowRequestModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#1D6FA3] text-white rounded-lg hover:bg-[#15527B] transition-all cursor-pointer shadow-sm active:scale-95 text-sm font-semibold"
+              >
+                <Send className="h-4 w-4" />
+                <span>+ Request Document</span>
+              </button>
+            )}
             <button
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all cursor-pointer shadow-sm active:scale-95 text-sm font-semibold"
             >
               <Plus className="h-4 w-4" />
-              <span>Release / Submit Document</span>
+              <span>Route New Document</span>
             </button>
           </div>
         </div>
@@ -323,6 +451,42 @@ export function PaperTrail() {
               <AlertCircle className="h-6 w-6" />
             </div>
           </div>
+        </div>
+
+        {/* Phase 4: Action Board Tab Switcher (Inbox vs Outbox vs Campus All) */}
+        <div className="flex border-b border-gray-200 gap-2 pt-2">
+          <button
+            onClick={() => setActionBoardTab("inbox")}
+            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              actionBoardTab === "inbox"
+                ? "border-[#FF9501] text-[#FF9501] bg-orange-50/50 rounded-t-lg"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <FileCheck className="h-4 w-4" /> 📥 Action Board Inbox (Documents Assigned to Desk)
+          </button>
+
+          <button
+            onClick={() => setActionBoardTab("outbox")}
+            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              actionBoardTab === "outbox"
+                ? "border-[#1D6FA3] text-[#1D6FA3] bg-blue-50/50 rounded-t-lg"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <Send className="h-4 w-4" /> 📤 Action Board Outbox (Documents Forwarded/Sent)
+          </button>
+
+          <button
+            onClick={() => setActionBoardTab("all")}
+            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+              actionBoardTab === "all"
+                ? "border-emerald-600 text-emerald-600 bg-emerald-50/50 rounded-t-lg"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <Building className="h-4 w-4" /> 🌐 All Campus Documents
+          </button>
         </div>
 
         {/* Filter and Search Bar */}
@@ -416,23 +580,30 @@ export function PaperTrail() {
                 <tr>
                   <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Tracking #</th>
                   <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Document Title & Type</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Target Office</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Sender</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Current Location & Origin</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Status & Type</th>
                   <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider">Last Updated</th>
                   <th className="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E7EB]">
-                {filteredRecords.map((rec) => {
+                {actionBoardRecords.map((rec) => {
                   const badge = getStatusBadge(rec.status);
                   const BadgeIcon = badge.icon;
+                  const isPendingMyFulfillment = rec.status === "Pending Request" && (rec.recipient_email === userEmail || rec.office.toLowerCase().includes((sessionStorage.getItem("userDepartment") || "").toLowerCase()));
                   return (
                     <tr key={rec.id} className="hover:bg-[#F9FAFB] transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <Tag className="h-3.5 w-3.5 text-[#FF9501]" />
                           <span className="font-mono font-bold text-xs text-[#1F2937]">{rec.tracking_number}</span>
+                        </div>
+                        <div className="mt-1">
+                          <span className={`px-2 py-0.5 font-bold rounded text-[9px] uppercase tracking-wider border ${
+                            rec.transaction_type === "Request" ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200"
+                          }`}>
+                            {rec.transaction_type || "Submission"}
+                          </span>
                         </div>
                       </td>
 
@@ -458,21 +629,13 @@ export function PaperTrail() {
                       </td>
 
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-[#374151] flex items-center gap-1.5">
-                          <Building className="h-3.5 w-3.5 text-[#6B7280]" />
-                          <span>{rec.office}</span>
+                        <div className="text-xs font-bold text-[#1F2937] flex items-center gap-1.5">
+                          <Building className="h-3.5 w-3.5 text-[#FF9501]" />
+                          <span>📍 Location: {rec.current_location || rec.office}</span>
                         </div>
-                        {rec.recipient_name && (
-                          <div className="text-[11px] text-[#6B7280] pl-5">To: {rec.recipient_name}</div>
-                        )}
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-[#374151] flex items-center gap-1.5">
-                          <User className="h-3.5 w-3.5 text-[#6B7280]" />
-                          <span>{rec.sender_name}</span>
+                        <div className="text-[11px] text-[#6B7280] pl-5 mt-0.5">
+                          Origin: {rec.origin_office || rec.office} ({rec.origin_person || rec.sender_name})
                         </div>
-                        <div className="text-[11px] text-[#6B7280] pl-5">{rec.sender_email}</div>
                       </td>
 
                       <td className="px-6 py-4">
@@ -501,7 +664,7 @@ export function PaperTrail() {
                               setShowTimelineModal(true);
                             }}
                             className="p-1.5 text-[#6B7280] hover:text-[#FF9501] hover:bg-[#FFF4E5] rounded-lg transition-colors cursor-pointer"
-                            title="View Timeline History"
+                            title="View Routing History"
                           >
                             <History className="h-4 w-4" />
                           </button>
@@ -518,19 +681,36 @@ export function PaperTrail() {
                             <Printer className="h-4 w-4" />
                           </button>
 
-                          {/* Update Status */}
-                          <button
-                            onClick={() => {
-                              setSelectedRecordForStatus(rec);
-                              setNewStatus(rec.status === "Pending Receiving" ? "Received" : "Approved");
-                              setStatusNotes("");
-                              setShowStatusModal(true);
-                            }}
-                            className="px-2.5 py-1 text-xs font-semibold bg-[#FFF4E5] text-[#D97E00] hover:bg-[#FF9501] hover:text-white border border-[#FF9501]/30 rounded-md transition-all cursor-pointer shadow-sm active:scale-95"
-                            title="Update Status"
-                          >
-                            Update Status
-                          </button>
+                          {/* Fulfill Request Button */}
+                          {isPendingMyFulfillment ? (
+                            <button
+                              onClick={() => {
+                                setSelectedRecordForFulfill(rec);
+                                setFulfillFile(null);
+                                setFulfillRemarks("");
+                                setShowFulfillModal(true);
+                              }}
+                              className="px-3 py-1 text-xs font-extrabold bg-[#1D6FA3] text-white hover:bg-[#15527B] rounded-md transition-all cursor-pointer shadow-md active:scale-95 flex items-center gap-1"
+                              title="Fulfill Pending Document Request"
+                            >
+                              <Upload className="h-3.5 w-3.5" /> Fulfill Request
+                            </button>
+                          ) : (
+                            /* Take Action */
+                            <button
+                              onClick={() => {
+                                setSelectedRecordForStatus(rec);
+                                setActionType("Acknowledge");
+                                setTargetOffice("");
+                                setStatusNotes("");
+                                setShowStatusModal(true);
+                              }}
+                              className="px-2.5 py-1 text-xs font-semibold bg-[#FFF4E5] text-[#D97E00] hover:bg-[#FF9501] hover:text-white border border-[#FF9501]/30 rounded-md transition-all cursor-pointer shadow-sm active:scale-95"
+                              title="Take Routing Action"
+                            >
+                              Take Action
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -699,13 +879,13 @@ export function PaperTrail() {
         </div>
       )}
 
-      {/* UPDATE STATUS MODAL */}
+      {/* TAKE ACTION & ROUTE DOCUMENT MODAL (Phase 2 Workflow) */}
       {showStatusModal && selectedRecordForStatus && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl border-t-4 border-t-[#FF9501] max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
             <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
               <div>
-                <h2 className="text-lg font-semibold text-[#1F2937]">Update Paper Status</h2>
+                <h2 className="text-lg font-semibold text-[#1F2937]">Take Action / Route Document</h2>
                 <p className="text-xs font-mono font-bold text-[#FF9501] mt-0.5">
                   {selectedRecordForStatus.tracking_number}
                 </p>
@@ -719,34 +899,101 @@ export function PaperTrail() {
             </div>
 
             <form onSubmit={handleStatusSubmit} className="p-5 space-y-4">
-              <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
-                <div className="text-xs font-semibold text-[#1F2937]">{selectedRecordForStatus.title}</div>
-                <div className="text-[11px] text-[#6B7280] mt-0.5">
-                  Sender: {selectedRecordForStatus.sender_name} | Office: {selectedRecordForStatus.office}
+              <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB] space-y-1">
+                <div className="text-xs font-bold text-[#1F2937]">{selectedRecordForStatus.title}</div>
+                <div className="text-[11px] text-[#6B7280]">
+                  📍 Current Location: <span className="font-bold text-[#1F2937]">{selectedRecordForStatus.current_location || selectedRecordForStatus.office}</span>
+                </div>
+                <div className="text-[11px] text-[#6B7280]">
+                  Origin: {selectedRecordForStatus.origin_office || selectedRecordForStatus.office} ({selectedRecordForStatus.origin_person || selectedRecordForStatus.sender_name})
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1F2937] mb-1.5">New Movement Status</label>
-                <select
-                  className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
-                >
-                  <option value="Received">Received (Acknowledged Receipt)</option>
-                  <option value="Under Review">Under Review</option>
-                  <option value="Approved">Approved (Paper OK / Verified)</option>
-                  <option value="Needs Revision">Needs Revision (Returned to Sender)</option>
-                  <option value="Released">Released (Transmitted to Next Office)</option>
-                </select>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1.5">Select Routing Action</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActionType("Acknowledge")}
+                    className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
+                      actionType === "Acknowledge"
+                        ? "bg-[#FFF4E5] border-[#FF9501] ring-2 ring-[#FF9501]/30"
+                        : "bg-white border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                      <FileCheck className="h-3.5 w-3.5 text-[#FF9501]" /> Receive
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">Acknowledge on desk</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActionType("Forward")}
+                    className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
+                      actionType === "Forward"
+                        ? "bg-purple-50 border-purple-500 ring-2 ring-purple-500/30"
+                        : "bg-white border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                      <Send className="h-3.5 w-3.5 text-purple-600" /> Forward
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">Route to next office</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActionType("Return")}
+                    className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
+                      actionType === "Return"
+                        ? "bg-rose-50 border-rose-500 ring-2 ring-rose-500/30"
+                        : "bg-white border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-rose-600" /> Return
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">Send back for revision</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActionType("Approve")}
+                    className={`p-3 text-left border rounded-xl transition-all cursor-pointer ${
+                      actionType === "Approve"
+                        ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/30"
+                        : "bg-white border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Approve
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">Approve & Close trail</div>
+                  </button>
+                </div>
               </div>
+
+              {actionType === "Forward" && (
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1.5">Forward / Route to Office or Desk <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Registrar & MIS, Desk of Campus Director, Finance"
+                    className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                    value={targetOffice}
+                    onChange={(e) => setTargetOffice(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-[#1F2937] mb-1.5">Movement Notes / Action Remarks</label>
                 <textarea
                   rows={3}
                   required
-                  placeholder="e.g. Received by Office Staff. Document verified as complete and accurate."
+                  placeholder="e.g. Acknowledged on desk for review. Routed to Campus Director for signature."
                   className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] resize-none"
                   value={statusNotes}
                   onChange={(e) => setStatusNotes(e.target.value)}
@@ -766,7 +1013,7 @@ export function PaperTrail() {
                   disabled={isUpdatingStatus}
                   className="flex-1 px-4 py-2.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] flex justify-center items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
                 >
-                  {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Status & Log"}
+                  {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : "Complete Action & Route"}
                 </button>
               </div>
             </form>
@@ -774,13 +1021,205 @@ export function PaperTrail() {
         </div>
       )}
 
-      {/* TIMELINE / HISTORY MODAL */}
-      {showTimelineModal && selectedRecordForTimeline && (
+      {/* TOP-DOWN "REQUEST DOCUMENT" MODAL (Phase 3) */}
+      {showRequestModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-xl border-t-4 border-t-[#1D6FA3] max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
             <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
               <div>
-                <h2 className="text-lg font-semibold text-[#1F2937]">Document Paper Trail Movement Log</h2>
+                <h2 className="text-lg font-bold text-[#1F2937] flex items-center gap-2">
+                  <Send className="h-5 w-5 text-[#1D6FA3]" /> Issue Top-Down Document Request
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">Request a document submission from a faculty member or office</p>
+              </div>
+              <button onClick={() => setShowRequestModal(false)} className="p-1.5 hover:bg-[#E5E7EB] rounded-full text-gray-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRequestSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#1F2937] mb-1">Document Title Requested <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Updated Curriculum Map 2026, QMS Grade Sheets"
+                  className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                  value={requestFormData.title}
+                  onChange={(e) => setRequestFormData({ ...requestFormData, title: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#1F2937] mb-1">Document Type</label>
+                  <select
+                    className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                    value={requestFormData.document_type}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, document_type: e.target.value })}
+                  >
+                    <option value="Curriculum Map">Curriculum Map</option>
+                    <option value="Syllabus">Syllabus</option>
+                    <option value="Grade Sheet">Grade Sheet</option>
+                    <option value="Clearance Form">Clearance Form</option>
+                    <option value="Accreditation Document">Accreditation Document</option>
+                    <option value="Administrative Report">Administrative Report</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1F2937] mb-1">Target Office</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. BSIT, HRMO, Registrar"
+                    className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                    value={requestFormData.office}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, office: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1F2937] mb-1">Target Faculty Name & Email <span className="text-red-500">*</span></label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Faculty Name (e.g. John Doe)"
+                    className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                    value={requestFormData.target_person_name}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, target_person_name: e.target.value })}
+                  />
+                  <input
+                    type="email"
+                    required
+                    placeholder="Faculty Email (e.g. john@ctu.edu.ph)"
+                    className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                    value={requestFormData.target_person_email}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, target_person_email: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1F2937] mb-1">Instructions / Specific Note</label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Please submit your updated 2026 curriculum map approved by Dean."
+                  className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3] resize-none"
+                  value={requestFormData.instructions}
+                  onChange={(e) => setRequestFormData({ ...requestFormData, instructions: e.target.value })}
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowRequestModal(false)}
+                  className="flex-1 px-4 py-2.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingRequest}
+                  className="flex-1 px-4 py-2.5 text-xs font-bold bg-[#1D6FA3] text-white rounded-lg hover:bg-[#15527B] flex justify-center items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {isSubmittingRequest ? <Loader2 className="h-4 w-4 animate-spin" /> : "Issue Request & Assign"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* "FULFILL REQUEST" MODAL (Phase 3) */}
+      {showFulfillModal && selectedRecordForFulfill && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl border-t-4 border-t-[#1D6FA3] max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
+              <div>
+                <h2 className="text-lg font-bold text-[#1F2937] flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-[#1D6FA3]" /> Fulfill Document Request
+                </h2>
+                <p className="text-xs font-mono font-bold text-[#FF9501] mt-0.5">
+                  {selectedRecordForFulfill.tracking_number} - {selectedRecordForFulfill.title}
+                </p>
+              </div>
+              <button onClick={() => setShowFulfillModal(false)} className="p-1.5 hover:bg-[#E5E7EB] rounded-full text-gray-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleFulfillSubmit} className="p-5 space-y-4">
+              <div className="p-3 bg.blue-50/50 border border-blue-200 rounded-xl space-y-1 text-xs">
+                <div className="font-bold text-[#1D6FA3]">Requesting Director / Admin: {selectedRecordForFulfill.sender_name}</div>
+                <div className="text-gray-600">Note: "{selectedRecordForFulfill.remarks || "No additional note."}"</div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1F2937] mb-1">Attach Requested Document File <span className="text-red-500">*</span></label>
+                <div
+                  onClick={() => fulfillFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-[#E5E7EB] hover:border-[#1D6FA3] bg-[#F9FAFB] hover:bg-blue-50/30 rounded-xl p-5 text-center cursor-pointer transition-colors"
+                >
+                  {fulfillFile ? (
+                    <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#1D6FA3]">
+                      <FileText className="h-4 w-4" />
+                      <span>{fulfillFile.name}</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 font-semibold">Click to upload PDF, Word, or Spreadsheet document copy</p>
+                  )}
+                  <input
+                    type="file"
+                    ref={fulfillFileInputRef}
+                    className="hidden"
+                    onChange={(e) => setFulfillFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1F2937] mb-1">Fulfillment Remarks / Note to Director</label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Attached is the requested updated curriculum map 2026."
+                  className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6FA3] resize-none"
+                  value={fulfillRemarks}
+                  onChange={(e) => setFulfillRemarks(e.target.value)}
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowFulfillModal(false)}
+                  className="flex-1 px-4 py-2.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingFulfill}
+                  className="flex-1 px-4 py-2.5 text-xs font-bold bg-[#1D6FA3] text-white rounded-lg hover:bg-[#15527B] flex justify-center items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {isSubmittingFulfill ? <Loader2 className="h-4 w-4 animate-spin" /> : "Upload File & Route Back"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TIMELINE / HISTORY MODAL WITH VISUAL ROUTING HOPS PIPELINE (Phase 4) */}
+      {showTimelineModal && selectedRecordForTimeline && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-3xl w-full shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
+              <div>
+                <h2 className="text-lg font-bold text-[#1F2937]">Physical Document Routing Hops Pipeline</h2>
                 <p className="text-xs font-mono font-bold text-[#FF9501] mt-0.5">
                   {selectedRecordForTimeline.tracking_number} - {selectedRecordForTimeline.title}
                 </p>
@@ -794,36 +1233,42 @@ export function PaperTrail() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
-              {/* Summary Card */}
-              <div className="p-4 bg-[#FFF4E5]/50 border border-[#FF9501]/20 rounded-xl space-y-2 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-[#D97E00]">Office Destination: {selectedRecordForTimeline.office}</span>
-                  <span className="font-semibold text-[#D97E00]">Type: {selectedRecordForTimeline.document_type}</span>
+              {/* Visual Routing Hops Header Banner */}
+              <div className="p-4 bg-gradient-to-r from-orange-50 via-purple-50 to-blue-50 border border-gray-200 rounded-xl space-y-3">
+                <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">Physical Movement Hops Pipeline</div>
+                <div className="flex items-center flex-wrap gap-2 text-xs font-extrabold text-gray-900">
+                  <span className="px-3 py-1 bg-white border border-gray-300 rounded-lg shadow-2xs">
+                    🏁 Origin: {selectedRecordForTimeline.origin_office || selectedRecordForTimeline.office}
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                  <span className="px-3 py-1 bg-[#FFF4E5] border border-[#FF9501]/40 text-[#D97E00] rounded-lg shadow-2xs">
+                    📍 Current Location: {selectedRecordForTimeline.current_location || selectedRecordForTimeline.office}
+                  </span>
+                  {selectedRecordForTimeline.status === "Approved" && (
+                    <>
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                      <span className="px-3 py-1 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg shadow-2xs">
+                        ✅ Approved & Closed
+                      </span>
+                    </>
+                  )}
                 </div>
-                <div className="text-[#374151]">
-                  <strong>Sender:</strong> {selectedRecordForTimeline.sender_name} ({selectedRecordForTimeline.sender_email})
-                </div>
-                {selectedRecordForTimeline.remarks && (
-                  <div className="text-[#6B7280] italic pt-1 border-t border-[#FF9501]/20">
-                    "{selectedRecordForTimeline.remarks}"
-                  </div>
-                )}
               </div>
 
-              {/* Timeline Tree */}
+              {/* Timeline Logs Tree */}
               <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#E5E7EB]">
                 {selectedRecordForTimeline.logs && selectedRecordForTimeline.logs.length > 0 ? (
                   selectedRecordForTimeline.logs.map((log, idx) => {
                     const logBadge = getStatusBadge(log.status);
                     return (
                       <div key={log.id || idx} className="relative flex items-start gap-4">
-                        <div className="absolute -left-6 top-1 w-5 h-5 rounded-full bg-white border-2 border-[#FF9501] flex items-center justify-center">
+                        <div className="absolute -left-6 top-1 w-5 h-5 rounded-full bg-white border-2 border-[#FF9501] flex items-center justify-center shadow-2xs">
                           <div className="w-1.5 h-1.5 rounded-full bg-[#FF9501]" />
                         </div>
 
                         <div className="flex-1 bg-[#F9FAFB] p-4 rounded-xl border border-[#E5E7EB] space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-sm text-[#1F2937]">{log.action}</span>
+                            <span className="font-bold text-sm text-[#1F2937]">Hop #{selectedRecordForTimeline.logs.length - idx}: {log.action}</span>
                             <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${logBadge.bg}`}>
                               {log.status}
                             </span>
@@ -855,7 +1300,7 @@ export function PaperTrail() {
                 onClick={() => setShowTimelineModal(false)}
                 className="px-4 py-2 text-xs font-semibold text-[#4B5563] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F3F4F6]"
               >
-                Close Timeline
+                Close Routing History
               </button>
             </div>
           </div>

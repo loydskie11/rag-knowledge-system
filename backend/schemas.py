@@ -112,14 +112,33 @@ class PaperTrailCreate(BaseModel):
     recipient_name: Optional[str] = None
     recipient_email: Optional[str] = None
     recipient_role: Optional[str] = None
+    origin_office: Optional[str] = None
+    origin_person: Optional[str] = None
+    current_location: Optional[str] = None
+    transaction_type: Optional[str] = "Submission"
     remarks: Optional[str] = None
     file_url: Optional[str] = None
 
+class PaperTrailRequestCreate(BaseModel):
+    title: str
+    document_type: str
+    office: str
+    target_person_name: str
+    target_person_email: str
+    instructions: Optional[str] = None
+
+class PaperTrailFulfillRequest(BaseModel):
+    file_url: str
+    remarks: Optional[str] = None
+
 class PaperTrailStatusUpdate(BaseModel):
-    status: str # "Received", "Under Review", "Approved", "Needs Revision", "Released"
+    status: str # "Received", "Under Review", "Approved", "Needs Revision", "Forwarded", "Released"
     actor_name: str
     actor_email: str
     actor_role: str
+    action_type: Optional[str] = "Acknowledge" # "Acknowledge", "Forward", "Return", "Approve"
+    target_office: Optional[str] = None
+    target_person: Optional[str] = None
     notes: Optional[str] = None
 
 class PaperTrailLogResponse(BaseModel):
@@ -148,6 +167,10 @@ class PaperTrailRecordResponse(BaseModel):
     recipient_name: Optional[str] = None
     recipient_email: Optional[str] = None
     recipient_role: Optional[str] = None
+    origin_office: Optional[str] = None
+    origin_person: Optional[str] = None
+    current_location: Optional[str] = None
+    transaction_type: Optional[str] = "Submission"
     status: str
     remarks: Optional[str] = None
     file_url: Optional[str] = None

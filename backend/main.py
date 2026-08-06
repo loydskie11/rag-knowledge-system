@@ -333,7 +333,10 @@ try:
         conn.execute(text("ALTER TABLE iqa_day_schedules ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS administrative_office VARCHAR(255);"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_iqa_auditor BOOLEAN DEFAULT FALSE;"))
-        conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS actual_completion_date VARCHAR(50);"))
+        conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS origin_office VARCHAR(255);"))
+        conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS origin_person VARCHAR(255);"))
+        conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS current_location VARCHAR(255);"))
+        conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(50) DEFAULT 'Submission';"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_date VARCHAR(50);"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_notes TEXT;"))
         conn.commit()
@@ -2927,6 +2930,10 @@ def create_paper_trail_record(
         recipient_name=payload.recipient_name,
         recipient_email=payload.recipient_email,
         recipient_role=payload.recipient_role.upper() if payload.recipient_role else None,
+        origin_office=payload.origin_office or getattr(current_user, 'administrative_office', None) or getattr(current_user, 'department', None) or payload.office,
+        origin_person=payload.origin_person or sender_name,
+        current_location=payload.current_location or payload.office,
+        transaction_type=payload.transaction_type or "Submission",
         status="Pending Receiving",
         remarks=payload.remarks,
         file_url=payload.file_url
@@ -2968,6 +2975,111 @@ def create_paper_trail_record(
         print(f"[paper_trail] notification warning: {exc}")
 
     return new_record
+
+
+@app.post("/paper-trail/request", response_model=schemas.PaperTrailRecordResponse, status_code=status.HTTP_201_CREATED)
+def create_top_down_document_request(
+    payload: schemas.PaperTrailRequestCreate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Admin / Director creates a top-down document request assigned to a faculty/office."""
+    tracking_no = _generate_tracking_number(db)
+    director_name = admin.full_name or "Campus Director / Administrator"
+    director_email = admin.email
+    director_office = getattr(admin, 'administrative_office', None) or getattr(admin, 'department', None) or "Management/Leadership"
+
+    new_record = models.PaperTrailRecord(
+        tracking_number=tracking_no,
+        title=payload.title,
+        document_type=payload.document_type,
+        office=payload.office,
+        sender_name=director_name,
+        sender_email=director_email,
+        sender_role="ADMIN",
+        recipient_name=payload.target_person_name,
+        recipient_email=payload.target_person_email,
+        recipient_role="FACULTY",
+        origin_office=director_office,
+        origin_person=director_name,
+        current_location=payload.office or f"Desk of {payload.target_person_name}",
+        transaction_type="Request",
+        status="Pending Request",
+        remarks=payload.instructions or "Please submit requested document."
+    )
+    db.add(new_record)
+    db.commit()
+    db.refresh(new_record)
+
+    initial_log = models.PaperTrailLog(
+        record_id=new_record.id,
+        action="Top-Down Document Request Issued",
+        status="Pending Request",
+        actor_name=director_name,
+        actor_email=director_email,
+        actor_role="ADMIN",
+        notes=payload.instructions or f"Director requested '{payload.title}' from {payload.target_person_name} ({payload.office})."
+    )
+    db.add(initial_log)
+    db.commit()
+
+    try:
+        _send_notification(
+            user_email=payload.target_person_email,
+            n_type="warning",
+            title=f"Pending Document Request [{tracking_no}]",
+            message=f"{director_name} has requested document '{payload.title}' ({payload.document_type}). Please upload and fulfill."
+        )
+    except Exception as exc:
+        print(f"[create_top_down_document_request] notification warning: {exc}")
+
+    return new_record
+
+
+@app.put("/paper-trail/{record_id}/fulfill", response_model=schemas.PaperTrailRecordResponse)
+def fulfill_document_request(
+    record_id: str,
+    payload: schemas.PaperTrailFulfillRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin)
+):
+    """Faculty fulfills a top-down document request, attaching the file and routing it back to origin Director/Admin."""
+    record = db.query(models.PaperTrailRecord).filter(models.PaperTrailRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Document record not found.")
+
+    user_name = current_user.full_name or "Faculty Member"
+    user_email = current_user.email
+
+    record.file_url = payload.file_url
+    record.status = "Submitted / Fulfilled"
+    record.current_location = record.origin_office or record.sender_name or "Director / Admin Desk"
+    record.updated_at = datetime.utcnow()
+
+    new_log = models.PaperTrailLog(
+        record_id=record.id,
+        action="Request Fulfilled & Routed to Origin",
+        status="Submitted / Fulfilled",
+        actor_name=user_name,
+        actor_email=user_email,
+        actor_role=current_user.role.upper(),
+        notes=payload.remarks or f"Fulfilled request for '{record.title}' and routed back to {record.current_location}."
+    )
+    db.add(new_log)
+    db.commit()
+    db.refresh(record)
+
+    try:
+        _send_notification(
+            user_email=record.sender_email,
+            n_type="success",
+            title=f"Document Request Fulfilled [{record.tracking_number}]",
+            message=f"{user_name} has fulfilled the request for '{record.title}' and routed it to your desk."
+        )
+    except Exception as exc:
+        print(f"[fulfill_document_request] notification warning: {exc}")
+
+    return record
 
 
 @app.get("/paper-trail", response_model=List[schemas.PaperTrailRecordResponse])
@@ -3022,25 +3134,36 @@ def update_paper_trail_status(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_faculty_or_admin)
 ):
-    """Updates document status (e.g. Received, Approved/Paper OK, Needs Revision, Released) & logs movement."""
+    """Updates document routing action & location (Receive, Forward/Route, Return for Revision, Approve & Close)."""
     record = db.query(models.PaperTrailRecord).filter(models.PaperTrailRecord.id == record_id).first()
     if not record:
-        raise HTTPException(status_code=404, detail="Paper trail record not found.")
+        raise HTTPException(status_code=404, detail="Document record not found.")
 
     old_status = record.status
+    action_type = payload.action_type or "Acknowledge"
     new_status = payload.status
+
+    if action_type == "Acknowledge" or new_status == "Received":
+        new_status = "Received"
+        action_text = f"Document Received & Acknowledged at {record.current_location or record.office}"
+    elif action_type == "Forward":
+        new_status = "Forwarded"
+        target_loc = payload.target_office or payload.target_person or "Target Office"
+        record.current_location = target_loc
+        action_text = f"Forwarded / Routed to {target_loc}"
+    elif action_type == "Return" or new_status == "Needs Revision":
+        new_status = "Needs Revision"
+        target_loc = record.origin_office or record.sender_name or "Origin Office"
+        record.current_location = target_loc
+        action_text = f"Returned for Revision to {target_loc}"
+    elif action_type == "Approve" or new_status == "Approved":
+        new_status = "Approved"
+        action_text = f"Approved & Closed at {record.current_location or record.office}"
+    else:
+        action_text = f"Status updated to {new_status}"
+
     record.status = new_status
     record.updated_at = datetime.utcnow()
-
-    # Determine action narrative
-    action_map = {
-        "Received": "Document Received by Office",
-        "Under Review": "Under Office Review",
-        "Approved": "Verified & Approved (Paper OK)",
-        "Needs Revision": "Returned / Flagged for Revision",
-        "Released": "Released to Owner / Department"
-    }
-    action_text = action_map.get(new_status, f"Status changed to {new_status}")
 
     # Append movement log
     new_log = models.PaperTrailLog(
@@ -3050,36 +3173,20 @@ def update_paper_trail_status(
         actor_name=payload.actor_name,
         actor_email=payload.actor_email,
         actor_role=payload.actor_role.upper(),
-        notes=payload.notes or f"Status updated from {old_status} to {new_status} by {payload.actor_name}."
+        notes=payload.notes or f"Action: {action_text} by {payload.actor_name}."
     )
     db.add(new_log)
     db.commit()
     db.refresh(record)
 
-    # Notifications to Sender and Recipient
-    notif_type_map = {
-        "Approved": "success",
-        "Needs Revision": "warning",
-        "Received": "info",
-        "Released": "info"
-    }
-    n_type = notif_type_map.get(new_status, "info")
-
+    # Notifications
     try:
-        # Notify sender
-        _send_notification(
-            user_email=record.sender_email,
-            n_type=n_type,
-            title=f"Paper Trail Update [{record.tracking_number}]",
-            message=f"Document '{record.title}' status updated to '{new_status}' by {payload.actor_name}."
-        )
-        # Notify recipient if set and different from actor
-        if record.recipient_email and record.recipient_email != payload.actor_email:
+        if record.sender_email:
             _send_notification(
-                user_email=record.recipient_email,
-                n_type=n_type,
-                title=f"Paper Trail Update [{record.tracking_number}]",
-                message=f"Document '{record.title}' status updated to '{new_status}' by {payload.actor_name}."
+                user_email=record.sender_email,
+                n_type="info",
+                title=f"DTS Movement [{record.tracking_number}]",
+                message=f"Document '{record.title}' action: {action_text} by {payload.actor_name}."
             )
     except Exception as exc:
         print(f"[update_paper_trail_status] notification error: {exc}")
