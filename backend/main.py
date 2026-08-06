@@ -11,7 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, F
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, or_
 from pydantic import BaseModel, EmailStr
 from groq import Groq
 from supabase import create_client, Client
@@ -3146,19 +3146,36 @@ def get_paper_trail_records(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_faculty_or_admin)
 ):
-    """Fetches paper trail records filtered by role/email/office/status."""
+    """Fetches paper trail records enforcing strict role-based data privacy."""
     query = db.query(models.PaperTrailRecord)
     
-    # If user is FACULTY (and not ADMIN), show documents they sent OR documents sent to them/their office
     user_role = current_user.role.upper()
     user_email = current_user.email
+    user_admin_office = getattr(current_user, 'administrative_office', None) or ""
+    user_dept = getattr(current_user, 'department', None) or ""
     
+    # Strict Data Privacy: If FACULTY (not Admin), ONLY return records where:
+    # 1. sender_email matches user's email
+    # 2. recipient_email matches user's email
+    # 3. office, current_location, or origin_office matches user's administrative_office or department
     if user_role == "FACULTY":
-        query = query.filter(
-            (models.PaperTrailRecord.sender_email == user_email) | 
-            (models.PaperTrailRecord.recipient_email == user_email) |
-            (models.PaperTrailRecord.sender_role == "FACULTY")
-        )
+        conditions = [
+            models.PaperTrailRecord.sender_email == user_email,
+            models.PaperTrailRecord.recipient_email == user_email,
+        ]
+        if user_admin_office:
+            conditions.extend([
+                models.PaperTrailRecord.office == user_admin_office,
+                models.PaperTrailRecord.current_location == user_admin_office,
+                models.PaperTrailRecord.origin_office == user_admin_office,
+            ])
+        if user_dept:
+            conditions.extend([
+                models.PaperTrailRecord.office == user_dept,
+                models.PaperTrailRecord.current_location == user_dept,
+                models.PaperTrailRecord.origin_office == user_dept,
+            ])
+        query = query.filter(or_(*conditions))
     
     if office and office != "all":
         query = query.filter(models.PaperTrailRecord.office == office)

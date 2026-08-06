@@ -611,7 +611,26 @@ export function PaperTrail() {
                 {actionBoardRecords.map((rec) => {
                   const badge = getStatusBadge(rec.status);
                   const BadgeIcon = badge.icon;
-                  const isPendingMyFulfillment = rec.status === "Pending Request" && (rec.recipient_email === userEmail || rec.office.toLowerCase().includes((sessionStorage.getItem("userDepartment") || "").toLowerCase()));
+
+                  const myAdminOffice = (sessionStorage.getItem("userAdministrativeOffice") || "").toLowerCase();
+                  const myDept = (sessionStorage.getItem("userDepartment") || "").toLowerCase();
+
+                  const isPendingMyFulfillment = rec.status === "Pending Request" && (
+                    (rec.recipient_email && rec.recipient_email.toLowerCase() === userEmail.toLowerCase()) ||
+                    (myDept.length > 0 && rec.office.toLowerCase().includes(myDept)) ||
+                    (myAdminOffice.length > 0 && rec.office.toLowerCase().includes(myAdminOffice))
+                  );
+
+                  const isRecipient = !!rec.recipient_email && rec.recipient_email.toLowerCase() === userEmail.toLowerCase();
+                  const currentLocationLower = (rec.current_location || rec.office || "").toLowerCase();
+                  const isAtMyOffice = (
+                    (myAdminOffice.length > 0 && currentLocationLower.includes(myAdminOffice)) ||
+                    (myDept.length > 0 && currentLocationLower.includes(myDept))
+                  );
+
+                  // Strict RBAC Governance Lock: Admin (God view) OR explicitly assigned recipient OR sitting at user's office/dept
+                  const canTakeAction = currentRole === "ADMIN" || isRecipient || isAtMyOffice;
+
                   return (
                     <tr key={rec.id} className="hover:bg-[#F9FAFB] transition-colors">
                       <td className="px-6 py-4">
@@ -666,7 +685,7 @@ export function PaperTrail() {
                         </span>
                       </td>
 
-                      {/* Actions Column (Placed before Last Updated so it's easily accessible) */}
+                      {/* Actions Column (Governance Locked) */}
                       <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           {/* Timeline / History */}
@@ -707,8 +726,8 @@ export function PaperTrail() {
                             >
                               <Upload className="h-3.5 w-3.5" /> Fulfill Request
                             </button>
-                          ) : (
-                            /* Take Action */
+                          ) : canTakeAction ? (
+                            /* Take Action (Governance Locked) */
                             <button
                               onClick={() => {
                                 setSelectedRecordForStatus(rec);
@@ -722,7 +741,7 @@ export function PaperTrail() {
                             >
                               Take Action
                             </button>
-                          )}
+                          ) : null}
                         </div>
                       </td>
 
