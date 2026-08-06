@@ -2232,13 +2232,15 @@ export function AccreditationSupport() {
                   <div className="p-6">
                     {isLoadingIso ? (
                       <div className="py-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#FF9501]" /></div>
-                    ) : isoRequirements.length === 0 ? (
-                      <div className="text-center py-12 text-gray-500 font-medium">No ISO clauses loaded for this cycle.</div>
+                    ) : filteredIsoReqs.length === 0 ? (
+                      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500 space-y-3">
+                        <Sparkles className="h-10 w-10 text-gray-300 mx-auto" />
+                        <h4 className="font-bold text-gray-700">No ISO Audit Checkpoints Found</h4>
+                        <p className="text-xs text-gray-500">Try adjusting your search query or office filter.</p>
+                      </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {isoRequirements
-                          .filter((req) => isoOfficeFilter === "all" || req.auditee_office === isoOfficeFilter)
-                          .map((req, idx) => (
+                        {filteredIsoReqs.map((req, idx) => (
                             <div 
                               key={idx} 
                               onClick={() => setExpandedIsoClause(req)}
