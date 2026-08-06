@@ -1067,7 +1067,7 @@ export function AccreditationSupport() {
         <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] overflow-hidden mb-6 transition-all duration-300">
           <button
             onClick={() => setIsAdminQueueOpen(!isAdminQueueOpen)}
-            className="w-full flex items-center justify-between p-5 bg-gradient-to-r from-[#FFF4E5] to-white hover:from-[#FFB84D]/20 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between p-5 bg-[#FFF4E5] hover:bg-[#FFB84D]/20 transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-[#FF9501]">
@@ -1231,7 +1231,7 @@ export function AccreditationSupport() {
             </div>
 
             {activeTab !== 'iso' && (
-              <div className="flex items-center gap-2 px-3 sm:px-5 py-2.5 sm:py-3 bg-gradient-to-r from-[#FF9501] to-[#D97E00] text-white rounded-lg shadow-md border border-[#FF9501]/50 w-full sm:w-auto justify-center">
+              <div className="flex items-center gap-2 px-3 sm:px-5 py-2.5 sm:py-3 bg-[#FF9501] text-white rounded-lg shadow-md border border-[#FF9501]/50 w-full sm:w-auto justify-center">
                 <Award className="h-4 w-4 sm:h-5 sm:w-5 drop-shadow-sm" />
                 <span className="font-bold tracking-wide text-shadow-sm uppercase text-xs">{currentData.level || "Level II"}</span>
               </div>
@@ -1654,7 +1654,7 @@ export function AccreditationSupport() {
             <>
               {/* --- 100% ISO 9001:2015 COMPLIANCE SUCCESS BANNER --- */}
               {isoTotalCount > 0 && isoCompliantCount === isoTotalCount && (
-                <div className="p-6 bg-gradient-to-r from-[#006837] via-emerald-600 to-teal-700 text-white rounded-2xl shadow-xl border-2 border-emerald-400 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+                <div className="p-6 bg-[#006837] text-white rounded-2xl shadow-xl border-2 border-emerald-400 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
                   <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
                   <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
                     <div className="flex items-center gap-4">
@@ -1663,8 +1663,8 @@ export function AccreditationSupport() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2.5 py-0.5 bg-amber-400 text-gray-900 text-[10px] font-black uppercase rounded-full tracking-widest shadow-sm">
-                            🏆 100% Fully Compliant
+                          <span className="px-2.5 py-0.5 bg-amber-400 text-gray-900 text-[10px] font-black uppercase rounded-full tracking-widest shadow-sm flex items-center gap-1">
+                            <Award className="h-3 w-3 text-amber-900" /> 100% Fully Compliant
                           </span>
                           <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-sm border border-white/30">
                             {selectedIsoCycleYear}
@@ -1883,7 +1883,7 @@ export function AccreditationSupport() {
                   /* DIGITAL QMS OPPORTUNITIES & ACTION PLANS (MRC Form 6) */
                   <div className="p-6 space-y-6">
                     {/* Banner Header */}
-                    <div className="bg-gradient-to-r from-[#1F2937] via-[#2A3647] to-[#1F2937] text-white p-6 rounded-2xl shadow-md border-l-4 border-l-[#FF9501] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="bg-[#1F2937] text-white p-6 rounded-2xl shadow-md border-l-4 border-l-[#FF9501] flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <Sparkles className="h-5 w-5 text-[#FF9501]" />
@@ -2665,7 +2665,7 @@ export function AccreditationSupport() {
                   <FileBadge className="w-4 h-4 text-[#FF9501]" /> Official Certificates
                 </h3>
                 <div className="space-y-3">
-                  <div className="p-4 bg-gradient-to-br from-[#FFF4E5] to-orange-50/30 rounded-xl border border-[#FF9501]/20 group cursor-pointer hover:shadow-md transition-all relative overflow-hidden">
+                  <div className="p-4 bg-[#FFF4E5] rounded-xl border border-[#FF9501]/20 group cursor-pointer hover:shadow-md transition-all relative overflow-hidden">
                     <div className="absolute right-0 top-0 w-16 h-16 bg-[#FF9501]/10 rounded-full blur-2xl -mr-5 -mt-5"></div>
                     <div className="flex items-center gap-3 relative z-10">
                       <Award className="w-8 h-8 text-[#D97E00]" />
