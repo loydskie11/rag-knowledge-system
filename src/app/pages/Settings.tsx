@@ -180,8 +180,10 @@ export function Settings() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Active Model Endpoint</label>
                     <select value={settings.ai_model} onChange={(e) => handleChange("ai_model", e.target.value)} className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-900">
-                      <option value="llama-3.1-8b-instant">Groq: Llama-3.1-8b-instant (Fast)</option>
-                      <option value="llama-3.3-70b-versatile">Groq: Llama-3.3-70b-versatile (Accurate)</option>
+                      <option value="qwen2.5">Ollama: Qwen 2.5 (Local Server)</option>
+                      <option value="qwen-2.5-32b">Groq Cloud: Qwen 2.5 32B</option>
+                      <option value="llama-3.1-8b-instant">Groq Cloud: Llama 3.1 8B Instant</option>
+                      <option value="llama-3.3-70b-versatile">Groq Cloud: Llama 3.3 70B Versatile</option>
                     </select>
                   </div>
                   <div>

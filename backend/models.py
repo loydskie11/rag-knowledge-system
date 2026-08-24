@@ -66,7 +66,7 @@ class SystemSettings(Base):
     otp_expiration = Column(Integer, default=10)
     
     # AI Engine Settings
-    ai_model = Column(String(100), default="llama-3.1-8b-instant")
+    ai_model = Column(String(100), default="qwen2.5")
     ai_temperature = Column(Float, default=0.3)
     ai_system_prompt = Column(Text, default="You are the friendly and professional AI Policy Assistant for Cebu Technological University (CTU) Argao Campus. INSTRUCTIONS: 1. If the question is about university rules, grades, or handbooks, use the CONTEXT provided below to answer. 2. If NO CONTEXT is found, apologize and direct them to the campus office.")
     rag_max_chunks = Column(Integer, default=5)

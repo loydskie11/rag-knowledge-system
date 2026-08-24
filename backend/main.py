@@ -13,6 +13,7 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from sqlalchemy import text, or_
 from pydantic import BaseModel, EmailStr
+from openai import OpenAI
 from groq import Groq
 from supabase import create_client, Client
 import PyPDF2
@@ -116,11 +117,13 @@ from database import engine, get_db
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+AI_API_KEY = os.getenv("AI_API_KEY", "ollama")
+AI_BASE_URL = os.getenv("AI_BASE_URL", "http://localhost:11434/v1")
 
 # Initialize clients — single instances used throughout the file
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-groq_client = Groq(api_key=GROQ_API_KEY)
+# We use OpenAI client pointing to the local Ollama server (OpenAI compatible endpoint)
+groq_client = OpenAI(api_key=AI_API_KEY, base_url=AI_BASE_URL)
 
 SMTP_USER     = os.getenv("EMAIL_ADDRESS")
 SMTP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD")
@@ -1338,8 +1341,9 @@ def ask_policy(
     # ==========================================
     settings = db.query(models.SystemSettings).filter(models.SystemSettings.id == 1).first()
     
-    # Fallbacks in case settings aren't set yet
-    ai_model = settings.ai_model if settings else "qwen/qwen3-32b"
+    # Fallbacks in case settings aren't set yet or cloud model name stored
+    raw_model = settings.ai_model if settings else "qwen2.5"
+    ai_model = "qwen2.5" if raw_model in ["qwen-2.5-32b", "qwen-2.5-7b-instruct", "llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b"] else raw_model
     ai_temp = settings.ai_temperature if settings else 0.3
     base_prompt = settings.ai_system_prompt if settings else "You are the friendly and professional AI Policy Assistant for Cebu Technological University (CTU) Argao Campus."
 
@@ -2342,7 +2346,7 @@ async def evaluate_grades(file: UploadFile = File(...)):
         """
 
         response    = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="qwen2.5",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user",   "content": f"Here is the raw text from the grade slip:\n\n{raw_text}"}
@@ -3861,4 +3865,4 @@ def delete_qms_evidence(
     return {"message": "Attached evidence file removed."}
 
 
-
+

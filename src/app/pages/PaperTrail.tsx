@@ -398,22 +398,22 @@ export function PaperTrail() {
       <div className="flex-none space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-[#1F2937]">Document Tracking System (DTS)</h1>
-            <p className="text-sm text-[#6B7280] mt-1">
+            <h1 className="text-xl sm:text-2xl font-semibold text-[#1F2937]">Document Tracking System (DTS)</h1>
+            <p className="text-xs sm:text-sm text-[#6B7280] mt-1">
               Multi-way office routing engine & physical / digital document location tracking
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={() => setShowRequestModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#1D6FA3] text-white rounded-lg hover:bg-[#15527B] transition-all cursor-pointer shadow-sm active:scale-95 text-sm font-semibold"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1D6FA3] text-white rounded-lg hover:bg-[#15527B] transition-all cursor-pointer shadow-sm active:scale-95 text-xs sm:text-sm font-semibold w-full sm:w-auto"
             >
               <Send className="h-4 w-4" />
               <span>+ Request Document</span>
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all cursor-pointer shadow-sm active:scale-95 text-sm font-semibold"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all cursor-pointer shadow-sm active:scale-95 text-xs sm:text-sm font-semibold w-full sm:w-auto"
             >
               <Plus className="h-4 w-4" />
               <span>Route New Document</span>
@@ -472,11 +472,11 @@ export function PaperTrail() {
           </div>
         </div>
 
-        {/* Phase 4: Action Board Tab Switcher (Inbox vs Outbox vs Campus All) */}
-        <div className="flex border-b border-gray-200 gap-2 pt-2">
+        {/* Phase 4: Action Board Tab Switcher (Mobile Horizontally Scrollable) */}
+        <div className="flex border-b border-gray-200 gap-2 pt-2 overflow-x-auto no-scrollbar whitespace-nowrap">
           <button
             onClick={() => setActionBoardTab("all")}
-            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+            className={`px-4 sm:px-5 py-2.5 sm:py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
               actionBoardTab === "all"
                 ? "border-emerald-600 text-emerald-600 bg-emerald-50/50 rounded-t-lg"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -487,7 +487,7 @@ export function PaperTrail() {
 
           <button
             onClick={() => setActionBoardTab("inbox")}
-            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+            className={`px-4 sm:px-5 py-2.5 sm:py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
               actionBoardTab === "inbox"
                 ? "border-[#FF9501] text-[#FF9501] bg-orange-50/50 rounded-t-lg"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -498,7 +498,7 @@ export function PaperTrail() {
 
           <button
             onClick={() => setActionBoardTab("outbox")}
-            className={`px-5 py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+            className={`px-4 sm:px-5 py-2.5 sm:py-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
               actionBoardTab === "outbox"
                 ? "border-[#1D6FA3] text-[#1D6FA3] bg-blue-50/50 rounded-t-lg"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -506,8 +506,6 @@ export function PaperTrail() {
           >
             <Send className="h-4 w-4" /> Action Board Outbox 
           </button>
-
-          
         </div>
 
         {/* Filter and Search Bar */}
@@ -766,24 +764,24 @@ export function PaperTrail() {
 
       {/* CREATE & RELEASE DOCUMENT MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border-t-4 border-t-[#FF9501] max-w-xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-6 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl border-t-4 border-t-[#FF9501] max-w-xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-6 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
-                <h2 className="text-xl font-semibold text-[#1F2937]">Release / Submit Document</h2>
+                <h2 className="text-lg sm:text-xl font-semibold text-[#1F2937]">Release / Submit Document</h2>
                 <p className="text-xs text-[#6B7280] mt-0.5">
                   Generate a tracking entry for official receiving & releasing
                 </p>
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-2 hover:bg-[#E5E7EB] rounded-full transition-colors cursor-pointer text-[#6B7280]"
+                className="p-1.5 sm:p-2 hover:bg-[#E5E7EB] rounded-full transition-colors cursor-pointer text-[#6B7280]"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCreateSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-semibold text-[#1F2937] mb-1.5">
                   Document Title <span className="text-red-500">*</span>
@@ -923,11 +921,11 @@ export function PaperTrail() {
 
       {/* TAKE ACTION & ROUTE DOCUMENT MODAL (Phase 2 Workflow) */}
       {showStatusModal && selectedRecordForStatus && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border-t-4 border-t-[#FF9501] max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl border-t-4 border-t-[#FF9501] max-w-md w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
-                <h2 className="text-lg font-semibold text-[#1F2937]">Take Action / Route Document</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-[#1F2937]">Take Action / Route Document</h2>
                 <p className="text-xs font-mono font-bold text-[#FF9501] mt-0.5">
                   {selectedRecordForStatus.tracking_number}
                 </p>
@@ -940,7 +938,7 @@ export function PaperTrail() {
               </button>
             </div>
 
-            <form onSubmit={handleStatusSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleStatusSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB] space-y-1">
                 <div className="text-xs font-bold text-[#1F2937]">{selectedRecordForStatus.title}</div>
                 <div className="text-[11px] text-[#6B7280]">
@@ -1065,12 +1063,12 @@ export function PaperTrail() {
 
       {/* "REQUEST DOCUMENT" MODAL (Phase 3 - Available to Faculty & Admins) */}
       {showRequestModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border-t-4 border-t-[#1D6FA3] max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl border-t-4 border-t-[#1D6FA3] max-w-lg w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
-                <h2 className="text-lg font-bold text-[#1F2937] flex items-center gap-2">
-                  <Send className="h-5 w-5 text-[#1D6FA3]" /> Issue Document Request (Memo, Resolution, Map, etc.)
+                <h2 className="text-base sm:text-lg font-bold text-[#1F2937] flex items-center gap-2">
+                  <Send className="h-5 w-5 text-[#1D6FA3]" /> Issue Document Request
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">Request official documents (Memos, Board Resolutions, Syllabi) from campus offices or personnel</p>
               </div>
@@ -1079,7 +1077,7 @@ export function PaperTrail() {
               </button>
             </div>
 
-            <form onSubmit={handleRequestSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleRequestSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-bold text-[#1F2937] mb-1">Document Title Requested <span className="text-red-500">*</span></label>
                 <input
@@ -1179,23 +1177,21 @@ export function PaperTrail() {
 
       {/* "FULFILL REQUEST" MODAL (Phase 3) */}
       {showFulfillModal && selectedRecordForFulfill && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border-t-4 border-t-[#1D6FA3] max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl border-t-4 border-t-[#1D6FA3] max-w-md w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
-                <h2 className="text-lg font-bold text-[#1F2937] flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-extrabold text-[#1F2937] flex items-center gap-2">
                   <Upload className="h-5 w-5 text-[#1D6FA3]" /> Fulfill Document Request
                 </h2>
-                <p className="text-xs font-mono font-bold text-[#FF9501] mt-0.5">
-                  {selectedRecordForFulfill.tracking_number} - {selectedRecordForFulfill.title}
-                </p>
+                <p className="text-xs font-mono text-gray-500 mt-0.5">{selectedRecordForFulfill.tracking_number}</p>
               </div>
               <button onClick={() => setShowFulfillModal(false)} className="p-1.5 hover:bg-[#E5E7EB] rounded-full text-gray-500">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleFulfillSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleFulfillSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div className="p-3 bg.blue-50/50 border border-blue-200 rounded-xl space-y-1 text-xs">
                 <div className="font-bold text-[#1D6FA3]">Requesting Director / Admin: {selectedRecordForFulfill.sender_name}</div>
                 <div className="text-gray-600">Note: "{selectedRecordForFulfill.remarks || "No additional note."}"</div>
