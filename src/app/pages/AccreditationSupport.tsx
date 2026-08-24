@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle } from "lucide-react";
+import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
 import { ISO_OFFICES_16 } from "./UsersRoles";
@@ -22,6 +22,27 @@ export function AccreditationSupport() {
     const duration = type === 'error' ? 5000 : type === 'warning' ? 4000 : 3000;
     setTimeout(() => setToast(null), duration);
   };
+
+  // 10 AACCUP Standard Areas
+  const ALL_AACCUP_AREAS = [
+    { code: "Area I", name: "Vision, Mission, Goals and Objectives" },
+    { code: "Area II", name: "Faculty" },
+    { code: "Area III", name: "Curriculum and Instruction" },
+    { code: "Area IV", name: "Support to Students" },
+    { code: "Area V", name: "Research" },
+    { code: "Area VI", name: "Extension and Community Involvement" },
+    { code: "Area VII", name: "Library" },
+    { code: "Area VIII", name: "Physical Plant and Facilities" },
+    { code: "Area IX", name: "Laboratories" },
+    { code: "Area X", name: "Administration" },
+  ];
+
+  // AACCUP Area Configuration State (Level III/IV Scoped Evaluations)
+  const [showAreaConfigModal, setShowAreaConfigModal] = useState(false);
+  const [activeAreas, setActiveAreas] = useState<string[]>([
+    "Area I", "Area II", "Area III", "Area IV", "Area V", "Area VI", "Area VII", "Area VIII", "Area IX", "Area X"
+  ]);
+  const [isSavingAreaConfig, setIsSavingAreaConfig] = useState(false);
 
   const [activeTab, setActiveTab] = useState("aaccup");
 
@@ -227,6 +248,12 @@ export function AccreditationSupport() {
       try {
         const accRes = await axios.get(`http://localhost:8000/accreditation/program/${selectedProgram}`);
         setProgramAccreditation(accRes.data);
+        if (accRes.data?.active_areas) {
+          const parsed = accRes.data.active_areas.split(",").map((s: string) => s.trim()).filter(Boolean);
+          if (parsed.length > 0) {
+            setActiveAreas(parsed);
+          }
+        }
       } catch (err) {
         console.error("Failed to fetch program accreditation", err);
       }
@@ -246,6 +273,34 @@ export function AccreditationSupport() {
       
     } catch (error) {
       console.error("Failed to refresh data", error);
+    }
+  };
+
+  const handleSaveAreaConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (activeAreas.length === 0) {
+      showToast("At least one AACCUP area must be active for evaluation.", "error");
+      return;
+    }
+    setIsSavingAreaConfig(true);
+    try {
+      const token = sessionStorage.getItem("userToken");
+      const headers: any = {};
+      if (token && token !== "null" && token !== "undefined") {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      await axios.put(
+        `http://localhost:8000/accreditation/program/${selectedProgram}`,
+        { active_areas: activeAreas.join(",") },
+        { headers, withCredentials: true }
+      );
+      showToast(`Active evaluation areas updated for ${selectedProgram} (${activeAreas.length}/10 active)!`, "success");
+      setShowAreaConfigModal(false);
+      await refreshData();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update area configuration.", "error");
+    } finally {
+      setIsSavingAreaConfig(false);
     }
   };
 
@@ -1474,13 +1529,29 @@ export function AccreditationSupport() {
 
               <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                  <h2 className="text-xl font-bold text-[#1F2937]">AACCUP Area Compliance</h2>
-                  <div className="relative w-full md:w-72">
-                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search areas..."
-                      className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-sm"
-                    />
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-bold text-[#1F2937]">AACCUP Area Compliance</h2>
+                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                      {currentData.areas.length} {currentData.areas.length === 10 ? "Areas (All 10)" : "Areas (Scoped)"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 w-full md:w-auto">
+                    {userRole === "ADMIN" && (
+                      <button
+                        onClick={() => setShowAreaConfigModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-[#1D6FA3] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer shrink-0 shadow-2xs"
+                        title="Configure Active Evaluation Areas (Level III / IV Scoped Audits)"
+                      >
+                        <SlidersHorizontal className="w-4 h-4" /> Configure Areas ({activeAreas.length}/10)
+                      </button>
+                    )}
+                    <div className="relative w-full md:w-72">
+                      <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search areas..."
+                        className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
                 
@@ -4950,6 +5021,113 @@ export function AccreditationSupport() {
                 >
                   {isUploadingCert ? <><Loader2 className="h-4 w-4 animate-spin"/> Uploading...</> : "Upload & Link"}
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- CONFIGURE AACCUP ACTIVE EVALUATION AREAS MODAL --- */}
+      {showAreaConfigModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#1D6FA3]">
+            <div className="p-6 border-b border-gray-100 bg-[#F5F7FA] flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <SlidersHorizontal className="w-5 h-5 text-[#1D6FA3]" /> Configure Active Evaluation Areas
+                </h2>
+                <p className="text-xs text-gray-600 mt-1">
+                  Scope the AACCUP criteria for <strong>{selectedProgram}</strong> (e.g., 4 mandatory areas for Level III / IV re-accreditation).
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAreaConfigModal(false)}
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAreaConfig} className="p-6 space-y-4">
+              {/* Presets */}
+              <div className="flex items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Quick Presets:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveAreas(ALL_AACCUP_AREAS.map(a => a.code))}
+                    className="text-[11px] font-bold text-[#1D6FA3] hover:underline bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded cursor-pointer transition-colors"
+                  >
+                    Select All 10 (Levels I & II)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveAreas(["Area I", "Area II", "Area III", "Area V"])}
+                    className="text-[11px] font-bold text-[#FF9501] hover:underline bg-orange-50 hover:bg-orange-100 px-2 py-1 rounded cursor-pointer transition-colors"
+                  >
+                    Level III/IV Core (4 Areas)
+                  </button>
+                </div>
+              </div>
+
+              {/* Area Checklist */}
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {ALL_AACCUP_AREAS.map((area) => {
+                  const isChecked = activeAreas.includes(area.code);
+                  return (
+                    <label
+                      key={area.code}
+                      className={`flex items-start gap-3 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                        isChecked ? "bg-blue-50/60 border-[#1D6FA3]/30" : "bg-gray-50 border-gray-200 opacity-70"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setActiveAreas([...activeAreas, area.code]);
+                          } else {
+                            setActiveAreas(activeAreas.filter(c => c !== area.code));
+                          }
+                        }}
+                        className="mt-1 rounded border-gray-300 text-[#1D6FA3] focus:ring-[#1D6FA3] h-4 w-4 cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-900">{area.code}</span>
+                          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded ${isChecked ? "bg-blue-100 text-[#1D6FA3]" : "bg-gray-200 text-gray-600"}`}>
+                            {isChecked ? "Active" : "Excluded"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-0.5 truncate">{area.name}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500">
+                  {activeAreas.length} of 10 Areas Selected
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAreaConfigModal(false)}
+                    disabled={isSavingAreaConfig}
+                    className="px-4 py-2 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingAreaConfig || activeAreas.length === 0}
+                    className="px-5 py-2 text-xs font-bold text-white bg-[#1D6FA3] hover:bg-[#15527B] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer"
+                  >
+                    {isSavingAreaConfig ? <><Loader2 className="h-4 w-4 animate-spin"/> Saving...</> : "Save Configuration"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

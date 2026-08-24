@@ -234,6 +234,7 @@ class ProgramAccreditation(Base):
     program_code = Column(String(50), unique=True, nullable=False) # e.g. "BSIT"
     current_level = Column(String(100), default="Level I") # e.g. "Level II Re-accredited"
     status = Column(String(50), default="Active") # Active, Under Assessment, Expired
+    active_areas = Column(String(500), default="Area I,Area II,Area III,Area IV,Area V,Area VI,Area VII,Area VIII,Area IX,Area X")
     valid_until = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

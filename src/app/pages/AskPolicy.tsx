@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from "react";
 import { Send, Sparkles, FileText, ThumbsUp, ThumbsDown, ChevronDown, Loader2, RotateCcw, AlertTriangle, Lock } from "lucide-react";
 import axios, { type CancelTokenSource } from "axios";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useRole } from "../contexts/RoleContext";
 
 // Centralize the API origin instead of hardcoding localhost in every call —
@@ -338,7 +340,7 @@ export function AskPolicy() {
               )}
 
               <div
-                className={`rounded-2xl px-4 py-2.5 text-sm ${
+                className={`rounded-2xl px-4 py-3 text-sm ${
                   message.type === "user"
                     ? "bg-[#FF9501] text-white rounded-tr-sm shadow-sm self-end"
                     : message.isError
@@ -348,9 +350,17 @@ export function AskPolicy() {
                     : "bg-[#F9FAFB] text-[#1F2937] border border-[#E5E7EB] rounded-tl-sm shadow-sm"
                 }`}
               >
-                <p className="whitespace-pre-wrap leading-relaxed break-words">
-                  {message.content}
-                </p>
+                {message.type === "user" ? (
+                  <p className="whitespace-pre-wrap leading-relaxed break-words">
+                    {message.content}
+                  </p>
+                ) : (
+                  <div className="prose prose-sm prose-orange max-w-none break-words text-[#1F2937] leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_ul]:list-disc [&_ol]:list-decimal [&_li]:my-0.5 [&_p]:my-1.5 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-gray-200 [&_th]:p-2 [&_th]:bg-gray-100 [&_td]:border [&_td]:border-gray-200 [&_td]:p-2 [&_pre]:bg-gray-900 [&_pre]:text-white [&_pre]:p-3 [&_pre]:rounded-lg [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
 
               {message.isError && message.failedQuestion && (

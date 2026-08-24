@@ -367,6 +367,7 @@ try:
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(50) DEFAULT 'Submission';"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_date VARCHAR(50);"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_notes TEXT;"))
+        conn.execute(text("ALTER TABLE program_accreditations ADD COLUMN IF NOT EXISTS active_areas TEXT DEFAULT 'Area I,Area II,Area III,Area IV,Area V,Area VI,Area VII,Area VIII,Area IX,Area X';"))
         conn.commit()
 except Exception as _mig_err:
     pass
@@ -1419,12 +1420,29 @@ def ask_policy(
         print(f"Failed to log query: {e}")
 
     # ==========================================
-    # 4. ROLE-AWARE RAG RETRIEVAL
+    # 4. QUERY EXPANSION & SPELL CHECK
+    # ==========================================
+    rewrite_prompt = f"""You are a search query optimizer. The user asked: "{question}"
+Rewrite this into a clean, professional, grammatically correct search query optimized for a vector database. 
+Fix all typos. Do not answer the question, ONLY output the optimized search string."""
+    
+    try:
+        rewrite_response = groq_client.chat.completions.create(
+            messages=[{'role': 'user', 'content': rewrite_prompt}],
+            model=ai_model,
+            temperature=0.0
+        )
+        optimized_query = rewrite_response.choices[0].message.content.strip().strip('"')
+    except Exception:
+        optimized_query = question
+
+    # ==========================================
+    # 5. ROLE-AWARE RAG RETRIEVAL
     # ==========================================
     # Pass excluded_categories so the vector search itself skips restricted
     # documents — we don't waste retrieval slots and never leak context to the AI.
     relevant_chunks = vector_store.search_knowledge(
-        question, excluded_categories=excluded_categories
+        optimized_query, excluded_categories=excluded_categories
     )
 
     # Early exit: student is asking about a restricted topic.
@@ -1458,7 +1476,7 @@ def ask_policy(
     context_text = "\n\n".join([chunk['content'] for chunk in relevant_chunks])
 
     # ==========================================
-    # 5. ROLE-AWARE SYSTEM PROMPT
+    # 6. ROLE-AWARE SYSTEM PROMPT
     # ==========================================
     role_context = {
         "STUDENT": (
@@ -1492,6 +1510,7 @@ def ask_policy(
     2. ABSOLUTE REFUSAL RULE: If the provided context does not contain the exact factual answer to the user's question, or if the relevant document has not been uploaded to the database, you must state exactly this word-for-word: "I am sorry, but the specific document or policy regarding this matter is currently not available in our institutional knowledge repository."
     3. NO HALLUCINATIONS: Never make up dates, names, room numbers, or requirements under any circumstances. If the context is ambiguous, execute the Absolute Refusal Rule.
     4. CITATION REQUIREMENT: When answering from the context, always ground your sentences clearly based on the provided document names.
+    5. MULTI-SOURCE SYNTHESIS: If the context contains information from multiple different documents (e.g., the Student Handbook and a Board Resolution), you MUST synthesize them. Compare or combine the information logically so the user gets a comprehensive answer.
     
     FORMATTING RULE:
     You must separate your main answer from the follow-up questions using exactly this string: |FOLLOWUPS|
@@ -1502,7 +1521,7 @@ def ask_policy(
     """
 
     # ==========================================
-    # 6. AI CALL WITH DYNAMIC SETTINGS
+    # 7. AI CALL WITH DYNAMIC SETTINGS
     # ==========================================
     try:
         response = groq_client.chat.completions.create(
@@ -1890,10 +1909,16 @@ def review_accreditation(req: AccreditationReviewRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to process review")
 
-# 2. THE UPDATED STATUS ROUTE (Only counts Approved docs!)
+# 2. THE UPDATED STATUS ROUTE (Only counts Approved docs and respect Active Areas!)
 @app.get("/accreditation-status/{program}")
-def get_accreditation_status(program: str):
+def get_accreditation_status(program: str, db: Session = Depends(get_db)):
     try:
+        # Fetch active areas configuration for the program if exists
+        active_areas_set = None
+        prog_acc = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program).first()
+        if prog_acc and prog_acc.active_areas:
+            active_areas_set = set(a.strip() for a in prog_acc.active_areas.split(",") if a.strip())
+
         # NOTICE: We changed "Active" to "Approved" so Pending docs don't artificially inflate the score!
         res = supabase.table("document_sections").select("metadata").eq("metadata->>category", "Accreditation Evidence").eq("metadata->>program", program).eq("metadata->>status", "Approved").execute()
         
@@ -1940,6 +1965,9 @@ def get_accreditation_status(program: str):
         total_ev   = 0
 
         for code, reqs in AREA_TEMPLATES.items():
+            if active_areas_set is not None and code not in active_areas_set:
+                continue
+
             required_count = len(reqs)
             ev_count       = len(fulfilled_reqs.get(code, set()))
             capped_ev      = min(ev_count, required_count)
@@ -3901,17 +3929,20 @@ def edit_program_accreditation(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin)
 ):
-    """Directly edits the current standing without logging a formal upgrade. Used for system initialization or corrections."""
+    """Directly edits the current standing or active evaluation areas without logging a formal upgrade."""
     accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
     if not accreditation:
         accreditation = models.ProgramAccreditation(
             program_code=program_code,
-            current_level=req.new_level,
+            current_level=req.new_level or "Candidate Status",
             status="Active"
         )
         db.add(accreditation)
 
-    accreditation.current_level = req.new_level
+    if req.new_level:
+        accreditation.current_level = req.new_level
+    if req.active_areas is not None:
+        accreditation.active_areas = req.active_areas
     if req.valid_until_date:
         try:
             accreditation.valid_until = datetime.fromisoformat(req.valid_until_date)

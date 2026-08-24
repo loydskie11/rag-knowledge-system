@@ -356,6 +356,7 @@ class ProgramAccreditationResponse(BaseModel):
     program_code: str
     current_level: str
     status: str
+    active_areas: Optional[str] = "Area I,Area II,Area III,Area IV,Area V,Area VI,Area VII,Area VIII,Area IX,Area X"
     valid_until: Optional[datetime] = None
     history: List[AccreditationHistoryResponse] = []
 
@@ -363,7 +364,8 @@ class ProgramAccreditationResponse(BaseModel):
         from_attributes = True
 
 class UpgradeAccreditationRequest(BaseModel):
-    new_level: str
+    new_level: Optional[str] = None
+    active_areas: Optional[str] = None
     valid_until_date: Optional[str] = None # YYYY-MM-DD
     certificate_url: Optional[str] = None
     remarks: Optional[str] = None
