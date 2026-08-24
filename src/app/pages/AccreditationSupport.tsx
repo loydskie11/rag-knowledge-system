@@ -11,6 +11,7 @@ export function AccreditationSupport() {
   const userAdminOffice = sessionStorage.getItem('userAdministrativeOffice') || '';
   const userIsIqaAuditor = sessionStorage.getItem('isIqaAuditor') === 'true';
   const isOfficeRestricted = userRole !== 'ADMIN' && !userIsIqaAuditor && Boolean(userAdminOffice && ISO_OFFICES_16.includes(userAdminOffice));
+  const isUnassignedFaculty = userRole !== 'ADMIN' && !userIsIqaAuditor && (!userAdminOffice || !ISO_OFFICES_16.includes(userAdminOffice));
 
   const [selectedProgram, setSelectedProgram] = useState(userRole === 'FACULTY' ? userDept : "BSIT");
   const [searchQuery, setSearchQuery] = useState("");
@@ -2162,9 +2163,20 @@ export function AccreditationSupport() {
                 </div>
 
                 {isoSubTab === "qms" ? (
-                  /* DIGITAL QMS OPPORTUNITIES & ACTION PLANS (MRC Form 6) */
-                  <div className="p-6 space-y-6">
-                    {/* Banner Header */}
+                  isUnassignedFaculty ? (
+                    <div className="p-6">
+                      <div className="bg-red-50 rounded-2xl border border-red-200 p-12 text-center text-red-700 space-y-3 shadow-sm">
+                        <ShieldAlert className="h-12 w-12 text-red-500 mx-auto" />
+                        <h4 className="font-bold text-lg">ISO QMS Access Restricted</h4>
+                        <p className="text-sm text-red-600 max-w-md mx-auto">
+                          Your account is designated as "Academic Only" or unassigned. Access to QMS Action Plans (MRC Form 6) is strictly restricted to designated ISO Office Heads and Internal Quality Auditors.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* DIGITAL QMS OPPORTUNITIES & ACTION PLANS (MRC Form 6) */
+                    <div className="p-6 space-y-6">
+                      {/* Banner Header */}
                     <div className="bg-[#1F2937] text-white p-6 rounded-2xl shadow-md border-l-4 border-l-[#FF9501] flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -2510,7 +2522,8 @@ export function AccreditationSupport() {
                       </div>
                     )}
                   </div>
-                ) : (
+                )
+              ) : (
                   /* Clean Clauses Overview Grid */
                   <div className="p-6">
                     {isLoadingIso ? (
@@ -2703,21 +2716,23 @@ export function AccreditationSupport() {
                         <h3 className="font-bold text-[#1F2937] text-sm uppercase tracking-wider">Uploaded Clause Evidence</h3>
                         <p className="text-[11px] text-gray-500 mt-0.5">Attached verification records for {expandedIsoClause.iso_clause}</p>
                       </div>
-                      <button 
-                        onClick={() => {
-                          if (isOfficeRestricted && expandedIsoClause.auditee_office !== userAdminOffice) {
-                            showToast(`Audit Governance: You are assigned to "${userAdminOffice}". You cannot upload evidence for "${expandedIsoClause.auditee_office}".`, "warning");
-                            return;
-                          }
-                          setSelectedIsoReq(expandedIsoClause);
-                          setUploadForm({ fileName: "", requirementTarget: "" });
-                          setSelectedFile(null);
-                          setShowIsoUploadModal(true);
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all text-xs font-bold cursor-pointer shadow-sm active:scale-95"
-                      >
-                        <Upload className="h-3.5 w-3.5" /> Upload Evidence
-                      </button>
+                      {!isUnassignedFaculty && (
+                        <button 
+                          onClick={() => {
+                            if (isOfficeRestricted && expandedIsoClause.auditee_office !== userAdminOffice) {
+                              showToast(`Audit Governance: You are assigned to "${userAdminOffice}". You cannot upload evidence for "${expandedIsoClause.auditee_office}".`, "warning");
+                              return;
+                            }
+                            setSelectedIsoReq(expandedIsoClause);
+                            setUploadForm({ fileName: "", requirementTarget: "" });
+                            setSelectedFile(null);
+                            setShowIsoUploadModal(true);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all text-xs font-bold cursor-pointer shadow-sm active:scale-95"
+                        >
+                          <Upload className="h-3.5 w-3.5" /> Upload Evidence
+                        </button>
+                      )}
                     </div>
 
                     <div className="p-5 flex-1">
@@ -2764,12 +2779,14 @@ export function AccreditationSupport() {
                           <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
                             Upload documented evidence to verify compliance for {expandedIsoClause.iso_clause}.
                           </p>
-                          <button 
-                            onClick={() => { setSelectedIsoReq(expandedIsoClause); setUploadForm({ fileName: "", requirementTarget: "" }); setSelectedFile(null); setShowIsoUploadModal(true); }}
-                            className="mt-4 px-4 py-2 bg-orange-50 text-[#FF9501] border border-[#FF9501]/30 hover:bg-orange-100 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
-                          >
-                            <Upload className="h-3.5 w-3.5" /> Upload First Evidence
-                          </button>
+                          {!isUnassignedFaculty && (
+                            <button 
+                              onClick={() => { setSelectedIsoReq(expandedIsoClause); setUploadForm({ fileName: "", requirementTarget: "" }); setSelectedFile(null); setShowIsoUploadModal(true); }}
+                              className="mt-4 px-4 py-2 bg-orange-50 text-[#FF9501] border border-[#FF9501]/30 hover:bg-orange-100 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <Upload className="h-3.5 w-3.5" /> Upload First Evidence
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
