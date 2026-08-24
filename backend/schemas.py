@@ -339,4 +339,31 @@ class QMSActionPlanResponse(BaseModel):
         from_attributes = True
 
 
-
+# --- NEW: ACCREDITATION SCHEMAS ---
+class AccreditationHistoryResponse(BaseModel):
+    id: uuid.UUID
+    level_achieved: str
+    date_granted: datetime
+    valid_until: Optional[datetime] = None
+    certificate_url: Optional[str] = None
+    remarks: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ProgramAccreditationResponse(BaseModel):
+    id: uuid.UUID
+    program_code: str
+    current_level: str
+    status: str
+    valid_until: Optional[datetime] = None
+    history: List[AccreditationHistoryResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class UpgradeAccreditationRequest(BaseModel):
+    new_level: str
+    valid_until_date: Optional[str] = None # YYYY-MM-DD
+    certificate_url: Optional[str] = None
+    remarks: Optional[str] = None

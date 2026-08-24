@@ -416,14 +416,20 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
 def _extract_token_from_request(request: Request, bearer_token: Optional[str] = None) -> Optional[str]:
     """Helper to extract token from Bearer header OR HttpOnly cookie."""
-    if bearer_token:
-        return bearer_token
+    if bearer_token and bearer_token.strip() not in ("null", "undefined", ""):
+        return bearer_token.strip()
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
-        return auth_header.split(" ")[1]
+        parts = auth_header.split(" ")
+        if len(parts) > 1:
+            token_val = parts[1].strip()
+            if token_val and token_val not in ("null", "undefined", ""):
+                return token_val
     cookie_token = request.cookies.get("access_token")
     if cookie_token:
-        return cookie_token.replace("Bearer ", "") if cookie_token.startswith("Bearer ") else cookie_token
+        cookie_clean = cookie_token.replace("Bearer ", "").strip()
+        if cookie_clean and cookie_clean not in ("null", "undefined", ""):
+            return cookie_clean
     return None
 
 def get_current_user(
@@ -3865,4 +3871,155 @@ def delete_qms_evidence(
     return {"message": "Attached evidence file removed."}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PROGRAM ACCREDITATION & HISTORICAL LEVEL UPGRADE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/accreditation/program/{program_code}", response_model=schemas.ProgramAccreditationResponse)
+def get_program_accreditation(program_code: str, db: Session = Depends(get_db)):
+    """Fetches the current level and history for a program. Initializes default if none exists."""
+    accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
+    
+    if not accreditation:
+        # Seed default starting point with initial history
+        accreditation = models.ProgramAccreditation(
+            program_code=program_code,
+            current_level="Candidate Status",
+            status="Active"
+        )
+        db.add(accreditation)
+        db.commit()
+        db.refresh(accreditation)
+        
+    return accreditation
+
+
+@app.put("/accreditation/program/{program_code}", response_model=schemas.ProgramAccreditationResponse)
+def edit_program_accreditation(
+    program_code: str, 
+    req: schemas.UpgradeAccreditationRequest,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Directly edits the current standing without logging a formal upgrade. Used for system initialization or corrections."""
+    accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
+    if not accreditation:
+        accreditation = models.ProgramAccreditation(
+            program_code=program_code,
+            current_level=req.new_level,
+            status="Active"
+        )
+        db.add(accreditation)
+
+    accreditation.current_level = req.new_level
+    if req.valid_until_date:
+        try:
+            accreditation.valid_until = datetime.fromisoformat(req.valid_until_date)
+        except Exception:
+            pass
+    accreditation.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(accreditation)
+    return accreditation
+
+
+@app.post("/accreditation/program/{program_code}/upgrade", response_model=schemas.ProgramAccreditationResponse)
+def upgrade_program_accreditation(
+    program_code: str, 
+    req: schemas.UpgradeAccreditationRequest, 
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Officially upgrades a program's level and logs the level achievement into history."""
+    accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
+    if not accreditation:
+        accreditation = models.ProgramAccreditation(
+            program_code=program_code,
+            current_level=req.new_level,
+            status="Active"
+        )
+        db.add(accreditation)
+        db.commit()
+        db.refresh(accreditation)
+
+    # 1. Log the new achievement to history
+    parsed_date = None
+    if req.valid_until_date:
+        try:
+            parsed_date = datetime.fromisoformat(req.valid_until_date)
+        except Exception:
+            pass
+
+    history_log = models.AccreditationHistory(
+        program_id=accreditation.id,
+        level_achieved=req.new_level,
+        valid_until=parsed_date,
+        certificate_url=req.certificate_url,
+        remarks=req.remarks
+    )
+    db.add(history_log)
+
+    # 2. Update the active status
+    accreditation.current_level = req.new_level
+    if parsed_date:
+        accreditation.valid_until = parsed_date
+    accreditation.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(accreditation)
+
+    # 3. Add to Audit Log
+    try:
+        supabase.table("system_events_logs").insert({
+            "user_email": admin.email,
+            "event_type": "Accreditation Upgrade",
+            "description": f"Officially upgraded {program_code} to {req.new_level}"
+        }).execute()
+    except Exception:
+        pass
+
+    try:
+        _notify_all_admins(
+            db=db,
+            n_type="success",
+            title=f"AACCUP Level Upgraded: {program_code}",
+            message=f"Program {program_code} has been officially upgraded to {req.new_level} by {admin.full_name or admin.email}."
+        )
+    except Exception:
+        pass
+
+    return accreditation
+
+
+@app.post("/accreditation/history/{history_id}/upload-certificate")
+async def upload_historical_certificate(
+    history_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Uploads an official certificate file and attaches it to an accreditation history log."""
+    history_log = db.query(models.AccreditationHistory).filter(models.AccreditationHistory.id == history_id).first()
+    if not history_log:
+        raise HTTPException(status_code=404, detail="History record not found.")
+
+    contents = await file.read()
+    safe_filename = file.filename.replace(" ", "_")
+    unique_path = f"certificates/{int(time.time())}_{safe_filename}"
+
+    try:
+        supabase.storage.from_("documents").upload(
+            file=contents,
+            path=unique_path,
+            file_options={"content-type": file.content_type or "application/pdf"}
+        )
+        public_url = supabase.storage.from_("documents").get_public_url(unique_path)
+        
+        history_log.certificate_url = public_url
+        db.commit()
+        db.refresh(history_log)
+        return {"message": "Certificate uploaded successfully", "certificate_url": public_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload certificate: {str(e)}")
 

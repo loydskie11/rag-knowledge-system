@@ -227,4 +227,26 @@ class QMSEvidence(Base):
     action_plan = relationship("QMSActionPlan", back_populates="evidences")
 
 
-
+# --- NEW: PROGRAM ACCREDITATION TABLES ---
+class ProgramAccreditation(Base):
+    __tablename__ = "program_accreditations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    program_code = Column(String(50), unique=True, nullable=False) # e.g. "BSIT"
+    current_level = Column(String(100), default="Level I") # e.g. "Level II Re-accredited"
+    status = Column(String(50), default="Active") # Active, Under Assessment, Expired
+    valid_until = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    history = relationship("AccreditationHistory", back_populates="program", cascade="all, delete-orphan", order_by="AccreditationHistory.date_granted.desc()")
+
+class AccreditationHistory(Base):
+    __tablename__ = "accreditation_history"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    program_id = Column(UUID(as_uuid=True), ForeignKey("program_accreditations.id", ondelete="CASCADE"), nullable=False)
+    level_achieved = Column(String(100), nullable=False)
+    date_granted = Column(DateTime, default=datetime.utcnow)
+    valid_until = Column(DateTime, nullable=True)
+    certificate_url = Column(String, nullable=True)
+    remarks = Column(Text, nullable=True)
+
+    program = relationship("ProgramAccreditation", back_populates="history")

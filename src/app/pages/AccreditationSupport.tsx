@@ -194,10 +194,42 @@ export function AccreditationSupport() {
   });
   const [isSavingIqaDay, setIsSavingIqaDay] = useState(false);
 
+  // Dynamic AACCUP Program Accreditation & Upgrade Modal (Dynamic Level & History)
+  const [programAccreditation, setProgramAccreditation] = useState<any>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeForm, setUpgradeForm] = useState({
+    new_level: "Level I Accredited",
+    valid_until_date: "",
+    certificate_url: "",
+    remarks: ""
+  });
+  const [isUpgrading, setIsUpgrading] = useState(false);
+
+  // Edit Program Standing (System Onboarding / Direct Baseline Calibration)
+  const [showEditStandingModal, setShowEditStandingModal] = useState(false);
+  const [editStandingForm, setEditStandingForm] = useState({
+    new_level: "Level II Re-accredited",
+    valid_until_date: ""
+  });
+  const [isSavingStanding, setIsSavingStanding] = useState(false);
+
+  // Certificate Upload State (Historical Logs)
+  const [showCertModal, setShowCertModal] = useState(false);
+  const [targetHistoryId, setTargetHistoryId] = useState<string | null>(null);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [isUploadingCert, setIsUploadingCert] = useState(false);
+
   const refreshData = async () => {
     try {
       const response = await axios.get(`http://localhost:8000/accreditation-status/${selectedProgram}`);
       setCurrentData(response.data);
+
+      try {
+        const accRes = await axios.get(`http://localhost:8000/accreditation/program/${selectedProgram}`);
+        setProgramAccreditation(accRes.data);
+      } catch (err) {
+        console.error("Failed to fetch program accreditation", err);
+      }
 
       if (expandedArea) {
         const detailsRes = await axios.get(`http://localhost:8000/accreditation-details/${selectedProgram}/${expandedArea.code}`);
@@ -214,6 +246,124 @@ export function AccreditationSupport() {
       
     } catch (error) {
       console.error("Failed to refresh data", error);
+    }
+  };
+
+  const handleCertUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetHistoryId || !certFile) {
+      showToast("Please select a certificate file to upload.", "error");
+      return;
+    }
+    setIsUploadingCert(true);
+    const formData = new FormData();
+    formData.append("file", certFile);
+    try {
+      const token = sessionStorage.getItem("userToken");
+      const headers: any = {};
+      if (token && token !== "null" && token !== "undefined") {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      await axios.post(
+        `http://localhost:8000/accreditation/history/${targetHistoryId}/upload-certificate`,
+        formData,
+        { headers, withCredentials: true }
+      );
+      showToast("Official Certificate uploaded and attached successfully!", "success");
+      setShowCertModal(false);
+      setCertFile(null);
+      setTargetHistoryId(null);
+      await refreshData();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to upload certificate.", "error");
+    } finally {
+      setIsUploadingCert(false);
+    }
+  };
+
+  const handleExportReport = () => {
+    const historyList = programAccreditation?.history || [];
+    if (historyList.length === 0) {
+      showToast("No historical accreditation milestones available to export.", "warning");
+      return;
+    }
+
+    const headers = ["Program", "Level Achieved", "Date Granted", "Valid Until", "Certificate URL", "Remarks"];
+    const rows = historyList.map((item: any) => [
+      `"${selectedProgram}"`,
+      `"${(item.level_achieved || "").replace(/"/g, '""')}"`,
+      `"${item.date_granted ? new Date(item.date_granted).toLocaleDateString() : ""}"`,
+      `"${item.valid_until ? new Date(item.valid_until).toLocaleDateString() : "Indefinite"}"`,
+      `"${item.certificate_url || "N/A"}"`,
+      `"${(item.remarks || "").replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map((r: string[]) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${selectedProgram}_Accreditation_History.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Accreditation history exported as ${selectedProgram}_Accreditation_History.csv`, "success");
+  };
+
+  const handleEditStandingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editStandingForm.new_level.trim()) {
+      showToast("Please select or specify the accreditation level.", "error");
+      return;
+    }
+    setIsSavingStanding(true);
+    try {
+      const token = sessionStorage.getItem("userToken");
+      const headers: any = {};
+      if (token && token !== "null" && token !== "undefined") {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      await axios.put(
+        `http://localhost:8000/accreditation/program/${selectedProgram}`,
+        editStandingForm,
+        { headers, withCredentials: true }
+      );
+      showToast(`Program ${selectedProgram} standing updated to ${editStandingForm.new_level}!`, "success");
+      setShowEditStandingModal(false);
+      await refreshData();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update accreditation standing.", "error");
+    } finally {
+      setIsSavingStanding(false);
+    }
+  };
+
+  const handleUpgradeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!upgradeForm.new_level.trim()) {
+      showToast("Please select or specify the new accreditation level.", "error");
+      return;
+    }
+    setIsUpgrading(true);
+    try {
+      const token = sessionStorage.getItem("userToken");
+      const headers: any = {};
+      if (token && token !== "null" && token !== "undefined") {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      await axios.post(
+        `http://localhost:8000/accreditation/program/${selectedProgram}/upgrade`,
+        upgradeForm,
+        { headers, withCredentials: true }
+      );
+      showToast(`Program ${selectedProgram} officially upgraded to ${upgradeForm.new_level}!`, "success");
+      setShowUpgradeModal(false);
+      setUpgradeForm({ new_level: "Level I Accredited", valid_until_date: "", certificate_url: "", remarks: "" });
+      await refreshData();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to upgrade accreditation level.", "error");
+    } finally {
+      setIsUpgrading(false);
     }
   };
 
@@ -1017,6 +1167,12 @@ export function AccreditationSupport() {
   const chedTotalCount = chedRequirements.length;
   const chedCompliancePercentage = chedTotalCount === 0 ? 0 : Math.round((chedCompliantCount / chedTotalCount) * 100);
   
+  // Composite Institutional QA Readiness Index (40% AACCUP, 30% CHED, 30% ISO QMS)
+  const aaccupScore = currentData.overall || 0;
+  const chedScore = chedCompliancePercentage || 0;
+  const isoScore = isoCompliancePercentage || 0;
+  const compositeQaScore = Math.round((aaccupScore * 0.40) + (chedScore * 0.30) + (isoScore * 0.30));
+  
   // COMBINE AACCUP AND CHED PENDING DOCS FOR THE TOP QUEUE
   const chedPendingDocs = chedRequirements.filter(r => r.status === 'Pending').map(r => ({
     id: r.id,
@@ -1231,15 +1387,70 @@ export function AccreditationSupport() {
             </div>
 
             {activeTab !== 'iso' && (
-              <div className="flex items-center gap-2 px-3 sm:px-5 py-2.5 sm:py-3 bg-[#FF9501] text-white rounded-lg shadow-md border border-[#FF9501]/50 w-full sm:w-auto justify-center">
-                <Award className="h-4 w-4 sm:h-5 sm:w-5 drop-shadow-sm" />
-                <span className="font-bold tracking-wide text-shadow-sm uppercase text-xs">{currentData.level || "Level II"}</span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-2 px-3 sm:px-5 py-2.5 sm:py-3 bg-[#FF9501] text-white rounded-lg shadow-md border border-[#FF9501]/50 w-full sm:w-auto justify-center">
+                  <Award className="h-4 w-4 sm:h-5 sm:w-5 drop-shadow-sm" />
+                  <span className="font-bold tracking-wide text-shadow-sm uppercase text-xs">
+                    {programAccreditation?.current_level || currentData.level || "Candidate Status"}
+                  </span>
+                </div>
+                {userRole === "ADMIN" && (
+                  <button
+                    onClick={() => {
+                      setEditStandingForm({
+                        new_level: programAccreditation?.current_level || "Candidate Status",
+                        valid_until_date: programAccreditation?.valid_until ? programAccreditation.valid_until.split("T")[0] : ""
+                      });
+                      setShowEditStandingModal(true);
+                    }}
+                    className="p-2.5 sm:p-3 bg-white border border-gray-200 hover:border-[#FF9501] text-gray-600 hover:text-[#FF9501] rounded-lg shadow-sm hover:shadow transition-all cursor-pointer"
+                    title="Edit Current Standing (System Onboarding / Calibration)"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
 
         <TabsContent value="aaccup" className="space-y-6 mt-6">
+          {/* 100% Compliant: Ready for Official Assessment Banner */}
+          {currentData.overall === 100 && (
+            <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                  <Award className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-emerald-900 flex items-center gap-2">
+                    100% Compliant: Ready for Official Assessment!
+                  </h3>
+                  <p className="text-xs sm:text-sm text-emerald-700 mt-0.5">
+                    All AACCUP parameters and required evidence documents for <strong>{selectedProgram}</strong> have been fully verified and approved.
+                  </p>
+                </div>
+              </div>
+              {userRole === "ADMIN" && (
+                <button
+                  onClick={() => {
+                    setUpgradeForm({
+                      new_level: "Level II Re-accredited",
+                      valid_until_date: "",
+                      certificate_url: "",
+                      remarks: "Passed 100% internal compliance audit."
+                    });
+                    setShowUpgradeModal(true);
+                  }}
+                  className="px-4 py-2.5 bg-[#006837] hover:bg-[#00502a] text-white rounded-lg text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0"
+                >
+                  <Award className="w-4 h-4" />
+                  Officially Upgrade Level
+                </button>
+              )}
+            </div>
+          )}
+
           {!expandedArea ? (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
@@ -2595,11 +2806,29 @@ export function AccreditationSupport() {
                       <History className="w-5 h-5 text-[#FF9501]" />
                       Accreditation Timeline
                     </h2>
-                    <p className="text-sm text-gray-500 mt-1">Historical milestones for {selectedProgram}</p>
+                    <p className="text-sm text-gray-500 mt-1">Historical milestones for {selectedProgram} (Current: <strong>{programAccreditation?.current_level || "Candidate Status"}</strong>)</p>
                   </div>
-                  <button className="flex items-center gap-1.5 sm:gap-2 text-[#D97E00] hover:text-[#995900] text-xs font-bold bg-[#FFF4E5] px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-                    <Download className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Export Report</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {userRole === "ADMIN" && (
+                      <button
+                        onClick={() => {
+                          setUpgradeForm({
+                            new_level: "Level II Re-accredited",
+                            valid_until_date: "",
+                            certificate_url: "",
+                            remarks: ""
+                          });
+                          setShowUpgradeModal(true);
+                        }}
+                        className="flex items-center gap-1.5 text-white text-xs font-bold bg-[#FF9501] hover:bg-[#D97E00] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-sm"
+                      >
+                        <Award className="w-3.5 h-3.5" /> + Upgrade Level
+                      </button>
+                    )}
+                    <button onClick={handleExportReport} className="flex items-center gap-1.5 sm:gap-2 text-[#D97E00] hover:text-[#995900] text-xs font-bold bg-[#FFF4E5] px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+                      <Download className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Export Report</span>
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="p-6 relative">
@@ -2607,28 +2836,68 @@ export function AccreditationSupport() {
                   <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-gray-100 z-0"></div>
                   
                   <div className="space-y-8 relative z-10">
-                    {[
-                      { year: "2024", title: "AACCUP Level III Re-accredited", type: "Active", date: "Valid until Oct 2027", icon: Award, color: "text-[#006837]", bg: "bg-green-100", ring: "ring-[#006837]/20" },
-                      { year: "2021", title: "AACCUP Level II Re-accredited", type: "Expired", date: "Valid until Oct 2024", icon: Check, color: "text-gray-400", bg: "bg-gray-100", ring: "ring-gray-200" },
-                      { year: "2019", title: "CHED Certificate of Program Compliance (COPC)", type: "Active", date: "Indefinite Validity", icon: FileCheck, color: "text-[#FF9501]", bg: "bg-orange-100", ring: "ring-[#FF9501]/20" },
-                      { year: "2018", title: "AACCUP Level I Accredited", type: "Expired", date: "Valid until Oct 2021", icon: Check, color: "text-gray-400", bg: "bg-gray-100", ring: "ring-gray-200" },
-                    ].map((item, idx) => (
-                      <div key={idx} className="flex gap-4">
-                        <div className={`w-8 h-8 rounded-full ${item.bg} flex items-center justify-center shrink-0 ring-4 ring-white shadow-sm mt-1`}>
-                          <item.icon className={`w-4 h-4 ${item.color}`} />
-                        </div>
-                        <div className="flex-1 bg-white border border-gray-100 hover:border-[#FF9501]/30 hover:shadow-md transition-all p-4 rounded-xl group cursor-pointer">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold text-[#FF9501] uppercase tracking-wider">{item.year}</span>
-                            <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${item.type === 'Active' ? 'bg-green-50 text-[#006837]' : 'bg-gray-100 text-gray-500'}`}>
-                              {item.type}
-                            </span>
+                    {programAccreditation?.history && programAccreditation.history.length > 0 ? (
+                      programAccreditation.history.map((item: any, idx: number) => {
+                        const dateGranted = new Date(item.date_granted);
+                        const year = isNaN(dateGranted.getFullYear()) ? "Recent" : dateGranted.getFullYear().toString();
+                        const isLatest = idx === 0;
+                        const formattedDate = item.valid_until
+                          ? `Valid until ${new Date(item.valid_until).toLocaleDateString([], { month: "short", year: "numeric" })}`
+                          : "Indefinite Validity / Verified";
+
+                        return (
+                          <div key={item.id || idx} className="flex gap-4">
+                            <div className={`w-8 h-8 rounded-full ${isLatest ? 'bg-green-100' : 'bg-gray-100'} flex items-center justify-center shrink-0 ring-4 ring-white shadow-sm mt-1`}>
+                              <Award className={`w-4 h-4 ${isLatest ? 'text-[#006837]' : 'text-gray-400'}`} />
+                            </div>
+                            <div className="flex-1 bg-white border border-gray-100 hover:border-[#FF9501]/30 hover:shadow-md transition-all p-4 rounded-xl group">
+                              <div className="flex justify-between items-start mb-1">
+                                <span className="text-xs font-bold text-[#FF9501] uppercase tracking-wider">{year}</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${isLatest ? 'bg-green-50 text-[#006837]' : 'bg-gray-100 text-gray-500'}`}>
+                                  {isLatest ? 'Current Active Level' : 'Historical Milestone'}
+                                </span>
+                              </div>
+                              <h3 className="font-bold text-gray-900 text-sm group-hover:text-[#FF9501] transition-colors">{item.level_achieved}</h3>
+                              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {formattedDate}</p>
+                              {item.remarks && (
+                                <p className="text-xs text-gray-600 mt-2 bg-gray-50 p-2.5 rounded-lg border border-gray-100 italic">
+                                  "{item.remarks}"
+                                </p>
+                              )}
+                              <div className="mt-2 flex items-center gap-3">
+                                {item.certificate_url ? (
+                                  <a
+                                    href={item.certificate_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-xs text-[#1D6FA3] font-bold hover:underline"
+                                  >
+                                    <FileCheck className="w-3.5 h-3.5" /> View Certificate
+                                  </a>
+                                ) : userRole === "ADMIN" ? (
+                                  <button
+                                    onClick={() => {
+                                      setTargetHistoryId(item.id);
+                                      setCertFile(null);
+                                      setShowCertModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 text-xs text-[#FF9501] hover:text-[#D97E00] font-bold cursor-pointer bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-md border border-orange-200 transition-colors"
+                                  >
+                                    <Upload className="w-3.5 h-3.5" /> Attach Certificate
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
                           </div>
-                          <h3 className="font-bold text-gray-900 text-sm group-hover:text-[#FF9501] transition-colors">{item.title}</h3>
-                          <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {item.date}</p>
-                        </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-10 text-gray-500">
+                        <Award className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+                        <p className="font-semibold text-sm">Current Level: {programAccreditation?.current_level || "Candidate Status"}</p>
+                        <p className="text-xs text-gray-400 mt-1">No historical upgrade logs recorded yet. Upgrades by Admins will appear here.</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
@@ -2637,59 +2906,150 @@ export function AccreditationSupport() {
             {/* Right Column: Certificates & Metrics */}
             <div className="w-full lg:w-1/3 space-y-6">
               
-              {/* Metrics Card */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2 mb-5">
-                  <TrendingUp className="w-4 h-4 text-[#FF9501]" /> Program Excellence
-                </h3>
-                <div className="space-y-4">
-                  {[
-                    { label: "Faculty with Master's/PhD", value: "85%", trend: "+12% from 2021" },
-                    { label: "Licensure Passing Rate", value: "92.4%", trend: "Top 5 in Region VII" },
-                    { label: "Employability (1 yr)", value: "88%", trend: "Industry Aligned" }
-                  ].map((metric, idx) => (
-                    <div key={idx} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{metric.label}</p>
-                      <div className="flex items-end justify-between mt-1">
-                        <span className="text-xl font-black text-gray-900">{metric.value}</span>
-                        <span className="text-[10px] font-bold text-[#006837] bg-green-100 px-2 py-0.5 rounded">{metric.trend}</span>
+              {/* Dynamic Metric Card: Unified QA Health & Executive Overview */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-[#FF9501]"/> Unified QA Health Index
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Composite institutional rating for {selectedProgram}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-2xl font-black ${
+                      compositeQaScore >= 85 ? 'text-[#006837]' : compositeQaScore >= 50 ? 'text-[#FF9501]' : 'text-red-600'
+                    }`}>
+                      {compositeQaScore}%
+                    </span>
+                    <span className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest">Weighted Index</span>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-1000 ease-out ${
+                      compositeQaScore >= 85 ? 'bg-[#006837]' : compositeQaScore >= 50 ? 'bg-[#FF9501]' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${compositeQaScore}%` }}
+                  ></div>
+                </div>
+
+                {/* Framework Breakdown List */}
+                <div className="space-y-3 pt-1">
+
+                  {/* 1. AACCUP Program Readiness */}
+                  <div 
+                    onClick={() => setActiveTab("aaccup")}
+                    className="p-3 bg-gray-50 hover:bg-orange-50/50 rounded-xl border border-gray-100 hover:border-[#FF9501]/40 transition-all cursor-pointer group"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-[#FF9501]"></div>
+                        <span className="text-xs font-bold text-gray-800 group-hover:text-[#FF9501] transition-colors">AACCUP Readiness (40%)</span>
                       </div>
+                      <span className="text-xs font-black text-gray-900">{currentData.overall}%</span>
                     </div>
-                  ))}
+                    <div className="flex justify-between items-center mt-1.5 pl-4 text-[10px] text-gray-500">
+                      <span>{currentData.evidence} Approved Files</span>
+                      <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${currentData.gaps === 0 ? 'bg-green-100 text-[#006837]' : 'bg-orange-100 text-[#D97E00]'}`}>
+                        {currentData.gaps === 0 ? 'Zero Gaps' : `${currentData.gaps} Gaps Remaining`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 2. CHED CMO Compliance */}
+                  <div 
+                    onClick={() => setActiveTab("ched")}
+                    className="p-3 bg-gray-50 hover:bg-blue-50/50 rounded-xl border border-gray-100 hover:border-blue-400/40 transition-all cursor-pointer group"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                        <span className="text-xs font-bold text-gray-800 group-hover:text-blue-600 transition-colors">CHED CMO Compliance (30%)</span>
+                      </div>
+                      <span className="text-xs font-black text-gray-900">{chedCompliancePercentage}%</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1.5 pl-4 text-[10px] text-gray-500">
+                      <span>{chedCompliantCount} of {chedTotalCount} Rules Met</span>
+                      <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${chedCompliantCount === chedTotalCount ? 'bg-green-100 text-[#006837]' : 'bg-blue-100 text-blue-800'}`}>
+                        {chedCompliantCount === chedTotalCount ? '100% Compliant' : `${chedTotalCount - chedCompliantCount} Pending Review`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3. ISO 9001:2015 QMS Checkpoints */}
+                  <div 
+                    onClick={() => setActiveTab("iso")}
+                    className="p-3 bg-gray-50 hover:bg-emerald-50/50 rounded-xl border border-gray-100 hover:border-emerald-400/40 transition-all cursor-pointer group"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
+                        <span className="text-xs font-bold text-gray-800 group-hover:text-emerald-700 transition-colors">Campus ISO 9001 QMS (30%)</span>
+                      </div>
+                      <span className="text-xs font-black text-gray-900">{isoCompliancePercentage}%</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1.5 pl-4 text-[10px] text-gray-500">
+                      <span>{isoCompliantCount} of {isoTotalCount} Checkpoints Verified</span>
+                      <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${isoCompliantCount === isoTotalCount ? 'bg-green-100 text-[#006837]' : 'bg-amber-100 text-[#D97E00]'}`}>
+                        {isoCompliantCount === isoTotalCount ? '100% Certified' : `${isoTotalCount - isoCompliantCount} Evidence Needed`}
+                      </span>
+                    </div>
+                  </div>
+
                 </div>
               </div>
 
               {/* Official Certificates */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2 mb-5">
-                  <FileBadge className="w-4 h-4 text-[#FF9501]" /> Official Certificates
-                </h3>
-                <div className="space-y-3">
-                  <div className="p-4 bg-[#FFF4E5] rounded-xl border border-[#FF9501]/20 group cursor-pointer hover:shadow-md transition-all relative overflow-hidden">
-                    <div className="absolute right-0 top-0 w-16 h-16 bg-[#FF9501]/10 rounded-full blur-2xl -mr-5 -mt-5"></div>
-                    <div className="flex items-center gap-3 relative z-10">
-                      <Award className="w-8 h-8 text-[#D97E00]" />
-                      <div>
-                        <p className="text-xs font-bold text-gray-900 group-hover:text-[#FF9501] transition-colors">AACCUP Level III Certificate.pdf</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">Issued: Oct 12, 2024 • 2.4 MB</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 group cursor-pointer hover:border-[#FF9501]/40 hover:bg-[#FFF4E5]/50 transition-all">
-                    <div className="flex items-center gap-3">
-                      <FileCheck className="w-8 h-8 text-gray-400 group-hover:text-[#FF9501] transition-colors" />
-                      <div>
-                        <p className="text-xs font-bold text-gray-900 group-hover:text-[#FF9501] transition-colors">CHED COPC Document.pdf</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">Issued: Mar 05, 2019 • 1.1 MB</p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex justify-between items-center mb-5">
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                    <FileBadge className="w-4 h-4 text-[#FF9501]" /> Official Certificates
+                  </h3>
+                  <span className="text-[11px] font-extrabold text-[#006837] bg-green-50 px-2 py-0.5 rounded-full">
+                    {programAccreditation?.history?.filter((h: any) => !!h.certificate_url).length || 0} Archived
+                  </span>
                 </div>
-                
-                <button className="w-full mt-4 py-2 flex items-center justify-center gap-2 text-xs font-bold text-[#D97E00] hover:text-[#995900] bg-orange-50 rounded-lg transition-colors cursor-pointer">
-                  View Full Registry <ExternalLink className="w-3.5 h-3.5" />
-                </button>
+                <div className="space-y-3">
+                  {programAccreditation?.history && programAccreditation.history.filter((h: any) => !!h.certificate_url).length > 0 ? (
+                    programAccreditation.history
+                      .filter((h: any) => !!h.certificate_url)
+                      .map((cert: any, cIdx: number) => {
+                        const dateGranted = cert.date_granted ? new Date(cert.date_granted).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "Verified";
+                        return (
+                          <a
+                            key={cert.id || cIdx}
+                            href={cert.certificate_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block p-4 bg-[#FFF4E5] rounded-xl border border-[#FF9501]/20 group hover:border-[#FF9501] hover:shadow-md transition-all relative overflow-hidden cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3 relative z-10">
+                              <Award className="w-8 h-8 text-[#D97E00] shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-gray-900 group-hover:text-[#FF9501] transition-colors truncate">
+                                  {cert.level_achieved} Certificate
+                                </p>
+                                <p className="text-[10px] text-gray-500 mt-0.5">
+                                  Granted: {dateGranted} • {cert.valid_until ? `Valid to ${new Date(cert.valid_until).getFullYear()}` : "Indefinite"}
+                                </p>
+                              </div>
+                              <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-[#FF9501] shrink-0" />
+                            </div>
+                          </a>
+                        );
+                      })
+                  ) : (
+                    <div className="p-6 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                      <FileBadge className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-gray-700">No Certificates Uploaded Yet</p>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Use the "Attach Certificate" button in the timeline to link official credentials.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
             </div>
@@ -4356,6 +4716,239 @@ export function AccreditationSupport() {
                 </button>
                 <button type="submit" disabled={isSavingCloseout || !closeoutForm.actual_completion_date} className="px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer">
                   {isSavingCloseout ? <><Loader2 className="h-4 w-4 animate-spin"/> Saving...</> : "Verify & Complete Closeout"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- OFFICIAL AACCUP ACCREDITATION LEVEL UPGRADE MODAL --- */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#FF9501]">
+            <div className="p-6 border-b border-gray-100 bg-[#FFF4E5]/40 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Award className="w-6 h-6 text-[#FF9501]" /> Officially Upgrade Accreditation Level
+                </h2>
+                <p className="text-xs text-gray-600 mt-1">
+                  Grant new official standing for <strong>{selectedProgram}</strong> & archive milestones to historical records
+                </p>
+              </div>
+              <button onClick={() => setShowUpgradeModal(false)} className="p-2 hover:bg-orange-100 rounded-full transition-colors cursor-pointer text-gray-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpgradeSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                  New Accreditation Level <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={upgradeForm.new_level}
+                  onChange={(e) => setUpgradeForm({ ...upgradeForm, new_level: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                >
+                  <option value="Candidate Status">Candidate Status</option>
+                  <option value="Level I Candidate">Level I Candidate</option>
+                  <option value="Level I Accredited">Level I Accredited</option>
+                  <option value="Level II Re-accredited">Level II Re-accredited</option>
+                  <option value="Level III Re-accredited">Level III Re-accredited</option>
+                  <option value="Level IV Re-accredited">Level IV Re-accredited</option>
+                  <option value="Center of Development (COD)">Center of Development (COD)</option>
+                  <option value="Center of Excellence (COE)">Center of Excellence (COE)</option>
+                  <option value="CHED Institutional Recognition">CHED Institutional Recognition</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                  Validity Period / Valid Until Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={upgradeForm.valid_until_date}
+                  onChange={(e) => setUpgradeForm({ ...upgradeForm, valid_until_date: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                  Official Certificate URL / File Link (Optional)
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={upgradeForm.certificate_url}
+                  onChange={(e) => setUpgradeForm({ ...upgradeForm, certificate_url: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                  Auditor Remarks & Resolution Notes
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Passed AACCUP 3rd cycle survey visit with a grand mean of 4.25."
+                  value={upgradeForm.remarks}
+                  onChange={(e) => setUpgradeForm({ ...upgradeForm, remarks: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] resize-none"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(false)}
+                  disabled={isUpgrading}
+                  className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpgrading || !upgradeForm.new_level}
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#FF9501] hover:bg-[#D97E00] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer"
+                >
+                  {isUpgrading ? <><Loader2 className="h-4 w-4 animate-spin"/> Upgrading...</> : "Grant Official Level"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT CURRENT PROGRAM STANDING MODAL (Onboarding / Calibration) --- */}
+      {showEditStandingModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-[#1D6FA3]">
+            <div className="p-6 border-b border-gray-100 bg-[#F5F7FA] flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Edit className="w-5 h-5 text-[#1D6FA3]" /> Edit Current Program Standing
+                </h2>
+                <p className="text-xs text-gray-600 mt-1">
+                  Directly calibrate the baseline accreditation level for <strong>{selectedProgram}</strong> without recording an audit hop
+                </p>
+              </div>
+              <button onClick={() => setShowEditStandingModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditStandingSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                  Current Accreditation Standing <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editStandingForm.new_level}
+                  onChange={(e) => setEditStandingForm({ ...editStandingForm, new_level: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                >
+                  <option value="Candidate Status">Candidate Status</option>
+                  <option value="Level I Candidate">Level I Candidate</option>
+                  <option value="Level I Accredited">Level I Accredited</option>
+                  <option value="Level II Re-accredited">Level II Re-accredited</option>
+                  <option value="Level III Re-accredited">Level III Re-accredited</option>
+                  <option value="Level IV Re-accredited">Level IV Re-accredited</option>
+                  <option value="Certificate of Program Compliance (COPC)">Certificate of Program Compliance (COPC)</option>
+                  <option value="Center of Development (COD)">Center of Development (COD)</option>
+                  <option value="Center of Excellence (COE)">Center of Excellence (COE)</option>
+                  <option value="CHED Institutional Recognition">CHED Institutional Recognition</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                  Valid Until Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={editStandingForm.valid_until_date}
+                  onChange={(e) => setEditStandingForm({ ...editStandingForm, valid_until_date: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditStandingModal(false)}
+                  disabled={isSavingStanding}
+                  className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingStanding || !editStandingForm.new_level}
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#1D6FA3] hover:bg-[#15527B] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer"
+                >
+                  {isSavingStanding ? <><Loader2 className="h-4 w-4 animate-spin"/> Saving...</> : "Save Standing"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- ATTACH OFFICIAL ACCREDITATION CERTIFICATE MODAL --- */}
+      {showCertModal && targetHistoryId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-[#006837]">
+            <div className="p-6 border-b border-gray-100 bg-[#F5F7FA] flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <FileBadge className="w-5 h-5 text-[#006837]" /> Attach Official Certificate
+                </h2>
+                <p className="text-xs text-gray-600 mt-1">
+                  Upload scanned PDF or certificate image for <strong>{selectedProgram}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowCertModal(false); setCertFile(null); setTargetHistoryId(null); }}
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCertUpload} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                  Certificate Document / Scanned PDF <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setCertFile(e.target.files ? e.target.files[0] : null)}
+                  className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm text-gray-700 cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-[#006837] hover:file:bg-green-100"
+                />
+                <p className="text-[11px] text-gray-500 mt-1.5">Supported formats: PDF, JPG, PNG (Max 25MB)</p>
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowCertModal(false); setCertFile(null); setTargetHistoryId(null); }}
+                  disabled={isUploadingCert}
+                  className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUploadingCert || !certFile}
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#006837] hover:bg-[#00502a] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer"
+                >
+                  {isUploadingCert ? <><Loader2 className="h-4 w-4 animate-spin"/> Uploading...</> : "Upload & Link"}
                 </button>
               </div>
             </form>
