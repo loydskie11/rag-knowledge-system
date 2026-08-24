@@ -47,7 +47,16 @@ const WELCOME_MESSAGE: Message = {
   timestamp: nowLabel(),
 };
 
-export function AskPolicy() {
+const SUGGESTED_QUESTIONS = [
+  "What are the requirements for enrollment?",
+  "How do I apply for a scholarship?",
+  "What is the campus dress code policy?",
+  "How do I request a leave of absence?",
+  "What is the standard grading system?",
+  "What are the guidelines for student organizations?"
+];
+
+export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
   const { userRole } = useRole();
   const currentRole = userRole || "STUDENT";
 
@@ -187,10 +196,13 @@ export function AskPolicy() {
           })
         );
 
+        const rawAnswer = response.data?.answer ?? "I didn't get a usable response — please try again.";
+        const cleanedAnswer = rawAnswer.replace(/\|FOLLOWUPS\|?[\s\S]*/i, "").trim();
+
         const aiMessage: Message = {
           id: nextId(),
           type: "ai",
-          content: response.data?.answer ?? "I didn't get a usable response — please try again.",
+          content: cleanedAnswer,
           sources: formattedSources.length > 0 ? formattedSources : undefined,
           followUps: response.data?.follow_ups,
           isRestricted: response.data?.restricted || false,
@@ -232,36 +244,31 @@ export function AskPolicy() {
     if (messageIndex === -1) return;
 
     const aiMessage = messages[messageIndex];
-    if (aiMessage.feedback) return; // already recorded — guards double-submits
-
-    // Walk backwards for the nearest preceding user message instead of assuming
-    // it's always exactly one index back (a follow-up chip or an error message
-    // in between breaks that assumption).
-    const userMessage = [...messages.slice(0, messageIndex)]
-      .reverse()
-      .find((m) => m.type === "user");
-    if (!userMessage) return;
+    const newFeedback = isHelpful ? "helpful" : "not-helpful";
+    
+    // Toggle off if clicking the currently active button
+    const finalFeedback = aiMessage.feedback === newFeedback ? undefined : newFeedback;
 
     setMessages((prev) =>
       prev.map((msg) =>
-        msg.id === messageId
-          ? { ...msg, feedback: isHelpful ? "helpful" : "not-helpful" }
-          : msg
+        msg.id === messageId ? { ...msg, feedback: finalFeedback } : msg
       )
     );
 
-    try {
-      await axios.post(`${API_BASE}/feedback`, {
-        question: userMessage.content,
-        answer: aiMessage.content,
-        is_helpful: isHelpful,
-      });
-    } catch (error) {
-      console.error("Failed to submit feedback", error);
-      // Revert on failure so the UI doesn't lie about what was actually recorded.
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === messageId ? { ...msg, feedback: undefined } : msg))
-      );
+    // Only fire the API request if we are setting a new feedback
+    if (finalFeedback) {
+      const userMessage = [...messages.slice(0, messageIndex)].reverse().find((m) => m.type === "user");
+      if (!userMessage) return;
+
+      try {
+        await axios.post(`${API_BASE}/feedback`, {
+          question: userMessage.content,
+          answer: aiMessage.content,
+          is_helpful: isHelpful,
+        });
+      } catch (error) {
+        console.error("Failed to submit feedback", error);
+      }
     }
   };
 
@@ -287,8 +294,8 @@ export function AskPolicy() {
   const charCount = query.length;
   const isOverLimit = charCount > MAX_QUESTION_LENGTH;
 
-  return (
-    <div className="h-full flex flex-col min-h-0 bg-white overflow-hidden">
+  const chatContent = (
+    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
       {/* Messages Feed Container */}
       <div
         ref={scrollContainerRef}
@@ -296,7 +303,7 @@ export function AskPolicy() {
         role="log"
         aria-live="polite"
         aria-label="Conversation with AI Policy Assistant"
-        className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 custom-scrollbar"
+        className={`flex-1 overflow-y-auto ${isWidget ? "p-4 space-y-4" : "p-6 space-y-5"} min-h-0 custom-scrollbar`}
       >
         {!historyLoaded && (
           <div className="flex justify-center py-6" aria-hidden="true">
@@ -355,7 +362,7 @@ export function AskPolicy() {
                     {message.content}
                   </p>
                 ) : (
-                  <div className="prose prose-sm prose-orange max-w-none break-words text-[#1F2937] leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_ul]:list-disc [&_ol]:list-decimal [&_li]:my-0.5 [&_p]:my-1.5 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-gray-200 [&_th]:p-2 [&_th]:bg-gray-100 [&_td]:border [&_td]:border-gray-200 [&_td]:p-2 [&_pre]:bg-gray-900 [&_pre]:text-white [&_pre]:p-3 [&_pre]:rounded-lg [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs">
+                  <div className="prose prose-sm prose-orange max-w-none break-words text-[#1F2937] leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_li]:my-1.5 [&_li]:leading-normal [&_table]:w-full [&_table]:border-collapse [&_table]:my-2 [&_th]:border [&_th]:border-gray-200 [&_th]:p-2 [&_th]:bg-gray-100 [&_td]:border [&_td]:border-gray-200 [&_td]:p-2 [&_strong]:font-bold [&_strong]:text-[#111827]">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {message.content}
                     </ReactMarkdown>
@@ -388,7 +395,7 @@ export function AskPolicy() {
                         <div className="flex items-center gap-2.5 overflow-hidden pr-2">
                           <FileText className="h-4 w-4 text-[#FF9501] flex-shrink-0" />
                           <span
-                            className="text-xs font-semibold text-[#374151] truncate max-w-[180px] sm:max-w-[240px]"
+                            className={`text-xs font-semibold text-[#374151] truncate ${isWidget ? 'max-w-[180px] sm:max-w-[200px]' : 'flex-1 max-w-[500px]'}`}
                             title={source.name}
                           >
                             {source.name}
@@ -396,7 +403,7 @@ export function AskPolicy() {
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
                           <div className="flex items-center gap-1.5">
-                            <div className="w-12 bg-gray-200 rounded-full h-1 overflow-hidden hidden xs:block">
+                            <div className="w-24 bg-gray-200 rounded-full h-1.5 overflow-hidden hidden xs:block">
                               <div
                                 className={`h-full rounded-full transition-all duration-500 ${
                                   source.relevance >= 80
@@ -420,7 +427,7 @@ export function AskPolicy() {
                               {source.relevance}%
                             </span>
                           </div>
-                          <ChevronDown className="h-3.5 w-3.5 text-[#6B7280] group-open:rotate-180 transition-transform duration-200 flex-shrink-0" />
+                          <ChevronDown className="h-3.5 w-3.5 text-[#6B7280] group-open:rotate-180 transition-transform duration-200" />
                         </div>
                       </summary>
                       {source.snippet && (
@@ -430,64 +437,78 @@ export function AskPolicy() {
                       )}
                     </details>
                   ))}
+                </div>
+              )}
 
-                  <div className="flex items-center gap-2 mt-1" role="group" aria-label="Was this answer helpful?">
+              {/* Feedback Actions */}
+              {message.type === "ai" && !message.isError && (
+                <div className="flex items-center gap-3 mt-2 pl-1">
+                  <span className="text-[10px] text-[#9CA3AF] font-medium">{message.timestamp}</span>
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleFeedback(message.id, true)}
-                      disabled={message.feedback !== undefined}
-                      aria-pressed={message.feedback === "helpful"}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-md border transition-colors cursor-pointer disabled:cursor-default
-                        ${
-                          message.feedback === "helpful"
-                            ? "bg-green-100 text-[#10B981] border-green-200"
-                            : "text-[#6B7280] border-transparent hover:text-[#10B981] hover:bg-green-50"
-                        }`}
+                      className={`p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer ${
+                        message.feedback === "helpful"
+                          ? "text-[#10B981] bg-green-50 font-bold"
+                          : "text-[#9CA3AF]"
+                      }`}
+                      title="Helpful"
+                      aria-label="Mark as helpful"
                     >
-                      <ThumbsUp className="h-3 w-3" /> Helpful
+                      <ThumbsUp className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => handleFeedback(message.id, false)}
-                      disabled={message.feedback !== undefined}
-                      aria-pressed={message.feedback === "not-helpful"}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-md border transition-colors cursor-pointer disabled:cursor-default
-                        ${
-                          message.feedback === "not-helpful"
-                            ? "bg-red-100 text-[#EF4444] border-red-200"
-                            : "text-[#6B7280] border-transparent hover:text-[#EF4444] hover:bg-red-50"
-                        }`}
+                      className={`p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer ${
+                        message.feedback === "not-helpful"
+                          ? "text-[#EF4444] bg-red-50 font-bold"
+                          : "text-[#9CA3AF]"
+                      }`}
+                      title="Not helpful"
+                      aria-label="Mark as not helpful"
                     >
-                      <ThumbsDown className="h-3 w-3" /> Not helpful
+                      <ThumbsDown className="h-3 w-3" />
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Follow-up chips */}
+              {/* Follow-up Question Chips */}
               {message.type === "ai" && message.followUps && message.followUps.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5 items-start w-full">
-                  {message.followUps.map((fq, idx) => (
+                <div className="mt-3 flex flex-wrap gap-1.5 pl-1">
+                  {message.followUps.map((question, idx) => (
                     <button
-                      key={`${message.id}_fu_${idx}`}
-                      onClick={() => handleSendMessage(fq)}
+                      key={idx}
+                      onClick={() => handleSendMessage(question)}
                       disabled={isLoading}
-                      className="px-2.5 py-1 bg-white border border-[#E5E7EB] hover:border-[#FF9501] text-[#D97E00] hover:bg-[#FFF4E5] text-[11px] font-base rounded-full transition-all shadow-sm cursor-pointer text-left disabled:opacity-50"
+                      className="text-left text-xs bg-white text-[#D97E00] border border-[#FF9501]/40 hover:bg-[#FFF4E5] hover:border-[#FF9501] px-3 py-1.5 rounded-full transition-all shadow-2xs font-semibold disabled:opacity-50 cursor-pointer"
                     >
-                      {fq.endsWith("?") ? fq : `${fq}?`}
+                      {question}
                     </button>
                   ))}
                 </div>
               )}
-
-              <span
-                className={`text-[10px] text-[#9CA3AF] mt-1 block font-medium ${
-                  message.type === "user" ? "self-end mr-1" : "ml-1"
-                }`}
-              >
-                {message.timestamp}
-              </span>
             </div>
           </div>
         ))}
+
+        {/* Floating widget welcome cards */}
+        {isWidget && messages.length <= 1 && (
+          <div className="pt-2 space-y-2">
+            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Suggested Questions:</p>
+            <div className="grid grid-cols-1 gap-1.5">
+              {SUGGESTED_QUESTIONS.slice(0, 3).map((suggestion, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
+                  className="text-left px-3 py-2 rounded-xl border border-gray-200 bg-[#F9FAFB] hover:border-[#FF9501] hover:bg-orange-50/40 text-xs font-semibold text-gray-700 transition-all cursor-pointer shadow-2xs"
+                >
+                  💡 {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {isLoading && (
           <div className="flex justify-start animate-in fade-in" aria-hidden="true">
@@ -509,8 +530,24 @@ export function AskPolicy() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Suggested Questions Horizontal Chips for Floating Widget */}
+      {isWidget && (
+        <div className="shrink-0 px-3 py-2 bg-[#F9FAFB] border-t border-[#E5E7EB] flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
+          <span className="text-[10px] font-bold text-[#FF9501] uppercase tracking-wider shrink-0">💡 Suggestions:</span>
+          {SUGGESTED_QUESTIONS.map((suggestion, idx) => (
+            <button
+              key={idx}
+              onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
+              className="whitespace-nowrap px-2.5 py-1 text-[11px] font-semibold bg-white border border-[#E5E7EB] hover:border-[#FF9501] hover:text-[#FF9501] text-[#374151] rounded-full shadow-2xs transition-all cursor-pointer shrink-0"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Input Panel */}
-      <div className="shrink-0 border-t border-[#E5E7EB] p-3 bg-white">
+      <div className={`shrink-0 border-t border-[#E5E7EB] ${isWidget ? "p-3" : "p-4"} bg-white`}>
         <div className="flex gap-2 items-end">
           <div className="flex-1 flex flex-col">
             <textarea
@@ -555,6 +592,52 @@ export function AskPolicy() {
               <Send className="h-4 w-4" />
             )}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isWidget) {
+    return (
+      <div className="h-full flex flex-col min-h-0 bg-white overflow-hidden">
+        {chatContent}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 flex flex-col h-[calc(100vh-7rem)]">
+      {/* Standard Page Header (Outside the Card) */}
+      <div>
+        <h1 className="text-2xl font-bold text-[#1F2937]">CTU Argao AI Policy Assistant</h1>
+        <p className="text-sm text-[#6B7280] mt-1">
+          Your intelligent guide to institutional rules, student guidelines, and campus procedures.
+        </p>
+      </div>
+
+      {/* Two-Column Card Workspace */}
+      <div className="flex-1 flex flex-row min-h-0 bg-white overflow-hidden rounded-2xl border border-[#E5E7EB] shadow-sm">
+        {chatContent}
+
+        {/* Right Side: Suggested Topics Sidebar */}
+        <div className="hidden lg:flex flex-col w-80 bg-[#F9FAFB] border-l border-[#E5E7EB] p-5">
+          <h3 className="text-sm font-bold text-[#1F2937] mb-1">
+            Suggested Questions
+          </h3>
+          <p className="text-xs text-[#6B7280] mb-4 leading-relaxed">
+            Click on any topic below to automatically load it into your message box.
+          </p>
+          <div className="space-y-2.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
+            {SUGGESTED_QUESTIONS.map((suggestion, idx) => (
+              <button
+                key={idx}
+                onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
+                className="w-full text-left p-3 rounded-xl border border-[#E5E7EB] bg-white hover:border-[#FF9501] hover:shadow-sm transition-all text-xs font-semibold text-[#374151] cursor-pointer"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

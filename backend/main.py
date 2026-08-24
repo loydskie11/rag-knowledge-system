@@ -1676,9 +1676,14 @@ def broadcast_notification(request: BroadcastRequest, db: Session = Depends(get_
 def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db)):
     import json
 
-    total_docs    = 0
-    total_users   = 0
-    total_queries = 0
+    total_docs     = 0
+    total_users    = 0
+    total_queries  = 0
+    qms_total      = 0
+    qms_overdue    = 0
+    aaccup_pending = 0
+    iso_pending    = 0
+    iso_compliance = 0
 
     try:
         total_users = db.query(models.User).count()
@@ -1686,8 +1691,9 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db)):
         print(f"User count error: {e}")
 
     try:
-        docs_response = supabase.table("document_sections").select("metadata").execute()
-        unique_docs   = set()
+        docs_response  = supabase.table("document_sections").select("metadata").execute()
+        unique_docs    = set()
+        unique_pending = set()
         if docs_response.data:
             for row in docs_response.data:
                 meta = row.get("metadata", {})
@@ -1707,7 +1713,11 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db)):
                         continue
                     unique_docs.add(doc_name)
 
+                if category == "Accreditation Evidence" and str(status).lower() == "pending" and doc_name:
+                    unique_pending.add(doc_name)
+
         total_docs = len(unique_docs)
+        aaccup_pending = len(unique_pending)
     except Exception as e:
         print(f"Document count error: {e}")
 
@@ -1717,10 +1727,49 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Chat count error: {e}")
 
+    # QMS Action Plans (Form 6)
+    try:
+        qms_total = db.query(models.QMSActionPlan).count()
+        qms_plans = db.query(models.QMSActionPlan).all()
+        overdue_count = 0
+        now_date_str = datetime.utcnow().strftime("%Y-%m-%d")
+        for p in qms_plans:
+            if p.status == "Overdue":
+                overdue_count += 1
+            elif p.status != "Completed" and p.target_date and str(p.target_date) < now_date_str:
+                overdue_count += 1
+        qms_overdue = overdue_count
+    except Exception as e:
+        print(f"QMS stats error: {e}")
+
+    # ISO Requirements & Campus Compliance
+    try:
+        iso_pending = db.query(models.ISORequirement).filter(models.ISORequirement.status == "Pending").count()
+        
+        iso_reqs = db.query(models.ISORequirement).filter(models.ISORequirement.cycle_year.ilike("%2026%")).all()
+        if not iso_reqs:
+            iso_reqs = db.query(models.ISORequirement).all()
+        
+        total_iso = len(iso_reqs)
+        compliant_iso = len([r for r in iso_reqs if r.status == "Compliant"])
+        iso_compliance = int((compliant_iso / total_iso) * 100) if total_iso > 0 else 0
+    except Exception as e:
+        print(f"ISO stats error: {e}")
+
     return {
-        "documents": total_docs,
-        "users":     total_users,
-        "queries":   total_queries,
+        "documents":      total_docs,
+        "users":          total_users,
+        "queries":        total_queries,
+        "qms_total":      qms_total,
+        "qms_overdue":    qms_overdue,
+        "aaccup_pending": aaccup_pending,
+        "iso_pending":    iso_pending,
+        "iso_compliance": iso_compliance,
+        "qmsTotal":       qms_total,
+        "qmsOverdue":     qms_overdue,
+        "aaccupPending":  aaccup_pending,
+        "isoPending":     iso_pending,
+        "isoCompliance":  iso_compliance,
     }
 
 

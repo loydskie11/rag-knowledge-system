@@ -18,6 +18,7 @@ export function DashboardLayout() {
   const { userRole } = useRole();
 
   const isProfileSettings = location.pathname === '/app/profile-settings';
+  const isAskPolicy = location.pathname === '/app/ask-policy';
 
   const [sidebarCollapsed,  setSidebarCollapsed]  = useState(false);
   const [showUserMenu,      setShowUserMenu]       = useState(false);
@@ -50,8 +51,9 @@ export function DashboardLayout() {
 
   const allMenuItems = [
     { path: "/app",                        label: "Dashboard",              icon: LayoutDashboard,  permission: "canAccessDashboard"             },
+    { path: "/app/ask-policy",             label: "AI Assistant",           icon: Sparkles,         permission: "canAccessAskPolicy"             },
     { path: "/app/knowledge-repository",   label: "Knowledge Repository",   icon: Database,         permission: "canAccessKnowledgeRepository"    },
-    { path: "/app/paper-trail",            label: "Document Tracking",            icon: FileCheck,        permission: "canAccessPaperTrail"             },
+    { path: "/app/paper-trail",            label: "Document Tracking",      icon: FileCheck,        permission: "canAccessPaperTrail"             },
     { path: "/app/accreditation-support",  label: "Accreditation Support",  icon: Award,            permission: "canAccessAccreditationSupport"   },
     { path: "/app/audit-trail",            label: "Audit Trail",            icon: Clock,            permission: "canAccessAuditTrail"             },
     { path: "/app/users-roles",            label: "Users & Roles",          icon: Users,            permission: "canAccessUsersRoles"             },
@@ -221,7 +223,7 @@ export function DashboardLayout() {
           isProfileSettings ? "ml-0" : (sidebarCollapsed ? "ml-16" : "ml-64")
         }`}
       >
-        <div className="p-8">
+        <div className={isAskPolicy ? "p-4 sm:p-6 h-[calc(100vh-73px)]" : "p-8"}>
           <Outlet />
         </div>
       </main>
@@ -234,38 +236,40 @@ export function DashboardLayout() {
       />
 
       {/* ══ FLOATING ON-DISPLAY AI WIDGET SYSTEM ═════════════════════ */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 select-none">
-        {isAIChatOpen && (
-          <div className="w-[350px] sm:w-[380px] h-[520px] bg-white rounded-2xl shadow-2xl border border-[#E5E7EB] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
-            
-            <div className="p-4 bg-[#FF9501] text-white flex justify-between items-center shadow-md shrink-0">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 animate-pulse text-white" />
-                <span className="font-bold text-sm tracking-wide">AskPolicy Assistant</span>
+      {!isAskPolicy && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 select-none">
+          {isAIChatOpen && (
+            <div className="w-[360px] sm:w-[420px] h-[550px] bg-white rounded-2xl shadow-2xl border border-[#E5E7EB] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
+              
+              <div className="p-4 bg-[#FF9501] text-white flex justify-between items-center shadow-md shrink-0">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 animate-pulse text-white" />
+                  <span className="font-bold text-sm tracking-wide">AskPolicy Assistant</span>
+                </div>
+                <button 
+                  onClick={() => setIsAIChatOpen(false)}
+                  className="p-1 hover:bg-black/10 rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
               </div>
-              <button 
-                onClick={() => setIsAIChatOpen(false)}
-                className="p-1 hover:bg-black/10 rounded-full transition-colors cursor-pointer"
-              >
-                <X className="h-4.5 w-4.5" />
-              </button>
-            </div>
 
-            <div className="flex-1 min-h-0 bg-[#F5F7FA]">
-              <AskPolicy />
+              <div className="flex-1 min-h-0 bg-[#F5F7FA]">
+                <AskPolicy isWidget={true} />
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <button
-          onClick={() => setIsAIChatOpen(!isAIChatOpen)}
-          className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer bg-gradient-to-br from-[#FF9501] to-[#D97E00] ${
-            isAIChatOpen ? "rotate-90 bg-gray-800" : ""
-          }`}
-        >
-          {isAIChatOpen ? <X className="h-6 w-6" /> : <Sparkles className="h-6 w-6 animate-pulse" />}
-        </button>
-      </div>
+          <button
+            onClick={() => setIsAIChatOpen(!isAIChatOpen)}
+            className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer bg-gradient-to-br from-[#FF9501] to-[#D97E00] ${
+              isAIChatOpen ? "rotate-90 bg-gray-800" : ""
+            }`}
+          >
+            {isAIChatOpen ? <X className="h-6 w-6" /> : <Sparkles className="h-6 w-6 animate-pulse" />}
+          </button>
+        </div>
+      )}
 
       <style>{`
         @keyframes badgePop {

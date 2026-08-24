@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FileText, MessageSquare, CheckCircle, Clock, Users, Shield, AlertCircle, TrendingUp, Loader2 } from "lucide-react";
+import { FileText, MessageSquare, CheckCircle, Clock, Users, Shield, AlertCircle, TrendingUp, Loader2, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
 import axios from "axios";
 
@@ -7,31 +7,45 @@ export function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   
   // Dynamic States
-  const [globalStats, setGlobalStats] = useState({ documents: 0, queries: 0, users: 0 });
+  const [globalStats, setGlobalStats] = useState({
+    documents: 0,
+    queries: 0,
+    users: 0,
+    qmsTotal: 0,
+    qmsOverdue: 0,
+    aaccupPending: 0,
+    isoPending: 0,
+    isoCompliance: 0,
+  });
   const [userDistribution, setUserDistribution] = useState<any[]>([]);
   const [documentDistribution, setDocumentDistribution] = useState<any[]>([]);
   const [activityTrend, setActivityTrend] = useState<any[]>([]);
-  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [popularTopics, setPopularTopics] = useState<any[]>([]);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       setIsLoading(true);
       try {
-        const [statsRes, userCountsRes, docsRes, queriesRes, versionsRes, systemEventsRes, pendingRes] = await Promise.all([
+        const [statsRes, userCountsRes, docsRes, queriesRes, versionsRes, popularRes, pendingRes] = await Promise.all([
           axios.get("http://localhost:8000/system-stats"),
           axios.get("http://localhost:8000/users/counts"),
           axios.get("http://localhost:8000/documents"),
           axios.get("http://localhost:8000/audit/queries"),
           axios.get("http://localhost:8000/audit/versions"),
-          axios.get("http://localhost:8000/audit/system"),
+          axios.get("http://localhost:8000/analytics/popular"),
           axios.get("http://localhost:8000/admin/accreditation-pending")
         ]);
 
         setGlobalStats({
           documents: statsRes.data.documents || 0,
           queries: statsRes.data.queries || 0,
-          users: userCountsRes.data.all || 0
+          users: userCountsRes.data.all || 0,
+          qmsTotal: statsRes.data.qmsTotal || statsRes.data.qms_total || 0,
+          qmsOverdue: statsRes.data.qmsOverdue || statsRes.data.qms_overdue || 0,
+          aaccupPending: statsRes.data.aaccupPending || statsRes.data.aaccup_pending || 0,
+          isoPending: statsRes.data.isoPending || statsRes.data.iso_pending || 0,
+          isoCompliance: statsRes.data.isoCompliance || statsRes.data.iso_compliance || 0,
         });
 
         setUserDistribution([
@@ -89,14 +103,7 @@ export function AdminDashboard() {
 
         setActivityTrend(displayMonths.map(m => trendMap[m]));
         setPendingReviewCount(pendingRes.data.length);
-
-        const recent = systemEventsRes.data.slice(0, 4).map((event: any) => ({
-          action: event.type,
-          document: event.description.length > 40 ? event.description.substring(0, 40) + "..." : event.description,
-          time: event.timestamp.split(' - ')[0],
-          user: event.user
-        }));
-        setRecentActivities(recent);
+        setPopularTopics(popularRes.data || []);
 
       } catch (error) {
         console.error("Failed to load dashboard data:", error);
@@ -117,37 +124,62 @@ export function AdminDashboard() {
       subtitle: "active in repository"
     },
     {
-      label: "AI Queries",
+      label: "AI Policy Queries",
       value: globalStats.queries,
       icon: MessageSquare,
       color: "#D97E00", // Medium Amber
       subtitle: "all-time interactions"
     },
     {
-      label: "Accreditation",
-      value: "85%",
+      label: "Campus QMS Compliance",
+      value: `${globalStats.isoCompliance}%`,
       icon: CheckCircle,
-      color: "#995900", // Dark Amber
-      subtitle: "avg. campus compliance"
+      color: "#006837", // CTU Green
+      subtitle: "ISO 9001:2015 active cycle"
     },
     {
-      label: "Active Users",
-      value: globalStats.users,
-      icon: Users,
-      color: "#D97E00",
-      subtitle: "registered accounts"
+      label: "Overdue Action Plans",
+      value: globalStats.qmsOverdue,
+      icon: AlertTriangle,
+      color: "#EF4444", // Red
+      subtitle: "MRC Form 6 past target date"
     }
   ];
 
-  const systemAlerts = [
-    { 
-      message: `${pendingReviewCount} document${pendingReviewCount !== 1 ? 's' : ''} pending QA review`, 
-      severity: pendingReviewCount > 0 ? "warning" : "success", 
-      icon: pendingReviewCount > 0 ? AlertCircle : CheckCircle 
-    },
-    { message: "AACCUP Level III Accreditation targeted in 6 months", severity: "info", icon: Clock },
-    { message: "Nightly system backup & vector indexing completed", severity: "success", icon: CheckCircle }
-  ];
+  // Dynamic, actionable alerts derived from real system queues
+  const systemAlerts: Array<{ message: string; severity: "warning" | "error" | "success" | "info"; icon: any }> = [];
+
+  if (globalStats.aaccupPending > 0) {
+    systemAlerts.push({
+      message: `${globalStats.aaccupPending} AACCUP/CHED document${globalStats.aaccupPending !== 1 ? 's are' : ' is'} awaiting Admin Review.`,
+      severity: "warning",
+      icon: AlertCircle
+    });
+  }
+
+  if (globalStats.isoPending > 0) {
+    systemAlerts.push({
+      message: `${globalStats.isoPending} ISO 9001 clause${globalStats.isoPending !== 1 ? 's have' : ' has'} pending evidence to verify.`,
+      severity: "warning",
+      icon: Clock
+    });
+  }
+
+  if (globalStats.qmsOverdue > 0) {
+    systemAlerts.push({
+      message: `${globalStats.qmsOverdue} QMS Action Plan${globalStats.qmsOverdue !== 1 ? 's' : ''} (MRC Form 6) ${globalStats.qmsOverdue !== 1 ? 'are' : 'is'} past target completion date.`,
+      severity: "error",
+      icon: AlertTriangle
+    });
+  }
+
+  if (systemAlerts.length === 0) {
+    systemAlerts.push({
+      message: "All compliance queues are clear. System health is optimal.",
+      severity: "success",
+      icon: CheckCircle
+    });
+  }
 
   if (isLoading) {
     return (
@@ -312,32 +344,36 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Activity Trail */}
+        {/* Trending AI Policy Topics */}
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm h-[400px] flex flex-col">
           <h2 className="text-lg font-bold text-[#1F2937] mb-6 flex items-center gap-2 flex-shrink-0">
-            <Clock className="h-5 w-5 text-[#CE0000]" /> Recent Audit Trail
+            <MessageSquare className="h-5 w-5 text-[#FF9501]" /> Trending AI Policy Topics
           </h2>
-          <div className="space-y-3 flex-1 overflow-y-auto pr-2 min-h-0 custom-scrollbar">
-            {recentActivities.length === 0 ? (
-               <div className="flex h-full items-center justify-center text-sm text-gray-400 font-medium italic">No recent system events.</div>
+          <div className="flex-1 overflow-y-auto pr-2 min-h-0 custom-scrollbar">
+            <p className="text-xs text-gray-500 mb-4">Most frequent subjects queried by students and faculty via the AI Assistant.</p>
+            {popularTopics.length === 0 ? (
+               <div className="flex h-32 items-center justify-center text-sm text-gray-400 font-medium italic">No recent queries.</div>
             ) : (
-              recentActivities.map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-4 bg-[#F9FAFB] border border-gray-100 rounded-xl hover:bg-white hover:shadow-sm transition-all"
-                >
-                  <div className="flex-1 overflow-hidden pr-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="px-2.5 py-1 bg-[#FF9501]/10 text-[#FF9501] text-[10px] uppercase tracking-wider rounded-md font-bold whitespace-nowrap">
-                        {activity.action}
-                      </span>
-                      <span className="text-sm text-gray-500 font-medium whitespace-nowrap">{activity.time}</span>
+              <div className="flex flex-wrap gap-2.5">
+                {popularTopics.map((topic, index) => {
+                  // Map the backend color strings to Tailwind classes
+                  const colorMap: Record<string, string> = {
+                    blue: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
+                    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
+                    purple: "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100",
+                  };
+                  const colorClass = colorMap[topic.color] || "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100";
+                  
+                  return (
+                    <div
+                      key={index}
+                      className={`px-4 py-2 border rounded-xl text-sm font-bold shadow-sm transition-colors cursor-default ${colorClass}`}
+                    >
+                      # {topic.label}
                     </div>
-                    <p className="text-sm text-[#1F2937] font-semibold truncate">{activity.document}</p>
-                    <p className="text-xs text-[#6B7280] font-medium mt-1 truncate">Executed by: {activity.user}</p>
-                  </div>
-                </div>
-              ))
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
