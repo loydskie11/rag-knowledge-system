@@ -606,13 +606,23 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
   }
 
   return (
-    <div className="space-y-6 flex flex-col h-[calc(100vh-7rem)]">
-      {/* Standard Page Header (Outside the Card) */}
-      <div>
-        <h1 className="text-2xl font-bold text-[#1F2937]">CTU Argao AI Policy Assistant</h1>
-        <p className="text-sm text-[#6B7280] mt-1">
-          Your intelligent guide to institutional rules, student guidelines, and campus procedures.
-        </p>
+    <div className="space-y-6 flex flex-col h-[calc(100vh-6rem)] relative">
+      {/* Header matching Knowledge Repository layout */}
+      <div className="flex-none space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-[#1F2937]">AI Policy Assistant</h1>
+            <p className="text-sm text-[#6B7280] mt-1">
+              Your intelligent guide to institutional rules, student guidelines, and campus procedures
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-orange-50 text-[#D97E00] border-[#FF9501]/20 shadow-2xs">
+              <Sparkles className="h-4 w-4 text-[#FF9501]" />
+              <span className="text-sm font-medium">Online • RAG Active</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Two-Column Card Workspace */}

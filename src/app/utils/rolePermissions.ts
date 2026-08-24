@@ -28,7 +28,7 @@ export const rolePermissions = {
     canAccessGovernanceReference: true,
     canAccessAuditTrail: false,
     canAccessUsersRoles: false,
-    canAccessSettings: true,
+    canAccessSettings: false,
     canAccessBroadcastAnnouncement: false,
     canAccessDocumentGenerator: true,
     canAccessPaperTrail: true,

@@ -223,7 +223,7 @@ export function DashboardLayout() {
           isProfileSettings ? "ml-0" : (sidebarCollapsed ? "ml-16" : "ml-64")
         }`}
       >
-        <div className={isAskPolicy ? "p-4 sm:p-6 h-[calc(100vh-73px)]" : "p-8"}>
+        <div className="p-8">
           <Outlet />
         </div>
       </main>
