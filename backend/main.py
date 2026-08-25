@@ -2966,6 +2966,16 @@ def update_ched_status(requirement_id: str, status: str = Body(..., embed=True),
     db.commit()
     return {"message": f"Requirement successfully marked as {status}"}
 
+@app.put("/ched/evidence/{evidence_id}/status")
+def update_ched_evidence_status(evidence_id: str, status: str = Body(..., embed=True), db: Session = Depends(get_db)):
+    """Admin endpoint to update status of a CHED evidence file."""
+    evidence = db.query(models.ChedEvidence).filter(models.ChedEvidence.id == evidence_id).first()
+    if not evidence:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    evidence.status = status
+    db.commit()
+    return {"message": f"Evidence status updated to {status}"}
+
 # --- NEW: DELETE CHED EVIDENCE ---
 @app.delete("/ched/evidence/{evidence_id}")
 def delete_ched_evidence(evidence_id: str, db: Session = Depends(get_db)):
@@ -3595,6 +3605,16 @@ async def upload_iso_evidence(
         print(f"[upload_iso_evidence] error: {exc}")
         raise HTTPException(status_code=500, detail="Failed to upload ISO evidence file.")
 
+
+@app.put("/iso/evidence/{evidence_id}/status")
+def update_iso_evidence_status(evidence_id: str, status: str = Body(..., embed=True), db: Session = Depends(get_db)):
+    """Admin endpoint to update status of an ISO evidence file."""
+    ev = db.query(models.ISOEvidence).filter(models.ISOEvidence.id == evidence_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+    ev.status = status
+    db.commit()
+    return {"message": f"ISO evidence status updated to {status}"}
 
 @app.delete("/iso/evidence/{evidence_id}")
 def delete_iso_evidence(

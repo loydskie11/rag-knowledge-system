@@ -22,15 +22,30 @@ const academicPrograms = [
     ]
   },
   {
+    college: "College of Agriculture, Forestry, & Environmental Science (CAFES)",
+    programs: [
+      { value: "BSF", label: "Bachelor of Science in Forestry (BSF)" },
+      { value: "BSA", label: "Bachelor of Science in Agriculture (BSA)" },
+      { value: "BSES", label: "Bachelor of Science in Environmental Science (BSES)" }
+    ]
+  },
+  {
     college: "College of Technology and Engineering (COTE)",
     programs: [
       { value: "BSIE", label: "BS in Industrial Engineering" },
       { value: "BSIT", label: "BS in Information Technology" },
-      { value: "BIT_AUTO", label: "BIT major in Automotive Technology" },
-      { value: "BIT_COMP", label: "BIT major in Computer Technology" },
-      { value: "BIT_DRAFT", label: "BIT major in Drafting Technology" },
-      { value: "BIT_ELEC", label: "BIT major in Electronics Technology" },
-      { value: "BIT_GARM", label: "BIT major in Garments Technology" }
+      { value: "BIT_AT", label: "BIT major in Automotive Technology (BIT-AT)" },
+      { value: "BIT_CT", label: "BIT major in Computer Technology (BIT-CT)" },
+      { value: "BIT_DT", label: "BIT major in Drafting Technology (BIT-DT)" },
+      { value: "BIT_ET", label: "BIT major in Electronics Technology (BIT-ET)" },
+      { value: "BIT_GT", label: "BIT major in Garments Technology (BIT-GT)" }
+    ]
+  },
+  {
+    college: "College of Hospitality and Tourism Management (CHTM)",
+    programs: [
+      { value: "BSHM", label: "Bachelor of Science in Hospitality Management (BSHM)" },
+      { value: "BSTM", label: "Bachelor of Science in Tourism Management (BSTM)" }
     ]
   }
 ];

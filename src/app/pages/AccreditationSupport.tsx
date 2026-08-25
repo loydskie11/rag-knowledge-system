@@ -3,6 +3,1541 @@ import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
 import { ISO_OFFICES_16 } from "./UsersRoles";
+// ==========================================
+// SUB-COMPONENTS FOR TAB CONTENTS
+// ==========================================
+
+export const AaccupTabContent = ({
+  currentData,
+  filteredAreas,
+  selectedProgram,
+  userRole,
+  isUnassignedFaculty,
+  isAdminQueueOpen,
+  setIsAdminQueueOpen,
+  pendingDocs,
+  expandedArea,
+  setExpandedArea,
+  areaDetails,
+  isLoadingDetails,
+  setShowAreaConfigModal,
+  setShowUploadModal,
+  setUploadTargetArea,
+  setUploadForm,
+  setShowFeedbackModal,
+  setFeedbackDoc,
+  setDocToDelete,
+  setShowDeleteModal,
+  handleAdminReview,
+  isReviewing,
+  setUpgradeForm,
+  setShowUpgradeModal,
+  searchQuery,
+  setSearchQuery
+}: any) => {
+  return (
+    <>
+      {/* 100% Compliant: Ready for Official Assessment Banner */}
+      {currentData.overall === 100 && (
+        <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <Award className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-emerald-900 flex items-center gap-2">
+                100% Compliant: Ready for Official Assessment!
+              </h3>
+              <p className="text-xs sm:text-sm text-emerald-700 mt-0.5">
+                All AACCUP parameters and required evidence documents for <strong>{selectedProgram}</strong> have been fully verified and approved.
+              </p>
+            </div>
+          </div>
+          {userRole === "ADMIN" && (
+            <button
+              onClick={() => {
+                setUpgradeForm({
+                  new_level: "Level II Re-accredited",
+                  valid_until_date: "",
+                  certificate_url: "",
+                  remarks: "Passed 100% internal compliance audit."
+                });
+                setShowUpgradeModal(true);
+              }}
+              className="px-4 py-2.5 bg-[#006837] hover:bg-[#00502a] text-white rounded-lg text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0"
+            >
+              <Award className="w-4 h-4" />
+              Officially Upgrade Level
+            </button>
+          )}
+        </div>
+      )}
+
+      {!expandedArea ? (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#006837]">
+              <h3 className="text-3xl sm:text-4xl font-bold text-[#006837] mb-1 sm:mb-2">{currentData.overall}%</h3>
+              <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Overall Compliance</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-red-500">
+              <h3 className="text-3xl sm:text-4xl font-bold text-red-500 mb-1 sm:mb-2">{currentData.gaps}</h3>
+              <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Total Gaps</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#FF9501]">
+              <h3 className="text-3xl sm:text-4xl font-bold text-[#FF9501] mb-1 sm:mb-2">{currentData.evidence}</h3>
+              <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Approved Docs</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#995900]">
+              <h3 className="text-3xl sm:text-4xl font-bold text-[#995900] mb-1 sm:mb-2">{currentData.areas.length}</h3>
+              <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Active Areas</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-[#1F2937]">AACCUP Area Compliance</h2>
+                <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                  {currentData.areas.length} {currentData.areas.length === 10 ? "Areas (All 10)" : "Areas (Scoped)"}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                {userRole === "ADMIN" && (
+                  <button
+                    onClick={() => setShowAreaConfigModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-all cursor-pointer border border-gray-300 shadow-2xs shrink-0"
+                    title="Configure Active Areas for Level III / IV Accreditation"
+                  >
+                    <SlidersHorizontal className="h-4 w-4 text-[#FF9501]" />
+                    Area Configuration
+                  </button>
+                )}
+                <div className="relative flex-1 md:w-64">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <input
+                    type="text"
+                    placeholder="Search AACCUP areas..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Admin Verification Queue Panel */}
+            {userRole === "ADMIN" && pendingDocs.length > 0 && (
+              <div className="mb-6 bg-orange-50/60 border border-[#FF9501]/30 rounded-2xl overflow-hidden shadow-sm">
+                <div 
+                  onClick={() => setIsAdminQueueOpen(!isAdminQueueOpen)}
+                  className="p-4 bg-gradient-to-r from-orange-100/80 to-amber-50/50 flex items-center justify-between cursor-pointer hover:bg-orange-100/90 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-[#FF9501] text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                      {pendingDocs.length}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                        <MessageSquareWarning className="h-4 w-4 text-[#D97E00]" />
+                        Pending Faculty Evidence Submissions ({selectedProgram})
+                      </h3>
+                      <p className="text-xs text-gray-500">Review and verify evidence files submitted by faculty before counting towards compliance.</p>
+                    </div>
+                  </div>
+                  <button className="p-1 hover:bg-white/50 rounded-lg text-gray-500">
+                    {isAdminQueueOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                  </button>
+                </div>
+
+                {isAdminQueueOpen && (
+                  <div className="p-4 space-y-3 border-t border-[#FF9501]/20 max-h-80 overflow-y-auto">
+                    {pendingDocs.map((doc: any, idx: number) => (
+                      <div key={idx} className="bg-white p-3.5 rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-[#FF9501]/40 transition-all">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="p-2 bg-orange-50 text-[#FF9501] rounded-lg shrink-0 mt-0.5">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-900 truncate">{doc.name}</span>
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md uppercase shrink-0">
+                                {doc.area_code}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 truncate mt-0.5">{doc.requirement_target}</p>
+                            <div className="flex items-center gap-3 text-[10px] text-gray-400 mt-1">
+                              <span>Submitted by: <strong className="text-gray-600">{doc.uploaded_by || 'Faculty'}</strong></span>
+                              <span>•</span>
+                              <span>Office: <strong className="text-gray-600">{doc.office || 'Academic'}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          <button
+                            onClick={() => handleAdminReview(doc.name, "Approved")}
+                            disabled={isReviewing}
+                            className="px-3 py-1.5 bg-[#006837] hover:bg-[#00502a] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+                          </button>
+                          <button
+                            onClick={() => {
+                              setFeedbackDoc(doc);
+                              setShowFeedbackModal(true);
+                            }}
+                            disabled={isReviewing}
+                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5" /> Request Revision
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredAreas.length === 0 ? (
+                <div className="col-span-2 py-12 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <Target className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold">No active AACCUP areas match your search filter.</p>
+                </div>
+              ) : (
+                filteredAreas.map((area: any) => (
+                  <div
+                    key={area.id}
+                    className="border border-gray-200 rounded-xl p-5 hover:border-[#FF9501] transition-all hover:shadow-md bg-white flex flex-col justify-between group"
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="px-2.5 py-1 bg-orange-50 text-[#D97E00] border border-[#FF9501]/20 font-bold text-xs rounded-md">
+                          {area.code}
+                        </span>
+                        <span
+                          className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                            area.compliance === 100
+                              ? "bg-emerald-100 text-emerald-700"
+                              : area.compliance >= 50
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {area.compliance}% Compliant
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-gray-900 text-sm mb-3 group-hover:text-[#FF9501] transition-colors">
+                        {area.title}
+                      </h3>
+                      <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden mb-4">
+                        <div
+                          className={`h-full transition-all duration-500 rounded-full ${
+                            area.compliance === 100
+                              ? "bg-[#006837]"
+                              : area.compliance >= 50
+                              ? "bg-[#FF9501]"
+                              : "bg-red-500"
+                          }`}
+                          style={{ width: `${area.compliance}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500 font-medium mb-4">
+                        <span>Required: <strong>{area.required}</strong></span>
+                        <span>Approved Evidence: <strong>{area.evidenceCount}</strong></span>
+                        <span className="text-red-500">Gaps: <strong>{area.gaps}</strong></span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setExpandedArea(area)}
+                      className="w-full py-2.5 px-4 bg-[#F5F7FA] hover:bg-[#FFF4E5] text-gray-700 hover:text-[#D97E00] font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FF9501]/40 cursor-pointer"
+                    >
+                      View Requirements & Evidence Details <ChevronDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Drawer View for Expanded AACCUP Area */
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setExpandedArea(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors cursor-pointer"
+                title="Back to All Areas"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div>
+                <span className="text-xs font-bold text-[#D97E00] uppercase tracking-wider">{expandedArea.code}</span>
+                <h2 className="text-xl font-bold text-gray-900">{expandedArea.title}</h2>
+              </div>
+            </div>
+            {!isUnassignedFaculty && (
+              <button
+                onClick={() => {
+                  setUploadTargetArea(expandedArea);
+                  setUploadForm({ fileName: "", requirementTarget: "" });
+                  setShowUploadModal(true);
+                }}
+                className="px-4 py-2.5 bg-[#FF9501] hover:bg-[#D97E00] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+              >
+                <Upload className="h-4 w-4" /> Upload Evidence File
+              </button>
+            )}
+          </div>
+
+          {isLoadingDetails ? (
+            <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-[#FF9501]" />
+              <span className="text-sm font-semibold">Loading area requirements & uploaded evidence...</span>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">Required Documents Checklist</h3>
+                <div className="space-y-2">
+                  {areaDetails.requirements.map((req: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-xl border border-gray-200 bg-[#F9FAFB] flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className={`h-4 w-4 shrink-0 ${req.isUploaded ? "text-emerald-600" : "text-gray-300"}`} />
+                        <span className="font-semibold text-gray-800">{req.title}</span>
+                      </div>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
+                          req.isUploaded ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {req.isUploaded ? "Uploaded" : "Missing Evidence"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">Uploaded Evidence Files ({selectedProgram})</h3>
+                {areaDetails.uploadedFiles.length === 0 ? (
+                  <div className="py-10 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs">
+                    No evidence files uploaded for this area yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {areaDetails.uploadedFiles.map((doc: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="p-4 rounded-xl border border-gray-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-gray-300 transition-all"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="p-2 bg-orange-50 text-[#FF9501] rounded-lg shrink-0 mt-0.5">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-gray-900 truncate">{doc.name}</h4>
+                            <p className="text-[11px] text-gray-500 truncate mt-0.5">Target: {doc.requirement_target}</p>
+                            <div className="flex items-center gap-3 text-[10px] text-gray-400 mt-1">
+                              <span>Uploaded by: <strong className="text-gray-600">{doc.uploaded_by || 'Faculty'}</strong></span>
+                              <span>•</span>
+                              <span>Office: <strong className="text-gray-600">{doc.office || 'Academic'}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          <span
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                              doc.status === "Approved"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : doc.status === "Needs Revision"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {doc.status || "Pending Verification"}
+                          </span>
+
+                          {userRole === "ADMIN" && (
+                            <button
+                              onClick={() => {
+                                setDocToDelete(doc.name);
+                                setShowDeleteModal(true);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Archive Evidence File"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+};
+
+export const ChedTabContent = ({
+  chedRequirements,
+  isLoadingChed,
+  selectedProgram,
+  userRole,
+  isUnassignedFaculty,
+  setShowAddChedReqModal,
+  setShowEditChedModal,
+  setEditingChedReq,
+  setChedReqToDelete,
+  setShowDeleteChedReqModal,
+  setSelectedChedReq,
+  setShowChedUploadModal,
+  setChedEvidenceToDelete,
+  setShowDeleteChedEvidenceModal,
+  handleReviewChedEvidence,
+  isReviewing
+}: any) => {
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="border-b border-gray-100 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <FileCheck className="w-5 h-5 text-[#FF9501]" />
+            CHED Program Compliance
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">Monitoring of CMO requirements and mandatory submissions for {selectedProgram}.</p>
+        </div>
+        {userRole === "ADMIN" && (
+          <button
+            onClick={() => setShowAddChedReqModal(true)}
+            className="px-4 py-2.5 bg-[#FF9501] hover:bg-[#D97E00] text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0"
+          >
+            <Plus className="w-4 h-4" /> Add CHED Requirement
+          </button>
+        )}
+      </div>
+
+      <div className="p-6">
+        {isLoadingChed ? (
+          <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin text-[#FF9501]" />
+            <span className="text-sm font-semibold">Loading CHED requirements...</span>
+          </div>
+        ) : chedRequirements.length === 0 ? (
+          <div className="py-16 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+            No CHED requirements configured for {selectedProgram} yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50/80">
+                  <th className="p-3.5 rounded-l-xl">CMO Title / Requirement</th>
+                  <th className="p-3.5">Mandatory Evidences</th>
+                  <th className="p-3.5">Status</th>
+                  <th className="p-3.5 text-right rounded-r-xl">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-xs">
+                {chedRequirements.map((req: any) => (
+                  <tr key={req.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="p-3.5 font-bold text-gray-900 max-w-xs">
+                      <div>{req.cmo_name}</div>
+                      {req.description && <div className="text-[11px] text-gray-500 font-normal mt-0.5">{req.description}</div>}
+                    </td>
+                    <td className="p-3.5">
+                      {req.evidences && req.evidences.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {req.evidences.map((ev: any, evIdx: number) => (
+                            <div key={evIdx} className="flex items-center justify-between gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileText className="h-3.5 w-3.5 text-[#FF9501] shrink-0" />
+                                <span className="font-semibold text-gray-800 truncate max-w-[200px]">{ev.document_name}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`px-2 py-0.5 text-[9px] font-bold rounded-md uppercase ${
+                                  ev.status === "Approved" ? "bg-emerald-100 text-emerald-800" :
+                                  ev.status === "Needs Revision" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"
+                                }`}>
+                                  {ev.status}
+                                </span>
+                                {userRole === "ADMIN" && ev.status === "Pending Verification" && (
+                                  <button
+                                    onClick={() => handleReviewChedEvidence(ev.id, "Approved")}
+                                    disabled={isReviewing}
+                                    className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer"
+                                    title="Approve Evidence"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                  </button>
+                                )}
+                                {userRole === "ADMIN" && (
+                                  <button
+                                    onClick={() => { setChedEvidenceToDelete(ev); setShowDeleteChedEvidenceModal(true); }}
+                                    className="p-1 text-gray-400 hover:text-red-600 rounded cursor-pointer"
+                                    title="Remove Evidence"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">No evidence uploaded yet</span>
+                      )}
+                    </td>
+                    <td className="p-3.5">
+                      <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full uppercase ${
+                        req.status === "Compliant" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                      }`}>
+                        {req.status || "Not Compliant"}
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-right space-x-1">
+                      {!isUnassignedFaculty && (
+                        <button
+                          onClick={() => { setSelectedChedReq(req); setShowChedUploadModal(true); }}
+                          className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-[#D97E00] border border-[#FF9501]/30 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                        >
+                          Upload Proof
+                        </button>
+                      )}
+                      {userRole === "ADMIN" && (
+                        <>
+                          <button
+                            onClick={() => { setEditingChedReq(req); setShowEditChedModal(true); }}
+                            className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg cursor-pointer"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => { setChedReqToDelete(req.id); setShowDeleteChedReqModal(true); }}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export const IsoTabContent = ({
+  isoClauseRequirements,
+  isLoadingIso,
+  selectedProgram,
+  userRole,
+  userAdminOffice,
+  isOfficeRestricted,
+  isUnassignedFaculty,
+  selectedIsoCycleYear,
+  setSelectedIsoCycleYear,
+  showIsoYearFilter,
+  setShowIsoYearFilter,
+  isoCycleOptions,
+  expandedIsoClause,
+  setExpandedIsoClause,
+  isoClauseEvidences,
+  isLoadingIsoEvidences,
+  isoFilterCategory,
+  setIsoFilterCategory,
+  isoFilterOffice,
+  setIsoFilterOffice,
+  isoSearchQuery,
+  setIsoSearchQuery,
+  filteredIsoClauses,
+  isoCompliantCount,
+  isoTotalCount,
+  isoCompliancePercent,
+  iqaProgramSchedule,
+  iqaAuditDays,
+  qmsActionPlans,
+  isLoadingQms,
+  qmsFilterOffice,
+  setQmsFilterOffice,
+  qmsFilterType,
+  setQmsFilterType,
+  qmsFilterStatus,
+  setQmsFilterStatus,
+  qmsSearchQuery,
+  setQmsSearchQuery,
+  qmsStats,
+  filteredQmsPlans,
+  isoSubTab,
+  setIsoSubTab,
+  setShowAddIsoCycleModal,
+  setShowAddIsoReqModal,
+  setEditingIsoReq,
+  setShowEditIsoReqModal,
+  setIsoReqToDelete,
+  setShowDeleteIsoReqModal,
+  setSelectedIsoReqForUpload,
+  setShowIsoUploadEvidenceModal,
+  setIsoEvidenceToDelete,
+  setShowDeleteIsoEvidenceModal,
+  setShowEditIqaModal,
+  setShowAddIqaDayModal,
+  setEditingIqaDay,
+  setShowEditIqaDayModal,
+  setDeletingIqaDay,
+  setShowDeleteIqaDayModal,
+  setShowAddQmsModal,
+  setEditingQmsPlan,
+  setShowEditQmsModal,
+  setQmsPlanToDelete,
+  setShowDeleteQmsModal,
+  setTargetQmsPlanForEvidence,
+  setShowQmsEvidenceUploadModal,
+  handleReviewIsoEvidence,
+  handleUpdateQmsStatus,
+  isReviewing,
+  showToast
+}: any) => {
+  return (
+    <>
+      {!expandedIsoClause ? (
+        <>
+          {/* --- 100% ISO 9001:2015 COMPLIANCE SUCCESS BANNER --- */}
+          {isoTotalCount > 0 && isoCompliantCount === isoTotalCount && (
+            <div className="p-6 bg-[#006837] text-white rounded-2xl shadow-xl border-2 border-emerald-400 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+              <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0 border border-white/30 shadow-lg">
+                    <Award className="h-10 w-10 text-amber-300 drop-shadow" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2.5 py-0.5 bg-amber-400 text-gray-900 text-[10px] font-black uppercase rounded-full tracking-widest shadow-sm flex items-center gap-1">
+                        <Award className="h-3 w-3 text-amber-900" /> 100% Fully Compliant
+                      </span>
+                      <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-sm border border-white/30">
+                        {selectedIsoCycleYear}
+                      </span>
+                      <span className="text-xs font-semibold text-emerald-100 hidden sm:inline">ISO 9001:2015 Audit Certified</span>
+                    </div>
+                    <h3 className="text-xl font-black mt-1 tracking-tight">
+                      Institutional Quality Management System (QMS) Verified for {selectedIsoCycleYear}!
+                    </h3>
+                    <p className="text-xs text-emerald-100 mt-1 max-w-2xl leading-relaxed font-medium">
+                      All {isoTotalCount} Internal Quality Audit (IQA) clauses for <span className="font-bold underline">{selectedIsoCycleYear}</span> have been successfully audited and approved. Historical audit records from previous cycles remain archived and preserved.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => showToast(`ISO Audit Report for ${selectedIsoCycleYear} generated!`, "success")}
+                    className="px-5 py-3 bg-amber-400 text-gray-900 font-bold text-xs rounded-xl hover:bg-amber-300 transition-all cursor-pointer shadow-lg active:scale-95 flex items-center gap-2 uppercase tracking-wider"
+                  >
+                    <Download className="h-4 w-4" /> Download Report ({selectedIsoCycleYear})
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ISO 9001:2015 Summary Header */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 border-t-4 border-t-[#FF9501] overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
+              <div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="px-2.5 py-1 bg-amber-50 text-[#D97E00] border border-[#FF9501]/20 font-bold text-xs rounded-md flex items-center gap-1.5">
+                    <Award className="h-3.5 w-3.5" /> ISO 9001:2015 QMS
+                  </span>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowIsoYearFilter(!showIsoYearFilter)}
+                      className="px-3 py-1 bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                    >
+                      <Calendar className="h-3.5 w-3.5 text-[#FF9501]" />
+                      <span>{selectedIsoCycleYear}</span>
+                      <ChevronDown className="h-3 w-3 text-gray-400" />
+                    </button>
+                    {showIsoYearFilter && (
+                      <div className="absolute left-0 mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-xl z-30 py-1 text-xs">
+                        <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Audit Cycle Year</div>
+                        {isoCycleOptions.map((yr: string) => (
+                          <button
+                            key={yr}
+                            onClick={() => { setSelectedIsoCycleYear(yr); setShowIsoYearFilter(false); }}
+                            className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-orange-50 hover:text-[#D97E00] cursor-pointer ${yr === selectedIsoCycleYear ? "font-bold text-[#FF9501] bg-orange-50/50" : "text-gray-700"}`}
+                          >
+                            <span>{yr}</span>
+                            {yr === selectedIsoCycleYear && <Check className="h-3.5 w-3.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {isOfficeRestricted && (
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 font-bold text-xs rounded-md flex items-center gap-1">
+                      <Lock className="h-3 w-3" /> Scoped to: {userAdminOffice}
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mt-2">Quality Management System & IQA Audit Schedule</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Unified campus-wide surveillance & internal audit monitoring for <strong>{selectedIsoCycleYear}</strong>.</p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                {userRole === "ADMIN" && (
+                  <>
+                    <button
+                      onClick={() => setShowAddIsoCycleModal(true)}
+                      className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-all border border-gray-300 shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-[#FF9501]" /> New Audit Cycle
+                    </button>
+                    <button
+                      onClick={() => setShowAddIsoReqModal(true)}
+                      className="px-4 py-2 bg-[#FF9501] hover:bg-[#D97E00] text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Plus className="h-4 w-4" /> Add Clause Requirement
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Sub-Tabs: ISO Clause Requirements vs QMS Action Plans */}
+            <div className="px-6 pt-4 border-b border-gray-100 bg-[#F9FAFB] flex items-center gap-4">
+              <button
+                onClick={() => setIsoSubTab("clauses")}
+                className={`pb-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                  isoSubTab === "clauses"
+                    ? "border-[#FF9501] text-[#FF9501]"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                <Layers className="h-4 w-4" /> ISO Clause Requirements ({isoCompliantCount}/{isoTotalCount})
+              </button>
+              <button
+                onClick={() => setIsoSubTab("qms")}
+                className={`pb-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                  isoSubTab === "qms"
+                    ? "border-[#FF9501] text-[#FF9501]"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                <FileCheck className="h-4 w-4" /> QMS Action Plans (MRC Form 6) ({qmsStats.total})
+              </button>
+            </div>
+
+            {isoSubTab === "clauses" ? (
+              /* --- CLAUSES TAB CONTENT --- */
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <div className="text-2xl font-extrabold text-gray-900">{isoTotalCount}</div>
+                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">Total Clause Requirements</div>
+                  </div>
+                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                    <div className="text-2xl font-extrabold text-emerald-700">{isoCompliantCount}</div>
+                    <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">Compliant Clauses</div>
+                  </div>
+                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                    <div className="text-2xl font-extrabold text-red-600">{isoTotalCount - isoCompliantCount}</div>
+                    <div className="text-[10px] font-bold text-red-500 uppercase tracking-wider mt-0.5">Clause Gaps</div>
+                  </div>
+                  <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                    <div className="text-2xl font-extrabold text-[#D97E00]">{isoCompliancePercent}%</div>
+                    <div className="text-[10px] font-bold text-[#D97E00] uppercase tracking-wider mt-0.5">Overall ISO Rate</div>
+                  </div>
+                </div>
+
+                {/* Filters Row */}
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
+                  <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+                    <select
+                      value={isoFilterCategory}
+                      onChange={(e) => setIsoFilterCategory(e.target.value)}
+                      className="px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                    >
+                      <option value="all">All Process Categories</option>
+                      <option value="Core Process">Core Process</option>
+                      <option value="Support Process">Support Process</option>
+                      <option value="Management Process">Management Process</option>
+                    </select>
+
+                    <select
+                      value={isoFilterOffice}
+                      onChange={(e) => setIsoFilterOffice(e.target.value)}
+                      disabled={isOfficeRestricted}
+                      className={`px-3 py-2 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FF9501] ${
+                        isOfficeRestricted ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed" : "bg-[#F5F7FA] text-gray-700 border-gray-200"
+                      }`}
+                    >
+                      <option value="all">All Auditee Offices (16 Offices)</option>
+                      {ISO_OFFICES_16.map((off: string) => (
+                        <option key={off} value={off}>{off}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="relative w-full md:w-64">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
+                    <input
+                      type="text"
+                      placeholder="Search clauses or titles..."
+                      value={isoSearchQuery}
+                      onChange={(e) => setIsoSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                    />
+                  </div>
+                </div>
+
+                {/* ISO Clause Table */}
+                {isLoadingIso ? (
+                  <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-[#FF9501]" />
+                    <span className="text-sm font-semibold">Loading ISO clause requirements...</span>
+                  </div>
+                ) : filteredIsoClauses.length === 0 ? (
+                  <div className="py-16 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs font-medium">
+                    No ISO clause requirements match your current filters.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-2xs">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50/80">
+                          <th className="p-3.5 rounded-l-xl">Clause & Title</th>
+                          <th className="p-3.5">Auditee Office</th>
+                          <th className="p-3.5">Evidences</th>
+                          <th className="p-3.5">Status</th>
+                          <th className="p-3.5 text-right rounded-r-xl">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 text-xs">
+                        {filteredIsoClauses.map((clause: any) => (
+                          <tr key={clause.id} className="hover:bg-gray-50/60 transition-colors">
+                            <td className="p-3.5 font-bold text-gray-900 max-w-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-orange-50 text-[#D97E00] border border-[#FF9501]/30 text-[10px] font-black rounded-md shrink-0">
+                                  {clause.iso_clause}
+                                </span>
+                                <span className="truncate">{clause.title}</span>
+                              </div>
+                              {clause.process_category && (
+                                <span className="text-[10px] text-gray-400 font-medium block mt-0.5">{clause.process_category}</span>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-gray-600 font-medium">{clause.auditee_office || 'Campus-Wide'}</td>
+                            <td className="p-3.5 font-semibold text-gray-700">{clause.evidences?.length || 0} file(s)</td>
+                            <td className="p-3.5">
+                              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full uppercase ${
+                                clause.status === "Compliant" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                              }`}>
+                                {clause.status || "Not Compliant"}
+                              </span>
+                            </td>
+                            <td className="p-3.5 text-right space-x-1">
+                              <button
+                                onClick={() => setExpandedIsoClause(clause)}
+                                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                              >
+                                Details
+                              </button>
+                              {!isUnassignedFaculty && (
+                                <button
+                                  onClick={() => { setSelectedIsoReqForUpload(clause); setShowIsoUploadEvidenceModal(true); }}
+                                  className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-[#D97E00] border border-[#FF9501]/30 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                                >
+                                  Upload Proof
+                                </button>
+                              )}
+                              {userRole === "ADMIN" && (
+                                <>
+                                  <button
+                                    onClick={() => { setEditingIsoReq(clause); setShowEditIsoReqModal(true); }}
+                                    className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg cursor-pointer"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => { setIsoReqToDelete(clause); setShowDeleteIsoReqModal(true); }}
+                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* 3-Day IQA Schedule Table */}
+                <div className="pt-6 border-t border-gray-100">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-[#FF9501]" /> 3-Day Internal Quality Audit (IQA) Program Schedule ({selectedIsoCycleYear})
+                      </h3>
+                      <p className="text-xs text-gray-500">Annual audit cycle schedule for CTU Argao Campus offices.</p>
+                    </div>
+                    {userRole === "ADMIN" && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowAddIqaDayModal(true)}
+                          className="px-3.5 py-2 bg-orange-50 hover:bg-orange-100 text-[#D97E00] border border-[#FF9501]/30 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add Audit Day
+                        </button>
+                        <button
+                          onClick={() => setShowEditIqaModal(true)}
+                          className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border border-gray-300"
+                        >
+                          <Edit className="h-3.5 w-3.5" /> Edit Full Schedule
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {iqaAuditDays.map((day: any) => (
+                      <div key={day.id || day.day_number} className="bg-gray-50 rounded-2xl p-4 border border-gray-200 relative group">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="px-2.5 py-1 bg-[#FF9501] text-white font-bold text-[10px] rounded-md uppercase tracking-wider">
+                            Day {day.day_number}
+                          </span>
+                          <span className="text-xs font-semibold text-gray-500">{day.date_label}</span>
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm mb-1">{day.title}</h4>
+                        <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{day.focus_area}</p>
+                        <div className="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                          Offices: <span className="text-gray-700">{day.audited_offices}</span>
+                        </div>
+                        {userRole === "ADMIN" && (
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/90 backdrop-blur-xs p-1 rounded-lg border border-gray-200 shadow-2xs">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingIqaDay(day); setShowEditIqaDayModal(true); }}
+                              className="p-1 text-gray-500 hover:text-gray-800 rounded cursor-pointer"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeletingIqaDay(day); setShowDeleteIqaDayModal(true); }}
+                              className="p-1 text-gray-400 hover:text-red-600 rounded cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* --- QMS ACTION PLANS TAB CONTENT --- */
+              <div className="p-6 space-y-6">
+                {isUnassignedFaculty ? (
+                  <div className="p-6 bg-red-50 border border-red-200 rounded-2xl text-center space-y-3">
+                    <ShieldAlert className="h-10 w-10 text-red-600 mx-auto" />
+                    <h3 className="text-base font-bold text-red-900">Restricted Access — Unassigned Faculty Account</h3>
+                    <p className="text-xs text-red-700 max-w-md mx-auto leading-relaxed">
+                      Your faculty account does not have an assigned Administrative/Auditee Office. QMS Action Plans are scoped strictly to verified Auditee Offices. Please contact the Administrator to update your office assignment.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                          <FileCheck className="h-5 w-5 text-[#FF9501]" /> QMS Action Plans (MRC Form 6)
+                        </h3>
+                        <p className="text-xs text-gray-500">Corrective actions, opportunities for improvement, and risk registers across campus offices.</p>
+                      </div>
+                      {userRole === "ADMIN" && (
+                        <button
+                          onClick={() => setShowAddQmsModal(true)}
+                          className="px-4 py-2.5 bg-[#FF9501] hover:bg-[#D97E00] text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0"
+                        >
+                          <Plus className="w-4 h-4" /> New Action Plan (Form 6)
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                        <div className="text-2xl font-extrabold text-gray-900">{qmsStats.total}</div>
+                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">Total Action Plans</div>
+                      </div>
+                      <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                        <div className="text-2xl font-extrabold text-amber-700">{qmsStats.inProgress}</div>
+                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">In Progress</div>
+                      </div>
+                      <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                        <div className="text-2xl font-extrabold text-emerald-700">{qmsStats.completed}</div>
+                        <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">Completed</div>
+                      </div>
+                      <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                        <div className="text-2xl font-extrabold text-red-600">{qmsStats.overdue}</div>
+                        <div className="text-[10px] font-bold text-red-500 uppercase tracking-wider mt-0.5">Overdue Plans</div>
+                      </div>
+                    </div>
+
+                    {/* QMS Filters */}
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
+                      <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+                        <select
+                          value={qmsFilterOffice}
+                          onChange={(e) => setQmsFilterOffice(e.target.value)}
+                          disabled={isOfficeRestricted}
+                          className={`px-3 py-2 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FF9501] ${
+                            isOfficeRestricted ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed" : "bg-[#F5F7FA] text-gray-700 border-gray-200"
+                          }`}
+                        >
+                          <option value="all">All ISO Offices (16 Offices)</option>
+                          {ISO_OFFICES_16.map((off: string) => (
+                            <option key={off} value={off}>{off}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={qmsFilterType}
+                          onChange={(e) => setQmsFilterType(e.target.value)}
+                          className="px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                        >
+                          <option value="all">All Types (Process/People/Paper)</option>
+                          <option value="Process">Process</option>
+                          <option value="People">People</option>
+                          <option value="Paper">Paper</option>
+                          <option value="Risk/Opportunity">Risk / Opportunity</option>
+                        </select>
+
+                        <select
+                          value={qmsFilterStatus}
+                          onChange={(e) => setQmsFilterStatus(e.target.value)}
+                          className="px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="Proposed">Proposed</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Overdue">Overdue</option>
+                        </select>
+                      </div>
+
+                      <div className="relative w-full md:w-64">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
+                        <input
+                          type="text"
+                          placeholder="Search action plans..."
+                          value={qmsSearchQuery}
+                          onChange={(e) => setQmsSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* QMS Table */}
+                    {isLoadingQms ? (
+                      <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin text-[#FF9501]" />
+                        <span className="text-sm font-semibold">Loading QMS Action Plans...</span>
+                      </div>
+                    ) : filteredQmsPlans.length === 0 ? (
+                      <div className="py-16 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs font-medium">
+                        No QMS Action Plans match your current filters.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-2xs">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50/80">
+                              <th className="p-3.5 rounded-l-xl">Auditee Office</th>
+                              <th className="p-3.5">Opportunity / Finding</th>
+                              <th className="p-3.5">Action Plan</th>
+                              <th className="p-3.5">Target Date</th>
+                              <th className="p-3.5">Status</th>
+                              <th className="p-3.5 text-right rounded-r-xl">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 text-xs">
+                            {filteredQmsPlans.map((plan: any) => (
+                              <tr key={plan.id} className="hover:bg-gray-50/60 transition-colors">
+                                <td className="p-3.5 font-bold text-gray-900 max-w-xs">
+                                  <div>{plan.auditee_office}</div>
+                                  <span className="text-[10px] text-gray-400 font-normal block mt-0.5">{plan.finding_type || 'Opportunity'}</span>
+                                </td>
+                                <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.opportunity_description}</td>
+                                <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.action_plan}</td>
+                                <td className="p-3.5 text-gray-600 font-semibold">{plan.target_completion_date || 'N/A'}</td>
+                                <td className="p-3.5">
+                                  <select
+                                    value={plan.status}
+                                    onChange={(e) => handleUpdateQmsStatus(plan.id, e.target.value)}
+                                    className={`px-2.5 py-1 text-[10px] font-bold rounded-full border focus:outline-none cursor-pointer ${
+                                      plan.status === "Completed" ? "bg-emerald-100 text-emerald-800 border-emerald-300" :
+                                      plan.status === "In Progress" ? "bg-amber-100 text-amber-800 border-amber-300" :
+                                      plan.status === "Overdue" ? "bg-red-100 text-red-800 border-red-300" :
+                                      "bg-gray-100 text-gray-800 border-gray-300"
+                                    }`}
+                                  >
+                                    <option value="Proposed">Proposed</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Overdue">Overdue</option>
+                                  </select>
+                                </td>
+                                <td className="p-3.5 text-right space-x-1">
+                                  <button
+                                    onClick={() => { setTargetQmsPlanForEvidence(plan); setShowQmsEvidenceUploadModal(true); }}
+                                    className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-[#D97E00] border border-[#FF9501]/30 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                                  >
+                                    Attach Proof
+                                  </button>
+                                  {userRole === "ADMIN" && (
+                                    <>
+                                      <button
+                                        onClick={() => { setEditingQmsPlan(plan); setShowEditQmsModal(true); }}
+                                        className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg cursor-pointer"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => { setQmsPlanToDelete(plan); setShowDeleteQmsModal(true); }}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Drawer View for ISO Clause Details */
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setExpandedIsoClause(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div>
+                <span className="text-xs font-bold text-[#D97E00] uppercase tracking-wider">{expandedIsoClause.iso_clause}</span>
+                <h2 className="text-xl font-bold text-gray-900">{expandedIsoClause.title}</h2>
+              </div>
+            </div>
+            {!isUnassignedFaculty && (
+              <button
+                onClick={() => { setSelectedIsoReqForUpload(expandedIsoClause); setShowIsoUploadEvidenceModal(true); }}
+                className="px-4 py-2.5 bg-[#FF9501] hover:bg-[#D97E00] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+              >
+                <Upload className="h-4 w-4" /> Upload Clause Proof
+              </button>
+            )}
+          </div>
+
+          {isLoadingIsoEvidences ? (
+            <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-[#FF9501]" />
+              <span className="text-sm font-semibold">Loading clause evidence details...</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Uploaded Evidence Files ({selectedProgram})</h3>
+              {isoClauseEvidences.length === 0 ? (
+                <div className="py-10 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs">
+                  No evidence files attached to this clause yet.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {isoClauseEvidences.map((doc: any, idx: number) => (
+                    <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-white flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText className="h-5 w-5 text-[#FF9501] shrink-0" />
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-gray-900 truncate">{doc.document_name}</h4>
+                          <span className="text-[10px] text-gray-400">{doc.office || 'Campus-Wide'}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase ${
+                          doc.status === "Approved" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {doc.status}
+                        </span>
+                        {userRole === "ADMIN" && doc.status === "Pending Verification" && (
+                          <button
+                            onClick={() => handleReviewIsoEvidence(doc.id, "Approved")}
+                            disabled={isReviewing}
+                            className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {userRole === "ADMIN" && (
+                          <button
+                            onClick={() => { setIsoEvidenceToDelete(doc); setShowDeleteIsoEvidenceModal(true); }}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded cursor-pointer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+};
+
+export const ResultsTabContent = ({
+  currentData,
+  selectedProgram,
+  userRole,
+  programAccreditation,
+  setShowEditStandingModal,
+  setEditStandingForm,
+  ALL_AACCUP_AREAS,
+  setShowUpgradeModal,
+  setUpgradeForm,
+  accreditationLogs,
+  showToast
+}: any) => {
+  return (
+    <div className="flex flex-col lg:flex-row gap-6">
+      {/* Left Column: Timeline & History */}
+      <div className="w-full lg:w-2/3 space-y-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="border-b border-gray-100 p-6 bg-[#F9FAFB] flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <History className="w-5 h-5 text-[#FF9501]" />
+                Accreditation Timeline & Audit History
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">Historical accreditation awards and CHED recognition certificates for {selectedProgram}.</p>
+            </div>
+            {userRole === "ADMIN" && (
+              <button
+                onClick={() => {
+                  setEditStandingForm({
+                    new_level: programAccreditation?.current_level || "Candidate Status",
+                    valid_until_date: programAccreditation?.valid_until ? programAccreditation.valid_until.split("T")[0] : ""
+                  });
+                  setShowEditStandingModal(true);
+                }}
+                className="px-3.5 py-2 bg-[#FF9501] hover:bg-[#D97E00] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Edit className="w-3.5 h-3.5" /> Update Standing
+              </button>
+            )}
+          </div>
+
+          <div className="p-6">
+            {accreditationLogs.length === 0 ? (
+              <div className="py-12 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs">
+                No historical accreditation logs found for {selectedProgram}.
+              </div>
+            ) : (
+              <div className="relative border-l-2 border-orange-200 pl-6 space-y-6 my-2 ml-2">
+                {accreditationLogs.map((log: any, idx: number) => (
+                  <div key={idx} className="relative group">
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-[#FF9501] border-2 border-white shadow-xs"></div>
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-[#FF9501]/40 transition-all">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="px-2.5 py-0.5 bg-orange-100 text-[#D97E00] font-bold text-[10px] rounded-md uppercase">
+                          {log.accreditation_level}
+                        </span>
+                        <span className="text-xs font-semibold text-gray-500">{log.created_at ? log.created_at.split("T")[0] : 'N/A'}</span>
+                      </div>
+                      <h4 className="font-bold text-gray-900 text-sm mt-1">{log.remarks || 'Accreditation Status Update'}</h4>
+                      {log.certificate_url && (
+                        <a
+                          href={log.certificate_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#FF9501] hover:underline"
+                        >
+                          <FileBadge className="w-3.5 h-3.5" /> View Official Certificate <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Column: Institutional Scorecard */}
+      <div className="w-full lg:w-1/3 space-y-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
+              <Award className="w-5 h-5 text-[#FF9501]" /> Institutional Scorecard
+            </h3>
+            <button
+              onClick={() => showToast(`Institutional QA Scorecard Report generated!`, "success")}
+              className="p-2 text-gray-500 hover:text-[#FF9501] hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+              title="Download Scorecard"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex justify-between items-center text-xs">
+              <span className="font-semibold text-gray-600">Current Program</span>
+              <strong className="text-gray-900">{selectedProgram}</strong>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex justify-between items-center text-xs">
+              <span className="font-semibold text-gray-600">AACCUP Standing</span>
+              <strong className="text-[#D97E00] font-bold">{programAccreditation?.current_level || currentData.level || "Candidate Status"}</strong>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex justify-between items-center text-xs">
+              <span className="font-semibold text-gray-600">Validity Period</span>
+              <strong className="text-gray-900">{programAccreditation?.valid_until ? programAccreditation.valid_until.split("T")[0] : 'N/A'}</strong>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Area Compliance Rate</h4>
+            <div className="space-y-2">
+              {ALL_AACCUP_AREAS.map((a: any) => {
+                const found = currentData.areas?.find((ca: any) => ca.code === a.code);
+                const rate = found ? found.compliance : 0;
+                return (
+                  <div key={a.code} className="text-xs">
+                    <div className="flex justify-between font-semibold text-gray-700 mb-1">
+                      <span>{a.code}: {a.name}</span>
+                      <span>{rate}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${rate === 100 ? "bg-[#006837]" : rate >= 50 ? "bg-[#FF9501]" : "bg-red-500"}`}
+                        style={{ width: `${rate}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const ReusableConfirmModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  isProcessing,
+  title,
+  description,
+  confirmText,
+  confirmColorClass = "bg-red-600 hover:bg-red-700",
+  icon: Icon = ShieldAlert
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  isProcessing?: boolean;
+  title: string;
+  description?: React.ReactNode;
+  confirmText?: string;
+  confirmColorClass?: string;
+  icon?: any;
+}) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-red-100">
+        <div className="p-6 border-b border-red-50 bg-red-50 flex items-center gap-3">
+          <Icon className="h-6 w-6 text-red-600" />
+          <h2 className="text-xl font-bold text-red-700">{title}</h2>
+        </div>
+        <div className="p-6 space-y-4">
+          {typeof description === "string" ? (
+            <p className="text-sm text-gray-600 leading-relaxed font-medium">{description}</p>
+          ) : (
+            description
+          )}
+        </div>
+        <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={isProcessing}
+            className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer uppercase tracking-widest disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isProcessing}
+            className={`px-5 py-2.5 text-xs font-bold text-white rounded-xl transition-all disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer uppercase tracking-widest shadow-md ${confirmColorClass}`}
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...
+              </>
+            ) : (
+              confirmText || "Confirm"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const ReusableUploadModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  file,
+  setFile,
+  fileName,
+  setFileName,
+  isUploading,
+  title,
+  subtitle,
+  targetName
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+  file: File | null;
+  setFile: (f: File | null) => void;
+  fileName: string;
+  setFileName: (s: string) => void;
+  isUploading?: boolean;
+  title: string;
+  subtitle?: string;
+  targetName?: string;
+}) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-orange-50 text-[#FF9501] rounded-xl">
+              <Upload className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+              {subtitle && <p className="text-xs text-[#D97E00] font-semibold mt-0.5 uppercase tracking-wider">{subtitle}</p>}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isUploading}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="p-6 space-y-4">
+          {targetName && (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700">
+              Target: <span className="font-bold text-gray-900">{targetName}</span>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+              Document Name / Title
+            </label>
+            <input
+              type="text"
+              required
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              placeholder="e.g. Approved Curriculum Map 2026"
+              className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+              Select File (PDF / DOCX)
+            </label>
+            <input
+              type="file"
+              required
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              accept=".pdf,.doc,.docx"
+              className="w-full text-xs text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-[#FF9501] hover:file:bg-orange-100 cursor-pointer"
+            />
+          </div>
+          <div className="pt-4 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isUploading}
+              className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isUploading || !file || !fileName.trim()}
+              className="px-5 py-2.5 text-xs font-bold bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors uppercase tracking-widest disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Uploading...
+                </>
+              ) : (
+                "Upload Document"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 export function AccreditationSupport() {
   const userRole = sessionStorage.getItem('userRole') || 'STUDENT';
@@ -103,10 +1638,12 @@ export function AccreditationSupport() {
   const [showIsoUploadModal, setShowIsoUploadModal] = useState(false);
   const [selectedIsoReq, setSelectedIsoReq] = useState<any>(null);
   const [isoOfficeFilter, setIsoOfficeFilter] = useState("all");
+  const [isoFilterCategory, setIsoFilterCategory] = useState("all");
   const [isoSearchQuery, setIsoSearchQuery] = useState("");
 
   // ISO Audit Cycle Year & Expanded Clause States
   const [selectedIsoCycleYear, setSelectedIsoCycleYear] = useState("2025 Surveillance");
+  const [showIsoYearFilter, setShowIsoYearFilter] = useState(false);
   const [isoCycleOptions, setIsoCycleOptions] = useState<string[]>(["2026 Recertification", "2025 Surveillance", "2024 Initial Audit"]);
   const [showAddIsoCycleModal, setShowAddIsoCycleModal] = useState(false);
   const [newIsoCycleName, setNewIsoCycleName] = useState("");
@@ -956,6 +2493,19 @@ export function AccreditationSupport() {
     }
   };
 
+  const handleReviewChedEvidence = async (evidenceId: string, status: string) => {
+    setIsReviewing(true);
+    try {
+      await axios.put(`http://localhost:8000/ched/evidence/${evidenceId}/status`, { status });
+      showToast(`CHED evidence marked as ${status}!`, "success");
+      fetchChedData();
+    } catch (error) {
+      showToast("Failed to update CHED evidence status.", "error");
+    } finally {
+      setIsReviewing(false);
+    }
+  };
+
   // --- ISO HANDLERS ---
   const handleIsoUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1026,6 +2576,19 @@ export function AccreditationSupport() {
       showToast("Failed to remove ISO evidence.", "error");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleReviewIsoEvidence = async (evidenceId: string, status: string) => {
+    setIsReviewing(true);
+    try {
+      await axios.put(`http://localhost:8000/iso/evidence/${evidenceId}/status`, { status });
+      showToast(`ISO evidence marked as ${status}!`, "success");
+      fetchIsoData(selectedIsoCycleYear);
+    } catch (error) {
+      showToast("Failed to update ISO evidence status.", "error");
+    } finally {
+      setIsReviewing(false);
     }
   };
 
@@ -1217,6 +2780,13 @@ export function AccreditationSupport() {
       (p.auditee_office && p.auditee_office.toLowerCase().includes(q));
     return matchesOffice && matchesType && matchesStatus && matchesQuery;
   });
+
+  const qmsStats = {
+    total: qmsActionPlans.length,
+    inProgress: qmsActionPlans.filter(p => p.status === 'In Progress' || p.status === 'Proposed').length,
+    completed: qmsActionPlans.filter(p => p.status === 'Completed').length,
+    overdue: qmsActionPlans.filter(p => p.status !== 'Completed' && p.target_date && new Date(p.target_date) < new Date()).length
+  };
 
   // Calculate CHED Compliance Math
   const chedCompliantCount = chedRequirements.filter(r => r.status === 'Compliant').length;
@@ -1430,8 +3000,17 @@ export function AccreditationSupport() {
                     <option value="AB_ELS">BA in English Language Studies</option>
                     <option value="AB_LIT">BA in Literature</option>
                     <option value="AB_PSYCH">BA in Psychology</option>
+                    <option value="BSF">BS in Forestry</option>
+                    <option value="BSA">BS in Agriculture</option>
+                    <option value="BSES">BS in Environmental Science</option>
                     <option value="BSIE">BS in Industrial Engineering</option>
                     <option value="BSIT">BS in Information Technology</option>
+                    <option value="BIT_AT">BIT major in Automotive Technology</option>
+                    <option value="BIT_CT">BIT major in Computer Technology</option>
+                    <option value="BIT_DT">BIT major in Drafting Technology</option>
+                    <option value="BIT_ET">BIT major in Electronics Technology</option>
+                    <option value="BSHM">BS in Hospitality Management</option>
+                    <option value="BSTM">BS in Tourism Management</option>
                   </select>
                   {userRole === 'FACULTY' ? (
                     <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
@@ -1471,1677 +3050,145 @@ export function AccreditationSupport() {
         </div>
 
         <TabsContent value="aaccup" className="space-y-6 mt-6">
-          {/* 100% Compliant: Ready for Official Assessment Banner */}
-          {currentData.overall === 100 && (
-            <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                  <Award className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-emerald-900 flex items-center gap-2">
-                    100% Compliant: Ready for Official Assessment!
-                  </h3>
-                  <p className="text-xs sm:text-sm text-emerald-700 mt-0.5">
-                    All AACCUP parameters and required evidence documents for <strong>{selectedProgram}</strong> have been fully verified and approved.
-                  </p>
-                </div>
-              </div>
-              {userRole === "ADMIN" && (
-                <button
-                  onClick={() => {
-                    setUpgradeForm({
-                      new_level: "Level II Re-accredited",
-                      valid_until_date: "",
-                      certificate_url: "",
-                      remarks: "Passed 100% internal compliance audit."
-                    });
-                    setShowUpgradeModal(true);
-                  }}
-                  className="px-4 py-2.5 bg-[#006837] hover:bg-[#00502a] text-white rounded-lg text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0"
-                >
-                  <Award className="w-4 h-4" />
-                  Officially Upgrade Level
-                </button>
-              )}
-            </div>
-          )}
-
-          {!expandedArea ? (
-            <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-                <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#006837]">
-                  <h3 className="text-3xl sm:text-4xl font-bold text-[#006837] mb-1 sm:mb-2">{currentData.overall}%</h3>
-                  <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Overall Compliance</p>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-red-500">
-                  <h3 className="text-3xl sm:text-4xl font-bold text-red-500 mb-1 sm:mb-2">{currentData.gaps}</h3>
-                  <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Total Gaps</p>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#FF9501]">
-                  <h3 className="text-3xl sm:text-4xl font-bold text-[#FF9501] mb-1 sm:mb-2">{currentData.evidence}</h3>
-                  <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Approved Docs</p>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#995900]">
-                  <h3 className="text-3xl sm:text-4xl font-bold text-[#995900] mb-1 sm:mb-2">{currentData.areas.length}</h3>
-                  <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Active Areas</p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-bold text-[#1F2937]">AACCUP Area Compliance</h2>
-                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-                      {currentData.areas.length} {currentData.areas.length === 10 ? "Areas (All 10)" : "Areas (Scoped)"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 w-full md:w-auto">
-                    {userRole === "ADMIN" && (
-                      <button
-                        onClick={() => setShowAreaConfigModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-[#1D6FA3] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer shrink-0 shadow-2xs"
-                        title="Configure Active Evaluation Areas (Level III / IV Scoped Audits)"
-                      >
-                        <SlidersHorizontal className="w-4 h-4" /> Configure Areas ({activeAreas.length}/10)
-                      </button>
-                    )}
-                    <div className="relative w-full md:w-72">
-                      <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search areas..."
-                        className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {filteredAreas.length === 0 ? (
-                  <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
-                    <p className="text-gray-500 font-medium">No requirements template found.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {filteredAreas.map((area: any) => (
-                      <div 
-                        key={area.id} 
-                        onClick={() => handleViewDetails(area)}
-                        className="border border-gray-200 rounded-xl p-5 hover:border-[#FF9501] hover:shadow-lg transition-all duration-200 flex flex-col justify-between bg-white group cursor-pointer active:scale-[0.99]"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="pr-4">
-                              <h3 className="text-lg font-bold text-gray-900 mb-1 leading-tight group-hover:text-[#FF9501] transition-colors">
-                                {area.code}: {area.title}
-                              </h3>
-                              <div className="flex items-center gap-2 mt-2">
-                                {area.compliance === 100 ? <CheckCircle className="h-4 w-4 text-[#006837]" /> : <AlertCircle className="h-4 w-4 text-[#D97E00]" />}
-                                <span className={`text-xs font-bold uppercase tracking-wider ${area.compliance === 100 ? "text-[#006837]" : "text-[#D97E00]"}`}>
-                                  {area.gaps > 0 ? `${area.gaps} Missing Requirements` : "Fully Compliant"}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className={`text-3xl font-bold ${area.compliance === 100 ? "text-[#006837]" : "text-[#FF9501]"}`}>
-                                {area.compliance}%
-                              </div>
-                            </div>
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2.5 mb-4 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-1000 ease-out ${area.compliance >= 85 ? "bg-[#006837]" : area.compliance >= 50 ? "bg-[#FF9501]" : "bg-red-500"}`}
-                              style={{ width: `${area.compliance}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between mt-2 pt-4 border-t border-gray-100">
-                          <div className="flex items-center gap-2 text-xs font-medium text-gray-600">
-                            <FileText className="h-4 w-4 text-gray-400" />
-                            <span>{area.evidenceCount} / {area.required} Approved Files</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#FF9501] group-hover:text-[#D97E00] uppercase tracking-wider">
-                            View Details <span className="transform transition-transform duration-300 group-hover:translate-x-1">→</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
-              <div className="bg-white rounded-xl shadow-sm p-6 border-t-4 border-[#FF9501] border-x border-b border-gray-200">
-                <button 
-                  onClick={() => setExpandedArea(null)}
-                  className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#FF9501] font-bold mb-4 transition-colors cursor-pointer w-max uppercase tracking-wider"
-                >
-                  <ArrowLeft className="h-4 w-4" /> Back to Area Overview
-                </button>
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{expandedArea.code}: {expandedArea.title}</h2>
-                    <div className="flex flex-wrap items-center gap-3 mt-2 text-xs sm:text-sm text-gray-600">
-                      <span className="flex items-center gap-1 font-medium"><CheckCircle className="h-4 w-4 text-[#006837]"/>{expandedArea.evidenceCount} / {expandedArea.required} <span className="hidden sm:inline">Approved</span></span>
-                      <span className="flex items-center gap-1 font-medium"><AlertCircle className="h-4 w-4 text-red-500"/>{expandedArea.gaps} <span className="hidden sm:inline">Gaps Remaining</span></span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Area Compliance</p>
-                    <div className={`text-4xl font-bold ${expandedArea.compliance === 100 ? "text-[#006837]" : "text-[#FF9501]"}`}>
-                      {expandedArea.compliance}%
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Requirements List */}
-                <div className="lg:col-span-1 space-y-6">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="p-4 bg-[#FFF4E5] border-b border-gray-200">
-                      <h3 className="font-bold text-[#1F2937] text-sm uppercase tracking-wider">Required Documents</h3>
-                    </div>
-                    {isLoadingDetails ? (
-                       <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#FF9501]" /></div>
-                    ) : (
-                      <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto custom-scrollbar">
-                        {areaDetails.requirements.length === 0 ? (
-                           <p className="p-4 text-sm text-gray-500 italic">No specific requirements templated yet.</p>
-                        ) : (
-                          areaDetails.requirements.map((req: any, index: number) => (
-                            <div key={index} className="p-4 flex items-start gap-3 hover:bg-orange-50/30 transition-colors">
-                              <div className="mt-0.5">
-                                {req.is_met ? <CheckCircle className="h-5 w-5 text-[#006837]" /> : <div className="h-5 w-5 rounded-full border-2 border-gray-300" />}
-                              </div>
-                              <p className={`text-sm ${req.is_met ? "text-gray-400 line-through decoration-gray-300 font-medium" : "text-gray-900 font-semibold"}`}>
-                                {req.text}
-                              </p>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Uploaded Evidence Table */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
-                    <div className="p-3 sm:p-4 bg-[#F9FAFB] border-b border-gray-200 flex justify-between items-center">
-                      <h3 className="font-bold text-[#1F2937] text-sm uppercase tracking-wider">Uploaded Evidence</h3>
-                      <button 
-                        onClick={() => openUploadModal(expandedArea)}
-                        className="flex items-center gap-1.5 sm:gap-2 px-3 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all text-xs font-bold cursor-pointer shadow-sm active:scale-95"
-                      >
-                        <Upload className="h-3.5 w-3.5" /><span className="hidden sm:inline"> Upload File</span><span className="sm:hidden">Upload</span>
-                      </button>
-                    </div>
-                    
-                    {isLoadingDetails ? (
-                       <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#FF9501]" /></div>
-                    ) : (
-                      <div className="overflow-x-auto flex-1">
-                        <table className="w-full text-left whitespace-nowrap">
-                          <thead className="bg-gray-50 border-b border-gray-100 text-[10px] text-gray-500 uppercase font-bold tracking-widest">
-                            <tr>
-                              <th className="px-6 py-4">Document & Target</th>
-                              <th className="px-6 py-4">Status</th>
-                              <th className="px-6 py-4 text-center">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {areaDetails.uploadedFiles.length === 0 ? (
-                              <tr>
-                                <td colSpan={3} className="px-6 py-12 text-center text-sm text-gray-500 italic">
-                                  No evidence files uploaded for this area yet.
-                                </td>
-                              </tr>
-                            ) : (
-                              areaDetails.uploadedFiles.map((file: any, index: number) => (
-                                <tr key={index} className="hover:bg-orange-50/20 transition-colors">
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-start gap-3">
-                                      <div className="p-2 bg-orange-50 rounded-lg">
-                                        <FileText className="h-4 w-4 text-[#FF9501]" />
-                                      </div>
-                                      <div>
-                                        <div className="text-sm font-bold text-gray-900 truncate max-w-[300px]">{file.name}</div>
-                                        <div className="text-[11px] text-[#D97E00] font-semibold mt-1 max-w-[250px] truncate" title={file.target}>
-                                          Fulfills: {file.target}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4">
-                                    {file.status === "Approved" ? (
-                                      <span className="flex items-center w-max gap-1.5 px-2.5 py-1 bg-green-100 text-[#006837] text-[10px] font-bold rounded-md uppercase tracking-wider">
-                                        <Check className="h-3 w-3" /> Approved
-                                      </span>
-                                    ) : file.status === "Needs Revision" ? (
-                                      <div className="flex flex-col gap-1">
-                                        <span className="flex items-center w-max gap-1.5 px-2.5 py-1 bg-red-100 text-red-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
-                                          <AlertCircle className="h-3 w-3" /> Needs Revision
-                                        </span>
-                                        {file.feedback && (
-                                          <span className="text-[10px] text-red-500 font-medium italic max-w-[150px] truncate" title={file.feedback}>
-                                            "{file.feedback}"
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="flex items-center w-max gap-1.5 px-2.5 py-1 bg-orange-50 text-[#D97E00] text-[10px] font-bold rounded-md uppercase tracking-wider border border-[#FF9501]/20">
-                                        <Clock className="h-3 w-3" /> Pending Review
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-4 text-center">
-                                    <div className="flex items-center justify-center gap-3">
-                                      <button onClick={() => handleViewDocument(file.url, file.name)} className="p-2 text-gray-400 hover:text-[#FF9501] hover:bg-orange-50 rounded-lg transition-all cursor-pointer" title="View File">
-                                        <Eye className="h-4 w-4" />
-                                      </button>
-                                      <button onClick={() => openDeleteModal(file.name)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer" title="Remove Evidence">
-                                        <Archive className="h-4 w-4" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          <AaccupTabContent
+            currentData={currentData}
+            filteredAreas={filteredAreas}
+            selectedProgram={selectedProgram}
+            userRole={userRole}
+            isUnassignedFaculty={isUnassignedFaculty}
+            isAdminQueueOpen={isAdminQueueOpen}
+            setIsAdminQueueOpen={setIsAdminQueueOpen}
+            pendingDocs={pendingDocs}
+            expandedArea={expandedArea}
+            setExpandedArea={setExpandedArea}
+            areaDetails={areaDetails}
+            isLoadingDetails={isLoadingDetails}
+            setShowAreaConfigModal={setShowAreaConfigModal}
+            setShowUploadModal={setShowUploadModal}
+            setUploadTargetArea={setUploadTargetArea}
+            setUploadForm={setUploadForm}
+            setShowFeedbackModal={setShowFeedbackModal}
+            setFeedbackDoc={setFeedbackDoc}
+            setDocToDelete={setDocToDelete}
+            setShowDeleteModal={setShowDeleteModal}
+            handleAdminReview={handleAdminReview}
+            isReviewing={isReviewing}
+            setUpgradeForm={setUpgradeForm}
+            setShowUpgradeModal={setShowUpgradeModal}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
         </TabsContent>
 
         <TabsContent value="ched" className="mt-6 space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="border-b border-gray-100 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <FileCheck className="w-5 h-5 text-[#FF9501]" />
-                  CHED Program Compliance
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">Monitoring of CMO requirements and mandatory submissions for {selectedProgram}.</p>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right hidden sm:block">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Overall Compliance</p>
-                  <div className={`text-2xl font-bold ${chedCompliancePercentage === 100 ? "text-[#006837]" : "text-[#FF9501]"}`}>
-                    {chedCompliancePercentage}%
-                  </div>
-                </div>
-                {userRole === "ADMIN" && (
-                  <button 
-                    onClick={() => setShowAddChedReqModal(true)}
-                    className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all text-xs font-bold cursor-pointer shadow-sm active:scale-95"
-                  >
-                    <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline"> Add Requirement</span><span className="sm:hidden">Add</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="w-full bg-gray-100 h-1 overflow-hidden">
-              <div className={`h-full transition-all duration-1000 ease-out ${chedCompliancePercentage >= 85 ? "bg-[#006837]" : "bg-[#FF9501]"}`} style={{ width: `${chedCompliancePercentage}%` }}></div>
-            </div>
-            
-            <div className="p-0">
-              {isLoadingChed ? (
-                <div className="py-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#FF9501]" /></div>
-              ) : chedRequirements.length === 0 ? (
-                <div className="text-center py-16 border-b border-gray-100 bg-white">
-                  <FileCheck className="h-12 w-12 text-gray-300 mx-auto mb-3 opacity-50" />
-                  <h3 className="text-lg font-bold text-gray-900">No Checklist Found</h3>
-                  <p className="text-sm text-gray-500 mt-1 mb-4">There are no CHED requirements configured for {selectedProgram}.</p>
-                  {userRole === "ADMIN" && (
-                    <button onClick={() => setShowAddChedReqModal(true)} className="px-5 py-2 bg-orange-50 text-[#FF9501] text-sm font-bold rounded-lg border border-[#FF9501]/30 hover:bg-orange-100 transition-colors">
-                      Configure First Requirement
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-[10px] text-gray-500 uppercase font-bold tracking-widest">
-                      <tr>
-                        <th className="px-4 sm:px-6 py-4">Requirement & CMO</th>
-                        <th className="px-4 sm:px-6 py-4 text-center">Status</th>
-                        <th className="px-4 sm:px-6 py-4 hidden md:table-cell">Attached Evidence</th>
-                        <th className="px-4 sm:px-6 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 bg-white">
-                      {chedRequirements.map((req: any, index: number) => (
-                        <tr key={index} className="hover:bg-orange-50/20 transition-colors group">
-                          <td className="px-4 sm:px-6 py-4">
-                            <div className="flex items-start gap-3">
-                              <div className="mt-1">
-                                {req.status === "Compliant" ? <CheckCircle className="h-5 w-5 text-[#006837]" /> : <div className="h-5 w-5 rounded-full border-2 border-gray-300" />}
-                              </div>
-                              <div>
-                                <p className={`text-sm ${req.status === "Compliant" ? "text-gray-900 font-medium" : "text-gray-900 font-bold"}`}>
-                                  {req.description}
-                                </p>
-                                <p className="text-[11px] text-[#FF9501] font-bold mt-1 uppercase tracking-wider">
-                                  {req.cmo_name}
-                                </p>
-                                <div className="md:hidden mt-2">
-                                   {req.evidences && req.evidences.length > 0 ? (
-                                       <span className="text-xs text-blue-600 font-bold">{req.evidences.length} file(s) attached</span>
-                                   ) : <span className="text-xs text-gray-400 italic">No files attached</span>}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4">
-                            <div className="flex justify-center">
-                              {req.status === "Compliant" ? (
-                                <span className="flex items-center w-max gap-1.5 px-3 py-1.5 bg-green-100 text-[#006837] text-[10px] font-bold rounded-md uppercase tracking-wider shadow-sm border border-green-200">
-                                  <Check className="h-3 w-3" /> Compliant
-                                </span>
-                              ) : req.status === "Pending" ? (
-                                <span className="flex items-center w-max gap-1.5 px-3 py-1.5 bg-orange-100 text-[#D97E00] text-[10px] font-bold rounded-md uppercase tracking-wider shadow-sm border border-orange-200">
-                                  <Clock className="h-3 w-3" /> Pending Review
-                                </span>
-                              ) : (
-                                <span className="flex items-center w-max gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-md uppercase tracking-wider shadow-sm border border-red-100">
-                                  <AlertCircle className="h-3 w-3" /> Not Compliant
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-normal hidden md:table-cell">
-                            {req.evidences && req.evidences.length > 0 ? (
-                              <div className="space-y-2">
-                                {req.evidences.map((ev: any, idx: number) => (
-                                  <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100">
-                                    <FileText className="h-3.5 w-3.5 text-[#FF9501] shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-bold text-gray-900 truncate" title={ev.document_name}>{ev.document_name}</p>
-                                      <p className="text-[9px] text-gray-500 uppercase mt-0.5">By {ev.uploaded_by}</p>
-                                    </div>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <button onClick={() => window.open(ev.file_url, "_blank")} className="p-1.5 text-gray-400 hover:text-[#FF9501] bg-white rounded shadow-sm shrink-0">
-                                        <Eye className="h-3 w-3" />
-                                      </button>
-                                      {(userRole === 'ADMIN' || ev.uploaded_by === userName) && (
-                                        <button onClick={() => confirmDeleteChedEvidence(ev)} className="p-1.5 text-gray-400 hover:text-red-500 bg-white rounded shadow-sm shrink-0">
-                                          <Archive className="h-3 w-3" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-400 italic">No files attached</span>
-                            )}
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {req.status === "Not Compliant" && (
-                                <button 
-                                  onClick={() => { setSelectedChedReq(req); setUploadForm({ fileName: "", requirementTarget: "" }); setSelectedFile(null); setShowChedUploadModal(true); }}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF9501] text-white text-[10px] font-bold uppercase tracking-wider rounded hover:bg-[#D97E00] transition-colors shadow-sm"
-                                >
-                                  <Upload className="h-3 w-3" /> Upload
-                                </button>
-                              )}
-                              {userRole === "ADMIN" && (
-                                <>
-                                  {req.status === "Compliant" && (
-                                     <button onClick={() => handleChedAdminReview(req.id, "Not Compliant")} className="px-3 py-1.5 bg-gray-100 text-gray-600 hover:bg-gray-200 text-[10px] font-bold uppercase tracking-wider rounded transition-colors" title="Revoke Compliance">
-                                       Revoke
-                                     </button>
-                                  )}
-                                  {(req.status === "Not Compliant" || req.status === "Pending") && (
-                                    <>
-                                      <button 
-                                        onClick={() => { setEditingChedReq(req); setShowEditChedModal(true); }}
-                                        className="p-1.5 text-gray-400 hover:text-[#FF9501] transition-colors rounded" title="Edit Requirement"
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </button>
-                                      <button 
-                                        onClick={() => confirmDeleteChedRequirement(req.id)}
-                                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded" title="Delete Requirement"
-                                      >
-                                        <Archive className="h-4 w-4" />
-                                      </button>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
+          <ChedTabContent
+            chedRequirements={chedRequirements}
+            isLoadingChed={isLoadingChed}
+            selectedProgram={selectedProgram}
+            userRole={userRole}
+            isUnassignedFaculty={isUnassignedFaculty}
+            setShowAddChedReqModal={setShowAddChedReqModal}
+            setShowEditChedModal={setShowEditChedModal}
+            setEditingChedReq={setEditingChedReq}
+            setChedReqToDelete={setChedReqToDelete}
+            setShowDeleteChedReqModal={setShowDeleteChedReqModal}
+            setSelectedChedReq={setSelectedChedReq}
+            setShowChedUploadModal={setShowChedUploadModal}
+            setChedEvidenceToDelete={setChedEvidenceToDelete}
+            setShowDeleteChedEvidenceModal={setShowDeleteChedEvidenceModal}
+            handleReviewChedEvidence={handleReviewChedEvidence}
+            isReviewing={isReviewing}
+          />
         </TabsContent>
 
         <TabsContent value="iso" className="mt-6 space-y-6">
-
-          {!expandedIsoClause ? (
-            <>
-              {/* --- 100% ISO 9001:2015 COMPLIANCE SUCCESS BANNER --- */}
-              {isoTotalCount > 0 && isoCompliantCount === isoTotalCount && (
-                <div className="p-6 bg-[#006837] text-white rounded-2xl shadow-xl border-2 border-emerald-400 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
-                  <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0 border border-white/30 shadow-lg">
-                        <Award className="h-10 w-10 text-amber-300 drop-shadow" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2.5 py-0.5 bg-amber-400 text-gray-900 text-[10px] font-black uppercase rounded-full tracking-widest shadow-sm flex items-center gap-1">
-                            <Award className="h-3 w-3 text-amber-900" /> 100% Fully Compliant
-                          </span>
-                          <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-sm border border-white/30">
-                            {selectedIsoCycleYear}
-                          </span>
-                          <span className="text-xs font-semibold text-emerald-100 hidden sm:inline">ISO 9001:2015 Audit Certified</span>
-                        </div>
-                        <h3 className="text-xl font-black mt-1 tracking-tight">
-                          Institutional Quality Management System (QMS) Verified for {selectedIsoCycleYear}!
-                        </h3>
-                        <p className="text-xs text-emerald-100 mt-1 max-w-2xl leading-relaxed font-medium">
-                          All {isoTotalCount} Internal Quality Audit (IQA) clauses for <span className="font-bold underline">{selectedIsoCycleYear}</span> have been successfully audited and approved. Historical audit records from previous cycles remain archived and preserved.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <button
-                        onClick={() => showToast(`ISO Audit Report for ${selectedIsoCycleYear} generated!`, "success")}
-                        className="px-5 py-3 bg-amber-400 text-gray-900 font-bold text-xs rounded-xl hover:bg-amber-300 transition-all cursor-pointer shadow-lg active:scale-95 flex items-center gap-2 uppercase tracking-wider"
-                      >
-                        <Download className="h-4 w-4" /> Download Report ({selectedIsoCycleYear})
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ISO 9001:2015 Summary Header */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 border-t-4 border-t-[#FF9501] overflow-hidden">
-                <div className="border-b border-gray-100 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
-                  <div>
-                    <div className="flex items-start gap-2">
-                        <h2 className="text-sm sm:text-lg font-bold text-gray-900 flex items-center gap-2">
-                          <Target className="w-4 h-4 sm:w-5 sm:h-5 text-[#FF9501] shrink-0" />
-                          <span className="hidden sm:inline">ISO 9001:2015 Quality Management System (QMS) & IQA Framework</span>
-                          <span className="sm:hidden">ISO 9001:2015 QMS</span>
-                        </h2>
-                        <span className="hidden sm:inline-flex px-2.5 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-full uppercase tracking-wider border border-blue-200">
-                          Institutional Campus-Wide
-                        </span>
-                      </div>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Official CTU Argao Campus-Wide Internal Quality Audit (IQA) clauses, risk assessments, and auditee office compliance.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right hidden sm:block">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">ISO QMS Compliance</p>
-                      <div className={`text-2xl font-bold ${isoCompliancePercentage >= 85 ? "text-[#006837]" : "text-[#FF9501]"}`}>
-                        {isoCompliancePercentage}%
-                      </div>
-                    </div>
-
-                    {userRole === "ADMIN" && (
-                      <button
-                        onClick={() => setShowAddIsoReqModal(true)}
-                        className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all text-xs font-bold cursor-pointer shadow-sm active:scale-95"
-                      >
-                        <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline"> Add ISO Clause</span><span className="sm:hidden">Add</span>
-                      </button>
-                    )}
-
-                    <span className="hidden sm:flex px-3 py-1 bg-[#FFF4E5] text-[#D97E00] text-[10px] font-bold rounded-full uppercase tracking-widest items-center gap-1.5 border border-[#FF9501]/20 shadow-sm">
-                      <CheckCircle2 className="w-3 h-3 text-[#FF9501]" />
-                      Active QMS Matrix
-                    </span>
-                  </div>
-                </div>
-
-                <div className="w-full bg-gray-100 h-1.5 overflow-hidden">
-                  <div className={`h-full transition-all duration-1000 ease-out ${isoCompliancePercentage >= 85 ? "bg-[#006837]" : "bg-[#FF9501]"}`} style={{ width: `${isoCompliancePercentage}%` }}></div>
-                </div>
-
-                {/* Metric Summary Cards */}
-                <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-gray-100 bg-white">
-                  <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Audit Requirements ({selectedIsoCycleYear})</p>
-                      <h3 className="text-2xl font-bold text-[#1F2937] mt-0.5">{isoTotalCount} Checkpoints</h3>
-                      <p className="text-[11px] text-[#6B7280]">
-                        {isoOfficeFilter === 'all' ? 'Across 16 Auditee Offices' : 'For Selected Office'}
-                      </p>
-                    </div>
-                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-[#FF9501] shadow-sm">
-                      <FileBadge className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Verified Compliant</p>
-                      <h3 className="text-2xl font-bold text-[#006837] mt-0.5">{isoCompliantCount} / {isoTotalCount}</h3>
-                      <p className="text-[11px] text-emerald-700">Passed IQA Clause Audit</p>
-                    </div>
-                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-emerald-600 shadow-sm">
-                      <CheckCircle className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold text-[#D97E00] uppercase tracking-wider">Pending Evidence</p>
-                      <h3 className="text-2xl font-bold text-[#D97E00] mt-0.5">{isoTotalCount - isoCompliantCount} Checkpoints</h3>
-                      <p className="text-[11px] text-[#D97E00]">Requires office proof</p>
-                    </div>
-                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-[#FF9501] shadow-sm">
-                      <Clock className="h-5 w-5" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sub-tab navigation: ISO Clauses vs QMS Action Plans */}
-                <div className="flex items-center gap-2 border-b border-gray-200 px-6 pt-4 bg-gray-50/50">
-                  <button
-                    onClick={() => setIsoSubTab("clauses")}
-                    className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-t-xl transition-all cursor-pointer border-t-2 border-x ${
-                      isoSubTab === "clauses"
-                        ? "bg-white text-gray-900 border-t-[#FF9501] border-gray-200 shadow-2xs"
-                        : "text-gray-500 hover:text-gray-900 border-transparent hover:bg-gray-100"
-                    }`}
-                  >
-                    ISO Clauses & Audit Scope
-                  </button>
-                  <button
-                    onClick={() => { setIsoSubTab("qms"); fetchQmsActionPlans(selectedIsoCycleYear); }}
-                    className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-t-xl transition-all cursor-pointer border-t-2 border-x flex items-center gap-2 ${
-                      isoSubTab === "qms"
-                        ? "bg-white text-gray-900 border-t-[#FF9501] border-gray-200 shadow-2xs"
-                        : "text-gray-500 hover:text-gray-900 border-transparent hover:bg-gray-100"
-                    }`}
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-[#FF9501]" />
-                    QMS Opportunities & Action Plans (MRC Form 6)
-                  </button>
-                </div>
-
-                {/* Auditee Office & Audit Cycle Year Control Toolbar */}
-                <div className="px-6 py-4 bg-[#F9FAFB] border-b border-gray-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    {/* Audit Cycle Selector */}
-                    <div className="flex items-center gap-2 px-3.5 py-2 bg-white border border-gray-300 rounded-lg shadow-sm">
-                      <History className="h-4 w-4 text-[#FF9501] shrink-0" />
-                      <label className="text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Audit Cycle:</label>
-                      <select
-                        value={selectedIsoCycleYear}
-                        onChange={(e) => setSelectedIsoCycleYear(e.target.value)}
-                        className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none cursor-pointer pr-1"
-                      >
-                        {isoCycleOptions.map((cy) => (
-                          <option key={cy} value={cy}>
-                            {cy}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {userRole === "ADMIN" && (
-                      <button
-                        onClick={() => setShowAddIsoCycleModal(true)}
-                        className="px-3 py-2 bg-orange-50 text-[#D97E00] hover:bg-orange-100 border border-[#FF9501]/30 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
-                        title="Initialize a new annual audit cycle year without deleting historical 100% compliance records"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Start New Cycle
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    {/* ISO Search Input Bar */}
-                    <div className="relative min-w-[180px] sm:min-w-[220px]">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                      <input
-                        type="text"
-                        value={isoSearchQuery}
-                        onChange={(e) => setIsoSearchQuery(e.target.value)}
-                        placeholder="Search clause code, title, or keywords..."
-                        className="w-full pl-9 pr-7 py-2 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] shadow-2xs"
-                      />
-                      {isoSearchQuery && (
-                        <button onClick={() => setIsoSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Building className="h-4 w-4 text-[#FF9501] shrink-0" />
-                      <label className="text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Filter Office:</label>
-                      {isOfficeRestricted ? (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100/90 border border-[#FF9501]/40 rounded-lg text-xs font-bold text-[#D97E00] shadow-2xs max-w-full overflow-hidden" title={`Office Scope Locked to: ${userAdminOffice}`}>
-                          <Lock className="h-3.5 w-3.5 text-[#FF9501] shrink-0" />
-                          <span className="truncate max-w-[140px] sm:max-w-[200px] font-bold text-gray-900">{userAdminOffice}</span>
-                          <span className="text-[9px] bg-[#FF9501] text-white px-1.5 py-0.5 rounded font-extrabold uppercase shrink-0 whitespace-nowrap">Role-Locked</span>
-                        </div>
-                      ) : (
-                        <select
-                          value={isoOfficeFilter}
-                          onChange={(e) => setIsoOfficeFilter(e.target.value)}
-                          className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF9501] shadow-sm cursor-pointer"
-                        >
-                          <option value="all">All Auditee Offices (16 Offices)</option>
-                          {ISO_OFFICES_16.map((off) => (
-                            <option key={off} value={off}>{off}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-
-                    <div className="text-xs text-gray-500 font-semibold whitespace-nowrap">
-                      <span className="hidden sm:inline">Showing </span>{filteredIsoReqs.length}<span className="hidden sm:inline"> of {isoRequirements.length} Checkpoints</span><span className="sm:hidden"> checkpoints</span>
-                    </div>
-                  </div>
-                </div>
-
-                {isoSubTab === "qms" ? (
-                  isUnassignedFaculty ? (
-                    <div className="p-6">
-                      <div className="bg-red-50 rounded-2xl border border-red-200 p-12 text-center text-red-700 space-y-3 shadow-sm">
-                        <ShieldAlert className="h-12 w-12 text-red-500 mx-auto" />
-                        <h4 className="font-bold text-lg">ISO QMS Access Restricted</h4>
-                        <p className="text-sm text-red-600 max-w-md mx-auto">
-                          Your account is designated as "Academic Only" or unassigned. Access to QMS Action Plans (MRC Form 6) is strictly restricted to designated ISO Office Heads and Internal Quality Auditors.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    /* DIGITAL QMS OPPORTUNITIES & ACTION PLANS (MRC Form 6) */
-                    <div className="p-6 space-y-6">
-                      {/* Banner Header */}
-                    <div className="bg-[#1F2937] text-white p-6 rounded-2xl shadow-md border-l-4 border-l-[#FF9501] flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Sparkles className="h-5 w-5 text-[#FF9501]" />
-                          <h2 className="text-xl font-bold">QMS Opportunities & Action Plans (MRC Form 6)</h2>
-                        </div>
-                        <p className="text-xs text-gray-300 max-w-2xl leading-relaxed">
-                          Digitized quality management action plan tracker aligned with ISO 9001:2015. Monitor process, people, and paper opportunities across campus offices with automated target date tracking.
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => setShowAddQmsModal(true)}
-                        className="px-5 py-3 bg-[#FF9501] text-white hover:bg-[#D97E00] rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0 active:scale-95 uppercase tracking-wider"
-                      >
-                        <Plus className="h-4 w-4" /> Create Action Plan
-                      </button>
-                    </div>
-
-                    {/* Metric Overview Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs">
-                        <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Total Opportunities</p>
-                        <h3 className="text-2xl font-bold text-gray-900 mt-1">{qmsActionPlans.length}</h3>
-                        <p className="text-[11px] text-gray-500 mt-0.5">Tracked in Form 6</p>
-                      </div>
-
-                      <div className="bg-white p-4 rounded-xl border border-blue-200 bg-blue-50/20 shadow-2xs">
-                        <p className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider">In Progress</p>
-                        <h3 className="text-2xl font-bold text-blue-700 mt-1">{qmsActionPlans.filter(p => p.status === 'In Progress').length}</h3>
-                        <p className="text-[11px] text-blue-600 mt-0.5">Active execution</p>
-                      </div>
-
-                      <div className="bg-white p-4 rounded-xl border border-green-200 bg-green-50/20 shadow-2xs">
-                        <p className="text-[10px] font-extrabold text-[#006837] uppercase tracking-wider">Completed</p>
-                        <h3 className="text-2xl font-bold text-[#006837] mt-1">{qmsActionPlans.filter(p => p.status === 'Completed').length}</h3>
-                        <p className="text-[11px] text-[#006837] mt-0.5">Resolved & verified</p>
-                      </div>
-
-                      <div className="bg-white p-4 rounded-xl border border-red-200 bg-red-50/20 shadow-2xs">
-                        <p className="text-[10px] font-extrabold text-red-600 uppercase tracking-wider">Overdue / Action Needed</p>
-                        <h3 className="text-2xl font-bold text-red-700 mt-1">{qmsActionPlans.filter(p => p.status === 'Overdue' || (p.status !== 'Completed' && new Date(p.target_date) < new Date())).length}</h3>
-                        <p className="text-[11px] text-red-600 mt-0.5">Target date elapsed</p>
-                      </div>
-                    </div>
-
-                    {/* Filter Toolbar */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <Building className="h-4 w-4 text-[#FF9501]" />
-                          <label className="text-xs font-bold text-gray-700 uppercase">Office:</label>
-                          {isOfficeRestricted ? (
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100/90 border border-[#FF9501]/40 rounded-lg text-xs font-bold text-[#D97E00] shadow-2xs max-w-full overflow-hidden" title={`Office Scope Locked to: ${userAdminOffice}`}>
-                              <Lock className="h-3.5 w-3.5 text-[#FF9501] shrink-0" />
-                              <span className="truncate max-w-[140px] sm:max-w-[200px] font-bold text-gray-900">{userAdminOffice}</span>
-                              <span className="text-[9px] bg-[#FF9501] text-white px-1.5 py-0.5 rounded font-extrabold uppercase shrink-0 whitespace-nowrap">Role-Locked</span>
-                            </div>
-                          ) : (
-                            <select
-                              value={qmsOfficeFilter}
-                              onChange={(e) => setQmsOfficeFilter(e.target.value)}
-                              className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-900 focus:ring-2 focus:ring-[#FF9501] shadow-2xs cursor-pointer"
-                            >
-                              <option value="all">All ISO Offices (16 Offices)</option>
-                              {ISO_OFFICES_16.map((off) => (
-                                <option key={off} value={off}>{off}</option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Layers className="h-4 w-4 text-[#FF9501]" />
-                          <label className="text-xs font-bold text-gray-700 uppercase">Category:</label>
-                          <select
-                            value={qmsTypeFilter}
-                            onChange={(e) => setQmsTypeFilter(e.target.value)}
-                            className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-900 focus:ring-2 focus:ring-[#FF9501] shadow-2xs cursor-pointer"
-                          >
-                            <option value="all">All Types (Process/People/Paper)</option>
-                            <option value="Process">Process</option>
-                            <option value="People">People</option>
-                            <option value="Paper">Paper</option>
-                            <option value="Risk/Opportunity">Risk / Opportunity</option>
-                          </select>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-[#FF9501]" />
-                          <label className="text-xs font-bold text-gray-700 uppercase">Status:</label>
-                          <select
-                            value={qmsStatusFilter}
-                            onChange={(e) => setQmsStatusFilter(e.target.value)}
-                            className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-900 focus:ring-2 focus:ring-[#FF9501] shadow-2xs cursor-pointer"
-                          >
-                            <option value="all">All Statuses</option>
-                            <option value="Proposed">Proposed</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Overdue">Overdue</option>
-                          </select>
-                        </div>
-
-                        {/* QMS Search Bar Input */}
-                        <div className="relative min-w-[200px] flex-1 max-w-xs">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                          <input
-                            type="text"
-                            value={qmsSearchQuery}
-                            onChange={(e) => setQmsSearchQuery(e.target.value)}
-                            placeholder="Search process area, plan, or personnel..."
-                            className="w-full pl-9 pr-7 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] shadow-2xs"
-                          />
-                          {qmsSearchQuery && (
-                            <button onClick={() => setQmsSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="text-xs text-gray-500 font-bold">
-                        Showing {filteredQmsPlans.length} Action Plan(s)
-                      </div>
-                    </div>
-
-                    {/* Action Plans List / Cards */}
-                    {isLoadingQmsPlans ? (
-                      <div className="py-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#FF9501]" /></div>
-                    ) : filteredQmsPlans.length === 0 ? (
-                      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500 space-y-3">
-                        <Sparkles className="h-10 w-10 text-gray-300 mx-auto" />
-                        <h4 className="font-bold text-gray-700">No Digital QMS Action Plans Found</h4>
-                        <p className="text-xs text-gray-500">Try adjusting your search query or filters.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {filteredQmsPlans
-                          .map((plan) => {
-                            const isOverdue = plan.status !== 'Completed' && new Date(plan.target_date) < new Date();
-                            return (
-                              <div key={plan.id} className={`bg-white border rounded-xl p-5 shadow-2xs hover:shadow-md transition-all space-y-3 ${
-                                isOverdue ? 'border-red-300 bg-red-50/10' : 'border-gray-200'
-                              }`}>
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="px-2.5 py-1 bg-orange-100 text-[#D97E00] text-[10px] font-bold uppercase rounded border border-[#FF9501]/30">
-                                      {plan.auditee_office}
-                                    </span>
-                                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase rounded border border-blue-200">
-                                      Area: {plan.process_area}
-                                    </span>
-                                    <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold uppercase rounded border border-purple-200">
-                                      {plan.opportunity_type}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center gap-2">
-                                    {/* Status Dropdown */}
-                                    <select
-                                      value={plan.status}
-                                      onChange={(e) => handleQuickStatusChangeQms(plan.id, e.target.value)}
-                                      className={`px-3 py-1 text-xs font-bold rounded-lg border focus:outline-none cursor-pointer ${
-                                        plan.status === 'Completed' ? 'bg-green-100 text-[#006837] border-green-200' :
-                                        plan.status === 'In Progress' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                        plan.status === 'Overdue' || isOverdue ? 'bg-red-100 text-red-700 border-red-200' :
-                                        'bg-gray-100 text-gray-700 border-gray-200'
-                                      }`}
-                                    >
-                                      <option value="Proposed">Proposed</option>
-                                      <option value="In Progress">In Progress</option>
-                                      <option value="Completed">Completed</option>
-                                      <option value="Overdue">Overdue</option>
-                                    </select>
-
-                                    {/* Edit & Delete Buttons */}
-                                    <button
-                                      onClick={() => { setEditingQmsPlan({ ...plan }); setShowEditQmsModal(true); }}
-                                      className="p-1.5 text-gray-400 hover:text-[#FF9501] hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                                      title="Edit Action Plan"
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => { setQmsPlanToDelete(plan); setShowDeleteQmsModal(true); }}
-                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                      title="Delete Action Plan"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                    <p className="font-bold text-gray-400 uppercase text-[10px] tracking-wider mb-1">Opportunity Identification (MRC Form 6)</p>
-                                    <p className="text-gray-900 leading-relaxed font-medium">{plan.opportunity_description}</p>
-                                  </div>
-
-                                  <div className="bg-orange-50/40 p-3 rounded-lg border border-orange-100">
-                                    <p className="font-bold text-[#D97E00] uppercase text-[10px] tracking-wider mb-1">Proposed Action Plan</p>
-                                    <p className="text-gray-900 leading-relaxed font-medium">{plan.action_plan}</p>
-                                  </div>
-                                </div>
-
-                                {/* Closeout Verification Loop Box */}
-                                {(plan.status === 'Completed' || plan.actual_completion_date) && (
-                                  <div className="bg-emerald-50/60 border border-emerald-200 p-3.5 rounded-xl space-y-2">
-                                    <div className="flex items-center justify-between flex-wrap gap-2">
-                                      <div className="flex items-center gap-2">
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                                        <span className="font-bold text-emerald-900 text-xs uppercase tracking-wider">Closeout Verification Loop</span>
-                                      </div>
-                                      <button
-                                        onClick={() => {
-                                          setTargetQmsPlanForCloseout(plan);
-                                          setCloseoutForm({
-                                            actual_completion_date: plan.actual_completion_date || new Date().toISOString().split("T")[0],
-                                            assessment_date: plan.assessment_date || new Date().toISOString().split("T")[0],
-                                            assessment_notes: plan.assessment_notes || ""
-                                          });
-                                          setShowQmsCloseoutModal(true);
-                                        }}
-                                        className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
-                                      >
-                                        Edit Closeout Details
-                                      </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                      <div>
-                                        <span className="text-gray-500 font-medium">Actual Completion Date: </span>
-                                        <span className="font-bold text-gray-900">{plan.actual_completion_date || "Pending Record"}</span>
-                                        {plan.actual_completion_date && (
-                                          <span className={`ml-2 px-2 py-0.5 text-[9px] font-bold uppercase rounded border ${
-                                            new Date(plan.actual_completion_date) <= new Date(plan.target_date)
-                                              ? "bg-green-100 text-[#006837] border-green-200"
-                                              : "bg-amber-100 text-[#D97E00] border-amber-200"
-                                          }`}>
-                                            {new Date(plan.actual_completion_date) <= new Date(plan.target_date) ? "On Schedule" : "Delayed Closeout"}
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <div>
-                                        <span className="text-gray-500 font-medium">Auditor Assessment Date: </span>
-                                        <span className="font-bold text-gray-900">{plan.assessment_date || "Not Assessed"}</span>
-                                      </div>
-                                    </div>
-
-                                    {plan.assessment_notes && (
-                                      <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-200 text-xs text-gray-800">
-                                        <span className="font-bold text-emerald-800 uppercase text-[10px] block mb-0.5">Auditor Verification Remarks:</span>
-                                        <p className="italic text-gray-700">{plan.assessment_notes}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Attached Proof / Evidence Section */}
-                                <div className="bg-gray-50/80 border border-gray-200 p-3.5 rounded-xl space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <FileCheck className="h-4 w-4 text-[#FF9501]" />
-                                      <span className="font-bold text-gray-900 text-xs uppercase tracking-wider">
-                                        Execution Proof & Evidence ({plan.evidences ? plan.evidences.length : 0})
-                                      </span>
-                                    </div>
-                                    <button
-                                      onClick={() => {
-                                        if (isOfficeRestricted && plan.auditee_office !== userAdminOffice) {
-                                          showToast(`Audit Governance: You are assigned to "${userAdminOffice}". You cannot attach evidence for "${plan.auditee_office}" action plans.`, "warning");
-                                          return;
-                                        }
-                                        setTargetQmsPlanForEvidence(plan);
-                                        setQmsEvidenceDocName(`Execution Proof - ${plan.process_area}`);
-                                        setShowQmsEvidenceUploadModal(true);
-                                      }}
-                                      className="px-3 py-1 bg-orange-50 text-[#D97E00] hover:bg-orange-100 border border-[#FF9501]/30 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
-                                    >
-                                      <Plus className="h-3.5 w-3.5" /> Attach Evidence
-                                    </button>
-                                  </div>
-
-                                  {plan.evidences && plan.evidences.length > 0 ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                                      {plan.evidences.map((ev: any) => (
-                                        <div key={ev.id} className="bg-white p-2.5 rounded-lg border border-gray-200 flex items-center justify-between gap-2 shadow-2xs">
-                                          <div className="flex items-center gap-2 min-w-0">
-                                            <FileText className="h-4 w-4 text-[#FF9501] shrink-0" />
-                                            <div className="min-w-0">
-                                              <p className="font-bold text-gray-900 text-xs truncate" title={ev.document_name}>{ev.document_name}</p>
-                                              <p className="text-[10px] text-gray-400">By {ev.uploaded_by}</p>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center gap-1 shrink-0">
-                                            <a
-                                              href={ev.file_url}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="p-1 text-[#FF9501] hover:bg-orange-50 rounded cursor-pointer"
-                                              title="View / Download File"
-                                            >
-                                              <Download className="h-3.5 w-3.5" />
-                                            </a>
-                                            <button
-                                              onClick={() => handleDeleteQmsEvidence(ev.id)}
-                                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
-                                              title="Delete Evidence"
-                                            >
-                                              <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <p className="text-[11px] text-gray-400 italic">No evidence proof attached yet. Click "Attach Evidence" to upload execution documents.</p>
-                                  )}
-                                </div>
-
-                                <div className="flex flex-wrap items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-50">
-                                  <div className="flex items-center gap-4">
-                                    <span className="font-semibold">
-                                      Personnel Responsible: <span className="font-bold text-gray-900">{plan.personnel_responsible}</span>
-                                    </span>
-                                    <span className="text-gray-400">|</span>
-                                    <span>Created by: <span className="font-semibold text-gray-700">{plan.created_by}</span></span>
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5 font-bold">
-                                    <Calendar className="h-3.5 w-3.5 text-[#FF9501]" />
-                                    <span>Target Date: </span>
-                                    <span className={isOverdue ? 'text-red-600 font-extrabold' : 'text-gray-900'}>
-                                      {plan.target_date} {isOverdue && '(OVERDUE)'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    )}
-                  </div>
-                )
-              ) : (
-                  /* Clean Clauses Overview Grid */
-                  <div className="p-6">
-                    {isLoadingIso ? (
-                      <div className="py-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#FF9501]" /></div>
-                    ) : filteredIsoReqs.length === 0 ? (
-                      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500 space-y-3">
-                        <Sparkles className="h-10 w-10 text-gray-300 mx-auto" />
-                        <h4 className="font-bold text-gray-700">No ISO Audit Checkpoints Found</h4>
-                        <p className="text-xs text-gray-500">Try adjusting your search query or office filter.</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {filteredIsoReqs.map((req, idx) => (
-                            <div 
-                              key={idx} 
-                              onClick={() => setExpandedIsoClause(req)}
-                              className="bg-white border border-gray-200 hover:border-[#FF9501] rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer"
-                            >
-                              <div>
-                                <div className="flex items-start justify-between gap-3 mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="px-2.5 py-1 bg-orange-100 text-[#D97E00] text-[10px] font-bold uppercase rounded tracking-wider border border-[#FF9501]/30">
-                                      {req.iso_clause}
-                                    </span>
-                                    <span className={`font-bold text-[10px] uppercase px-2 py-0.5 rounded ${
-                                      req.risk_level === 'High' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
-                                    }`}>
-                                      {req.risk_level} Risk
-                                    </span>
-                                  </div>
-                                  <div>
-                                    {req.status === "Compliant" ? (
-                                      <span className="flex items-center gap-1 px-2.5 py-1 bg-green-100 text-[#006837] text-[10px] font-bold rounded uppercase tracking-wider border border-green-200 shadow-sm">
-                                        <Check className="h-3 w-3" /> Compliant
-                                      </span>
-                                    ) : req.status === "Pending" ? (
-                                      <span className="flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-[#D97E00] text-[10px] font-bold rounded uppercase tracking-wider border border-orange-200 shadow-sm">
-                                        <Clock className="h-3 w-3" /> Pending Review
-                                      </span>
-                                    ) : (
-                                      <span className="flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 text-[10px] font-bold rounded uppercase tracking-wider border border-red-100 shadow-sm">
-                                        <AlertCircle className="h-3 w-3" /> Not Compliant
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <h3 className="font-bold text-gray-900 text-base mt-2 group-hover:text-[#FF9501] transition-colors">{req.title}</h3>
-                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{req.description}</p>
-                                
-                                <div className="flex items-center gap-1.5 mt-3 text-xs text-gray-600 font-medium">
-                                  <Building className="h-3.5 w-3.5 text-[#FF9501] shrink-0" />
-                                  <span className="font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded truncate" title={req.auditee_office}>
-                                    Auditee: <span className="font-bold text-gray-900">{req.auditee_office}</span>
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium">
-                                  <FileText className="h-4 w-4 text-[#FF9501]" />
-                                  <span>{req.evidences ? req.evidences.length : 0} Evidence File(s)</span>
-                                </div>
-                                
-                                <div className="flex items-center gap-1 text-xs font-bold text-[#FF9501] group-hover:text-[#D97E00] uppercase tracking-wider">
-                                  View Details <span className="transform transition-transform duration-300 group-hover:translate-x-1">→</span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            /* EXPANDED CLAUSE DETAIL VIEW */
-            <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
-              <div className="bg-white rounded-xl shadow-sm p-6 border-t-4 border-[#FF9501] border-x border-b border-gray-200">
-                <button 
-                  onClick={() => setExpandedIsoClause(null)}
-                  className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#FF9501] font-bold mb-4 transition-colors cursor-pointer w-max uppercase tracking-wider"
-                >
-                  <ArrowLeft className="h-4 w-4" /> Back to ISO Clauses Overview
-                </button>
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="px-2.5 py-1 bg-orange-100 text-[#D97E00] text-xs font-extrabold uppercase rounded tracking-wider border border-[#FF9501]/30">
-                        {expandedIsoClause.iso_clause}
-                      </span>
-                      <span className={`font-bold text-xs uppercase px-2.5 py-0.5 rounded ${
-                        expandedIsoClause.risk_level === 'High' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
-                      }`}>
-                        {expandedIsoClause.risk_level} Risk Level
-                      </span>
-                      <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded">
-                        Cycle: {selectedIsoCycleYear}
-                      </span>
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mt-1">{expandedIsoClause.title}</h2>
-                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
-                      <Building className="h-4 w-4 text-[#FF9501]" /> Auditee Office: <span className="font-bold text-gray-800">{expandedIsoClause.auditee_office}</span>
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div>
-                      {expandedIsoClause.status === "Compliant" ? (
-                        <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-[#006837] text-xs font-bold rounded-lg uppercase tracking-wider border border-green-200 shadow-sm">
-                          <Check className="h-4 w-4" /> Verified Compliant
-                        </span>
-                      ) : expandedIsoClause.status === "Pending" ? (
-                        <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-[#D97E00] text-xs font-bold rounded-lg uppercase tracking-wider border border-orange-200 shadow-sm">
-                          <Clock className="h-4 w-4" /> Pending Review
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg uppercase tracking-wider border border-red-100 shadow-sm">
-                          <AlertCircle className="h-4 w-4" /> Not Compliant
-                        </span>
-                      )}
-                    </div>
-
-                    {userRole === "ADMIN" && (
-                      <div className="flex items-center gap-2">
-                        {expandedIsoClause.status !== "Compliant" ? (
-                          <button onClick={() => confirmIsoStatusUpdate(expandedIsoClause.id, "Compliant", expandedIsoClause.title)} className="px-3 py-1.5 bg-[#006837] text-white hover:bg-green-800 text-xs font-bold uppercase rounded-lg transition-colors cursor-pointer shadow-sm flex items-center gap-1">
-                            <Check className="h-3.5 w-3.5" /> Approve Clause
-                          </button>
-                        ) : (
-                          <button onClick={() => confirmIsoStatusUpdate(expandedIsoClause.id, "Not Compliant", expandedIsoClause.title)} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold uppercase rounded-lg border border-red-200 transition-colors cursor-pointer">
-                            Revoke Status
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => { setEditingIsoReq(expandedIsoClause); setShowEditIsoModal(true); }}
-                          className="p-2 text-gray-400 hover:text-[#FF9501] bg-gray-100 hover:bg-orange-50 transition-colors rounded-lg cursor-pointer" title="Edit Requirement"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteIsoRequirement(expandedIsoClause.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 bg-gray-100 hover:bg-red-50 transition-colors rounded-lg cursor-pointer" title="Delete Requirement"
-                        >
-                          <Archive className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column: Scope & Description */}
-                <div className="lg:col-span-1 space-y-6">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="p-4 bg-[#FFF4E5] border-b border-gray-200">
-                      <h3 className="font-bold text-[#1F2937] text-sm uppercase tracking-wider">Audit Scope & Focus</h3>
-                    </div>
-                    <div className="p-5 space-y-4 text-xs">
-                      <div>
-                        <p className="font-bold text-gray-400 uppercase tracking-wider mb-1">Clause Description</p>
-                        <p className="text-gray-800 leading-relaxed font-medium">{expandedIsoClause.description}</p>
-                      </div>
-                      <div className="pt-3 border-t border-gray-100 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500">Auditee Office:</span>
-                          <span className="font-bold text-gray-900">{expandedIsoClause.auditee_office}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500">Risk Assessment:</span>
-                          <span className={`font-bold ${expandedIsoClause.risk_level === 'High' ? 'text-red-600' : 'text-blue-600'}`}>{expandedIsoClause.risk_level} Risk</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500">Audit Cycle:</span>
-                          <span className="font-bold text-gray-900">{selectedIsoCycleYear}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column: Evidence Files */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
-                    <div className="p-4 bg-[#F9FAFB] border-b border-gray-200 flex justify-between items-center">
-                      <div>
-                        <h3 className="font-bold text-[#1F2937] text-sm uppercase tracking-wider">Uploaded Clause Evidence</h3>
-                        <p className="text-[11px] text-gray-500 mt-0.5">Attached verification records for {expandedIsoClause.iso_clause}</p>
-                      </div>
-                      {!isUnassignedFaculty && (
-                        <button 
-                          onClick={() => {
-                            if (isOfficeRestricted && expandedIsoClause.auditee_office !== userAdminOffice) {
-                              showToast(`Audit Governance: You are assigned to "${userAdminOffice}". You cannot upload evidence for "${expandedIsoClause.auditee_office}".`, "warning");
-                              return;
-                            }
-                            setSelectedIsoReq(expandedIsoClause);
-                            setUploadForm({ fileName: "", requirementTarget: "" });
-                            setSelectedFile(null);
-                            setShowIsoUploadModal(true);
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all text-xs font-bold cursor-pointer shadow-sm active:scale-95"
-                        >
-                          <Upload className="h-3.5 w-3.5" /> Upload Evidence
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="p-5 flex-1">
-                      {expandedIsoClause.evidences && expandedIsoClause.evidences.length > 0 ? (
-                        <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
-                          {expandedIsoClause.evidences.map((ev: any, evIdx: number) => (
-                            <div key={evIdx} className="p-4 flex items-center justify-between hover:bg-orange-50/20 transition-colors">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="p-2.5 bg-orange-50 text-[#FF9501] rounded-lg shrink-0">
-                                  <FileText className="h-5 w-5" />
-                                </div>
-                                <div>
-                                  <h4 className="font-bold text-gray-900 text-sm truncate" title={ev.document_name}>{ev.document_name}</h4>
-                                  <p className="text-[11px] text-gray-500 mt-0.5">
-                                    Uploaded by <span className="font-semibold text-gray-700">{ev.uploaded_by}</span>
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0 ml-4">
-                                <button 
-                                  onClick={() => window.open(ev.file_url, "_blank")} 
-                                  className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <Eye className="h-3.5 w-3.5" /> View
-                                </button>
-                                {(userRole === 'ADMIN' || ev.uploaded_by === userName) && (
-                                  <button 
-                                    onClick={() => confirmDeleteIsoEvidence(ev)} 
-                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" 
-                                    title="Remove Evidence"
-                                  >
-                                    <Archive className="h-4 w-4" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                          <FileText className="h-10 w-10 text-gray-300 mx-auto mb-2 opacity-60" />
-                          <h4 className="font-bold text-gray-800 text-sm">No Proof Attached Yet</h4>
-                          <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                            Upload documented evidence to verify compliance for {expandedIsoClause.iso_clause}.
-                          </p>
-                          {!isUnassignedFaculty && (
-                            <button 
-                              onClick={() => { setSelectedIsoReq(expandedIsoClause); setUploadForm({ fileName: "", requirementTarget: "" }); setSelectedFile(null); setShowIsoUploadModal(true); }}
-                              className="mt-4 px-4 py-2 bg-orange-50 text-[#FF9501] border border-[#FF9501]/30 hover:bg-orange-100 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
-                            >
-                              <Upload className="h-3.5 w-3.5" /> Upload First Evidence
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Dynamic Internal Quality Audit (IQA) Program Schedule */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 border-t-4 border-t-[#FF9501] overflow-hidden p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
-              <div>
-                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-[#FF9501]" />
-                  CTU Argao Internal Quality Audit (IQA) Program Schedule
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">Configured campus-wide audit dates and focus scope for CTU Argao (Institutional QMS)</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="px-3 py-1 bg-orange-50 text-[#D97E00] text-xs font-bold rounded-lg border border-[#FF9501]/20">
-                  Cycle: {selectedIsoCycleYear}
-                </span>
-
-                {userRole === "ADMIN" && (
-                  <button
-                    onClick={() => { setIqaDayForm({ day_number: iqaDays.length + 1, day_date: "", title: "", scope: "" }); setShowAddIqaDayModal(true); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF9501] text-white text-xs font-bold rounded-lg hover:bg-[#D97E00] transition-all cursor-pointer shadow-sm active:scale-95"
-                  >
-                    <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline"> Add Audit Day</span><span className="sm:hidden">Add</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {isLoadingIqaDays ? (
-              <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#FF9501]" /></div>
-            ) : iqaDays.length === 0 ? (
-              <div className="text-center py-8 text-xs text-gray-400">No IQA audit days configured. Click "+ Add Audit Day" to add one.</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {iqaDays.map((day, idx) => (
-                  <div 
-                    key={day.id || idx} 
-                    onClick={() => {
-                      setIsoSubTab("clauses");
-                      // Extract first keyword or clause from title/scope
-                      const searchStr = day.title ? day.title.split(" ")[0] : "";
-                      setIsoSearchQuery(searchStr);
-                      showToast(`Filtered Checkpoints checklist for Audit Day ${day.day_number}!`, "info");
-                    }}
-                    className="p-5 bg-white border border-gray-200 hover:border-[#FF9501] rounded-xl space-y-3 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer"
-                  >
-                    <div>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="px-2.5 py-0.5 bg-[#FF9501] text-white text-[10px] font-extrabold uppercase rounded shadow-2xs">
-                          Day {day.day_number}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200">
-                          <Calendar className="h-3.5 w-3.5 text-[#FF9501]" />
-                          <span>{day.day_date || "TBD"}</span>
-                        </div>
-                      </div>
-
-                      <h4 className="font-bold text-gray-900 text-sm mt-3 group-hover:text-[#FF9501] transition-colors">{day.title}</h4>
-                      <p className="text-xs text-gray-600 leading-relaxed mt-1.5">{day.scope}</p>
-
-                      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-1 text-[11px] font-bold text-[#D97E00] group-hover:underline">
-                        <Search className="h-3.5 w-3.5" /> Filter Scheduled Clauses & Evidence
-                      </div>
-                    </div>
-
-                    {userRole === "ADMIN" && (
-                      <div className="pt-2 border-t border-gray-100 flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingIqaDay(day); setShowEditIqaDayModal(true); }}
-                          className="p-1.5 text-gray-400 hover:text-[#FF9501] transition-colors rounded cursor-pointer" title="Edit Day"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeletingIqaDay(day); setShowDeleteIqaDayModal(true); }}
-                          className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded cursor-pointer" title="Delete Day"
-                        >
-                          <Archive className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <IsoTabContent
+            isoClauseRequirements={isoRequirements}
+            isLoadingIso={isLoadingIso}
+            selectedProgram={selectedProgram}
+            userRole={userRole}
+            userAdminOffice={userAdminOffice}
+            isOfficeRestricted={isOfficeRestricted}
+            isUnassignedFaculty={isUnassignedFaculty}
+            selectedIsoCycleYear={selectedIsoCycleYear}
+            setSelectedIsoCycleYear={setSelectedIsoCycleYear}
+            showIsoYearFilter={showIsoYearFilter}
+            setShowIsoYearFilter={setShowIsoYearFilter}
+            isoCycleOptions={isoCycleOptions}
+            expandedIsoClause={expandedIsoClause}
+            setExpandedIsoClause={setExpandedIsoClause}
+            isoClauseEvidences={expandedIsoClause?.evidences || []}
+            isLoadingIsoEvidences={isLoadingIso}
+            isoFilterCategory={isoFilterCategory}
+            setIsoFilterCategory={setIsoFilterCategory}
+            isoFilterOffice={isoOfficeFilter}
+            setIsoFilterOffice={setIsoOfficeFilter}
+            isoSearchQuery={isoSearchQuery}
+            setIsoSearchQuery={setIsoSearchQuery}
+            filteredIsoClauses={filteredIsoReqs}
+            isoCompliantCount={isoCompliantCount}
+            isoTotalCount={isoTotalCount}
+            isoCompliancePercent={isoCompliancePercentage}
+            iqaProgramSchedule={iqaSchedule}
+            iqaAuditDays={iqaDays}
+            qmsActionPlans={qmsActionPlans}
+            isLoadingQms={isLoadingQmsPlans}
+            qmsFilterOffice={qmsOfficeFilter}
+            setQmsFilterOffice={setQmsOfficeFilter}
+            qmsFilterType={qmsTypeFilter}
+            setQmsFilterType={setQmsTypeFilter}
+            qmsFilterStatus={qmsStatusFilter}
+            setQmsFilterStatus={setQmsStatusFilter}
+            qmsSearchQuery={qmsSearchQuery}
+            setQmsSearchQuery={setQmsSearchQuery}
+            qmsStats={qmsStats}
+            filteredQmsPlans={filteredQmsPlans}
+            isoSubTab={isoSubTab}
+            setIsoSubTab={setIsoSubTab}
+            setShowAddIsoCycleModal={setShowAddIsoCycleModal}
+            setShowAddIsoReqModal={setShowAddIsoReqModal}
+            setEditingIsoReq={setEditingIsoReq}
+            setShowEditIsoReqModal={setShowEditIsoModal}
+            setIsoReqToDelete={setIsoReqToDelete}
+            setShowDeleteIsoReqModal={setShowDeleteIsoReqModal}
+            setSelectedIsoReqForUpload={setSelectedIsoReq}
+            setShowIsoUploadEvidenceModal={setShowIsoUploadModal}
+            setIsoEvidenceToDelete={setIsoEvidenceToDelete}
+            setShowDeleteIsoEvidenceModal={setShowDeleteIsoEvidenceModal}
+            setShowEditIqaModal={setShowEditIqaModal}
+            setShowAddIqaDayModal={setShowAddIqaDayModal}
+            setEditingIqaDay={setEditingIqaDay}
+            setShowEditIqaDayModal={setShowEditIqaDayModal}
+            setDeletingIqaDay={setDeletingIqaDay}
+            setShowDeleteIqaDayModal={setShowDeleteIqaDayModal}
+            setShowAddQmsModal={setShowAddQmsModal}
+            setEditingQmsPlan={setEditingQmsPlan}
+            setShowEditQmsModal={setShowEditQmsModal}
+            setQmsPlanToDelete={setQmsPlanToDelete}
+            setShowDeleteQmsModal={setShowDeleteQmsModal}
+            setTargetQmsPlanForEvidence={setTargetQmsPlanForEvidence}
+            setShowQmsEvidenceUploadModal={setShowQmsEvidenceUploadModal}
+            handleReviewIsoEvidence={handleReviewIsoEvidence}
+            handleUpdateQmsStatus={handleQuickStatusChangeQms}
+            isReviewing={isReviewing}
+            showToast={showToast}
+          />
         </TabsContent>
 
         <TabsContent value="results" className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex flex-col lg:flex-row gap-6">
-            
-            {/* Left Column: Timeline & History */}
-            <div className="w-full lg:w-2/3 space-y-6">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="border-b border-gray-100 p-6 bg-[#F9FAFB] flex justify-between items-center">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                      <History className="w-5 h-5 text-[#FF9501]" />
-                      Accreditation Timeline
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-1">Historical milestones for {selectedProgram} (Current: <strong>{programAccreditation?.current_level || "Candidate Status"}</strong>)</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {userRole === "ADMIN" && (
-                      <button
-                        onClick={() => {
-                          setUpgradeForm({
-                            new_level: "Level II Re-accredited",
-                            valid_until_date: "",
-                            certificate_url: "",
-                            remarks: ""
-                          });
-                          setShowUpgradeModal(true);
-                        }}
-                        className="flex items-center gap-1.5 text-white text-xs font-bold bg-[#FF9501] hover:bg-[#D97E00] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-sm"
-                      >
-                        <Award className="w-3.5 h-3.5" /> + Upgrade Level
-                      </button>
-                    )}
-                    <button onClick={handleExportReport} className="flex items-center gap-1.5 sm:gap-2 text-[#D97E00] hover:text-[#995900] text-xs font-bold bg-[#FFF4E5] px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-                      <Download className="w-3.5 h-3.5" /><span className="hidden sm:inline"> Export Report</span>
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="p-6 relative">
-                  {/* Vertical Line */}
-                  <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-gray-100 z-0"></div>
-                  
-                  <div className="space-y-8 relative z-10">
-                    {programAccreditation?.history && programAccreditation.history.length > 0 ? (
-                      programAccreditation.history.map((item: any, idx: number) => {
-                        const dateGranted = new Date(item.date_granted);
-                        const year = isNaN(dateGranted.getFullYear()) ? "Recent" : dateGranted.getFullYear().toString();
-                        const isLatest = idx === 0;
-                        const formattedDate = item.valid_until
-                          ? `Valid until ${new Date(item.valid_until).toLocaleDateString([], { month: "short", year: "numeric" })}`
-                          : "Indefinite Validity / Verified";
-
-                        return (
-                          <div key={item.id || idx} className="flex gap-4">
-                            <div className={`w-8 h-8 rounded-full ${isLatest ? 'bg-green-100' : 'bg-gray-100'} flex items-center justify-center shrink-0 ring-4 ring-white shadow-sm mt-1`}>
-                              <Award className={`w-4 h-4 ${isLatest ? 'text-[#006837]' : 'text-gray-400'}`} />
-                            </div>
-                            <div className="flex-1 bg-white border border-gray-100 hover:border-[#FF9501]/30 hover:shadow-md transition-all p-4 rounded-xl group">
-                              <div className="flex justify-between items-start mb-1">
-                                <span className="text-xs font-bold text-[#FF9501] uppercase tracking-wider">{year}</span>
-                                <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${isLatest ? 'bg-green-50 text-[#006837]' : 'bg-gray-100 text-gray-500'}`}>
-                                  {isLatest ? 'Current Active Level' : 'Historical Milestone'}
-                                </span>
-                              </div>
-                              <h3 className="font-bold text-gray-900 text-sm group-hover:text-[#FF9501] transition-colors">{item.level_achieved}</h3>
-                              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {formattedDate}</p>
-                              {item.remarks && (
-                                <p className="text-xs text-gray-600 mt-2 bg-gray-50 p-2.5 rounded-lg border border-gray-100 italic">
-                                  "{item.remarks}"
-                                </p>
-                              )}
-                              <div className="mt-2 flex items-center gap-3">
-                                {item.certificate_url ? (
-                                  <a
-                                    href={item.certificate_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1.5 text-xs text-[#1D6FA3] font-bold hover:underline"
-                                  >
-                                    <FileCheck className="w-3.5 h-3.5" /> View Certificate
-                                  </a>
-                                ) : userRole === "ADMIN" ? (
-                                  <button
-                                    onClick={() => {
-                                      setTargetHistoryId(item.id);
-                                      setCertFile(null);
-                                      setShowCertModal(true);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 text-xs text-[#FF9501] hover:text-[#D97E00] font-bold cursor-pointer bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-md border border-orange-200 transition-colors"
-                                  >
-                                    <Upload className="w-3.5 h-3.5" /> Attach Certificate
-                                  </button>
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-10 text-gray-500">
-                        <Award className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                        <p className="font-semibold text-sm">Current Level: {programAccreditation?.current_level || "Candidate Status"}</p>
-                        <p className="text-xs text-gray-400 mt-1">No historical upgrade logs recorded yet. Upgrades by Admins will appear here.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Certificates & Metrics */}
-            <div className="w-full lg:w-1/3 space-y-6">
-              
-              {/* Dynamic Metric Card: Unified QA Health & Executive Overview */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-[#FF9501]"/> Unified QA Health Index
-                    </h3>
-                    <p className="text-[11px] text-gray-500 mt-0.5">Composite institutional rating for {selectedProgram}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-2xl font-black ${
-                      compositeQaScore >= 85 ? 'text-[#006837]' : compositeQaScore >= 50 ? 'text-[#FF9501]' : 'text-red-600'
-                    }`}>
-                      {compositeQaScore}%
-                    </span>
-                    <span className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest">Weighted Index</span>
-                  </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-1000 ease-out ${
-                      compositeQaScore >= 85 ? 'bg-[#006837]' : compositeQaScore >= 50 ? 'bg-[#FF9501]' : 'bg-red-500'
-                    }`}
-                    style={{ width: `${compositeQaScore}%` }}
-                  ></div>
-                </div>
-
-                {/* Framework Breakdown List */}
-                <div className="space-y-3 pt-1">
-
-                  {/* 1. AACCUP Program Readiness */}
-                  <div 
-                    onClick={() => setActiveTab("aaccup")}
-                    className="p-3 bg-gray-50 hover:bg-orange-50/50 rounded-xl border border-gray-100 hover:border-[#FF9501]/40 transition-all cursor-pointer group"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-[#FF9501]"></div>
-                        <span className="text-xs font-bold text-gray-800 group-hover:text-[#FF9501] transition-colors">AACCUP Readiness (40%)</span>
-                      </div>
-                      <span className="text-xs font-black text-gray-900">{currentData.overall}%</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1.5 pl-4 text-[10px] text-gray-500">
-                      <span>{currentData.evidence} Approved Files</span>
-                      <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${currentData.gaps === 0 ? 'bg-green-100 text-[#006837]' : 'bg-orange-100 text-[#D97E00]'}`}>
-                        {currentData.gaps === 0 ? 'Zero Gaps' : `${currentData.gaps} Gaps Remaining`}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 2. CHED CMO Compliance */}
-                  <div 
-                    onClick={() => setActiveTab("ched")}
-                    className="p-3 bg-gray-50 hover:bg-blue-50/50 rounded-xl border border-gray-100 hover:border-blue-400/40 transition-all cursor-pointer group"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                        <span className="text-xs font-bold text-gray-800 group-hover:text-blue-600 transition-colors">CHED CMO Compliance (30%)</span>
-                      </div>
-                      <span className="text-xs font-black text-gray-900">{chedCompliancePercentage}%</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1.5 pl-4 text-[10px] text-gray-500">
-                      <span>{chedCompliantCount} of {chedTotalCount} Rules Met</span>
-                      <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${chedCompliantCount === chedTotalCount ? 'bg-green-100 text-[#006837]' : 'bg-blue-100 text-blue-800'}`}>
-                        {chedCompliantCount === chedTotalCount ? '100% Compliant' : `${chedTotalCount - chedCompliantCount} Pending Review`}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 3. ISO 9001:2015 QMS Checkpoints */}
-                  <div 
-                    onClick={() => setActiveTab("iso")}
-                    className="p-3 bg-gray-50 hover:bg-emerald-50/50 rounded-xl border border-gray-100 hover:border-emerald-400/40 transition-all cursor-pointer group"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
-                        <span className="text-xs font-bold text-gray-800 group-hover:text-emerald-700 transition-colors">Campus ISO 9001 QMS (30%)</span>
-                      </div>
-                      <span className="text-xs font-black text-gray-900">{isoCompliancePercentage}%</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1.5 pl-4 text-[10px] text-gray-500">
-                      <span>{isoCompliantCount} of {isoTotalCount} Checkpoints Verified</span>
-                      <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${isoCompliantCount === isoTotalCount ? 'bg-green-100 text-[#006837]' : 'bg-amber-100 text-[#D97E00]'}`}>
-                        {isoCompliantCount === isoTotalCount ? '100% Certified' : `${isoTotalCount - isoCompliantCount} Evidence Needed`}
-                      </span>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Official Certificates */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                <div className="flex justify-between items-center mb-5">
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                    <FileBadge className="w-4 h-4 text-[#FF9501]" /> Official Certificates
-                  </h3>
-                  <span className="text-[11px] font-extrabold text-[#006837] bg-green-50 px-2 py-0.5 rounded-full">
-                    {programAccreditation?.history?.filter((h: any) => !!h.certificate_url).length || 0} Archived
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  {programAccreditation?.history && programAccreditation.history.filter((h: any) => !!h.certificate_url).length > 0 ? (
-                    programAccreditation.history
-                      .filter((h: any) => !!h.certificate_url)
-                      .map((cert: any, cIdx: number) => {
-                        const dateGranted = cert.date_granted ? new Date(cert.date_granted).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "Verified";
-                        return (
-                          <a
-                            key={cert.id || cIdx}
-                            href={cert.certificate_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block p-4 bg-[#FFF4E5] rounded-xl border border-[#FF9501]/20 group hover:border-[#FF9501] hover:shadow-md transition-all relative overflow-hidden cursor-pointer"
-                          >
-                            <div className="flex items-center gap-3 relative z-10">
-                              <Award className="w-8 h-8 text-[#D97E00] shrink-0" />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-bold text-gray-900 group-hover:text-[#FF9501] transition-colors truncate">
-                                  {cert.level_achieved} Certificate
-                                </p>
-                                <p className="text-[10px] text-gray-500 mt-0.5">
-                                  Granted: {dateGranted} • {cert.valid_until ? `Valid to ${new Date(cert.valid_until).getFullYear()}` : "Indefinite"}
-                                </p>
-                              </div>
-                              <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-[#FF9501] shrink-0" />
-                            </div>
-                          </a>
-                        );
-                      })
-                  ) : (
-                    <div className="p-6 bg-gray-50 rounded-xl border border-gray-200 text-center">
-                      <FileBadge className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-xs font-bold text-gray-700">No Certificates Uploaded Yet</p>
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        Use the "Attach Certificate" button in the timeline to link official credentials.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          </div>
+          <ResultsTabContent
+            currentData={currentData}
+            selectedProgram={selectedProgram}
+            userRole={userRole}
+            programAccreditation={programAccreditation}
+            setShowEditStandingModal={setShowEditStandingModal}
+            setEditStandingForm={setEditStandingForm}
+            ALL_AACCUP_AREAS={ALL_AACCUP_AREAS}
+            setShowUpgradeModal={setShowUpgradeModal}
+            setUpgradeForm={setUpgradeForm}
+            accreditationLogs={programAccreditation?.history || []}
+            showToast={showToast}
+          />
         </TabsContent>
       </Tabs>
 
@@ -3425,88 +3472,67 @@ export function AccreditationSupport() {
       )}
 
       {/* --- AACCUP DELETE/ARCHIVE MODAL --- */}
-      {showDeleteModal && docToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-red-100">
-            <div className="p-6 border-b border-red-50 bg-red-50 flex items-center gap-3">
-              <ShieldAlert className="h-6 w-6 text-red-600" />
-              <h2 className="text-xl font-bold text-red-700">Archive Evidence</h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                Are you sure you want to remove <span className="font-bold text-gray-900">"{docToDelete}"</span>?
-              </p>
-              <p className="text-xs text-gray-500 leading-relaxed italic">
-                This document will be archived and will no longer count towards compliance, though it remains in the system for audit.
-              </p>
-            </div>
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => setShowDeleteModal(false)} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer uppercase tracking-widest">
-                Cancel
-              </button>
-              <button onClick={executeDelete} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-all disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer uppercase tracking-widest shadow-md">
-                {isDeleting ? <><Loader2 className="h-3 w-3 animate-spin"/> Archiving...</> : "Yes, Archive File"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReusableConfirmModal
+        isOpen={showDeleteModal && !!docToDelete}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={executeDelete}
+        isProcessing={isDeleting}
+        title="Archive Evidence"
+        confirmText="Yes, Archive File"
+        icon={ShieldAlert}
+        description={
+          <>
+            <p className="text-sm text-gray-600 leading-relaxed font-medium">
+              Are you sure you want to remove <span className="font-bold text-gray-900">"{docToDelete}"</span>?
+            </p>
+            <p className="text-xs text-gray-500 leading-relaxed italic mt-2">
+              This document will be archived and will no longer count towards compliance, though it remains in the system for audit.
+            </p>
+          </>
+        }
+      />
 
       {/* --- CHED DELETE REQUIREMENT MODAL --- */}
-      {showDeleteChedReqModal && chedReqToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-red-100">
-            <div className="p-6 border-b border-red-50 bg-red-50 flex items-center gap-3">
-              <ShieldAlert className="h-6 w-6 text-red-600" />
-              <h2 className="text-xl font-bold text-red-700">Delete Requirement</h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                Are you sure you want to permanently delete this requirement?
-              </p>
-              <p className="text-xs text-red-500 leading-relaxed italic font-bold">
-                Warning: This will also permanently delete any evidence documents attached to this requirement.
-              </p>
-            </div>
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => setShowDeleteChedReqModal(false)} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer uppercase tracking-widest">
-                Cancel
-              </button>
-              <button onClick={executeDeleteChedRequirement} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-all disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer uppercase tracking-widest shadow-md">
-                {isDeleting ? <><Loader2 className="h-3 w-3 animate-spin"/> Deleting...</> : "Yes, Delete Requirement"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReusableConfirmModal
+        isOpen={showDeleteChedReqModal && !!chedReqToDelete}
+        onClose={() => setShowDeleteChedReqModal(false)}
+        onConfirm={executeDeleteChedRequirement}
+        isProcessing={isDeleting}
+        title="Delete Requirement"
+        confirmText="Yes, Delete Requirement"
+        icon={ShieldAlert}
+        description={
+          <>
+            <p className="text-sm text-gray-600 leading-relaxed font-medium">
+              Are you sure you want to permanently delete this requirement?
+            </p>
+            <p className="text-xs text-red-500 leading-relaxed italic font-bold mt-2">
+              Warning: This will also permanently delete any evidence documents attached to this requirement.
+            </p>
+          </>
+        }
+      />
 
       {/* --- CHED DELETE EVIDENCE MODAL --- */}
-      {showDeleteChedEvidenceModal && chedEvidenceToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-red-100">
-            <div className="p-6 border-b border-red-50 bg-red-50 flex items-center gap-3">
-              <Archive className="h-6 w-6 text-red-600" />
-              <h2 className="text-xl font-bold text-red-700">Remove Attached Evidence</h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                Are you sure you want to remove <span className="font-bold text-gray-900">"{chedEvidenceToDelete.document_name}"</span>?
-              </p>
-              <p className="text-xs text-gray-500 leading-relaxed italic">
-                If this is the only evidence attached, the requirement status will automatically revert to "Not Compliant".
-              </p>
-            </div>
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => setShowDeleteChedEvidenceModal(false)} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer uppercase tracking-widest">
-                Cancel
-              </button>
-              <button onClick={executeDeleteChedEvidence} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-all disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer uppercase tracking-widest shadow-md">
-                {isDeleting ? <><Loader2 className="h-3 w-3 animate-spin"/> Removing...</> : "Yes, Remove Evidence"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReusableConfirmModal
+        isOpen={showDeleteChedEvidenceModal && !!chedEvidenceToDelete}
+        onClose={() => setShowDeleteChedEvidenceModal(false)}
+        onConfirm={executeDeleteChedEvidence}
+        isProcessing={isDeleting}
+        title="Remove Attached Evidence"
+        confirmText="Yes, Remove Evidence"
+        icon={Archive}
+        description={
+          <>
+            <p className="text-sm text-gray-600 leading-relaxed font-medium">
+              Are you sure you want to remove <span className="font-bold text-gray-900">"{chedEvidenceToDelete?.document_name}"</span>?
+            </p>
+            <p className="text-xs text-gray-500 leading-relaxed italic mt-2">
+              If this is the only evidence attached, the requirement status will automatically revert to "Not Compliant".
+            </p>
+          </>
+        }
+      />
 
       {/* --- ISO UPLOAD EVIDENCE MODAL --- */}
       {showIsoUploadModal && selectedIsoReq && (
@@ -3834,32 +3860,25 @@ export function AccreditationSupport() {
       )}
 
       {/* --- DELETE ISO REQUIREMENT CONFIRMATION MODAL --- */}
-      {showDeleteIsoReqModal && isoReqToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-red-600">
-            <div className="p-6 border-b border-red-50 bg-red-50 flex items-center gap-3">
-              <Archive className="h-6 w-6 text-red-600" />
-              <h2 className="text-xl font-bold text-red-700">Delete ISO Clause Requirement</h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                Are you sure you want to delete <span className="font-bold text-gray-900">"{isoReqToDelete.iso_clause}: {isoReqToDelete.title}"</span>?
-              </p>
-              <p className="text-xs text-gray-500 leading-relaxed italic">
-                This action will remove the clause requirement and all associated evidence uploads for {selectedProgram}.
-              </p>
-            </div>
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => setShowDeleteIsoReqModal(false)} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
-                Cancel
-              </button>
-              <button onClick={executeDeleteIsoRequirement} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-all disabled:opacity-50 flex justify-center items-center gap-2 uppercase tracking-widest shadow-md cursor-pointer">
-                {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin"/> Deleting...</> : "Yes, Delete Requirement"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReusableConfirmModal
+        isOpen={showDeleteIsoReqModal && !!isoReqToDelete}
+        onClose={() => setShowDeleteIsoReqModal(false)}
+        onConfirm={executeDeleteIsoRequirement}
+        isProcessing={isDeleting}
+        title="Delete ISO Clause Requirement"
+        confirmText="Yes, Delete Requirement"
+        icon={Archive}
+        description={
+          <>
+            <p className="text-sm text-gray-600 leading-relaxed font-medium">
+              Are you sure you want to delete <span className="font-bold text-gray-900">"{isoReqToDelete?.iso_clause}: {isoReqToDelete?.title}"</span>?
+            </p>
+            <p className="text-xs text-gray-500 leading-relaxed italic mt-2">
+              This action will remove the clause requirement and all associated evidence uploads for {selectedProgram}.
+            </p>
+          </>
+        }
+      />
 
       {/* --- EDIT 3-DAY IQA AUDIT PROGRAM SCHEDULE MODAL --- */}
       {showEditIqaModal && (
@@ -4194,29 +4213,20 @@ export function AccreditationSupport() {
       )}
 
       {/* --- DELETE DYNAMIC IQA AUDIT DAY CONFIRMATION MODAL --- */}
-      {showDeleteIqaDayModal && deletingIqaDay && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-red-600">
-            <div className="p-6 border-b border-red-50 bg-red-50 flex items-center gap-3">
-              <Archive className="h-6 w-6 text-red-600" />
-              <h2 className="text-xl font-bold text-red-700">Delete IQA Audit Day</h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                Are you sure you want to delete <span className="font-bold text-gray-900">"Day {deletingIqaDay.day_number}: {deletingIqaDay.title}"</span>?
-              </p>
-            </div>
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => setShowDeleteIqaDayModal(false)} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
-                Cancel
-              </button>
-              <button onClick={executeDeleteIqaDay} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-all disabled:opacity-50 flex justify-center items-center gap-2 uppercase tracking-widest shadow-md cursor-pointer">
-                {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin"/> Deleting...</> : "Yes, Delete Day"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReusableConfirmModal
+        isOpen={showDeleteIqaDayModal && !!deletingIqaDay}
+        onClose={() => setShowDeleteIqaDayModal(false)}
+        onConfirm={executeDeleteIqaDay}
+        isProcessing={isDeleting}
+        title="Delete IQA Audit Day"
+        confirmText="Yes, Delete Day"
+        icon={Archive}
+        description={
+          <p className="text-sm text-gray-600 leading-relaxed font-medium">
+            Are you sure you want to delete <span className="font-bold text-gray-900">"Day {deletingIqaDay?.day_number}: {deletingIqaDay?.title}"</span>?
+          </p>
+        }
+      />
 
 
       {/* ===== UNIFORM CONFIRMATION MODALS ===== */}
@@ -4330,39 +4340,29 @@ export function AccreditationSupport() {
       )}
 
       {/* ISO Evidence Delete Confirmation */}
-      {showDeleteIsoEvidenceModal && isoEvidenceToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-red-600">
-            <div className="p-6 border-b border-red-50 bg-red-50 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shrink-0">
-                <Archive className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-red-700">Remove ISO Evidence</h2>
-                <p className="text-xs text-gray-500 mt-0.5">This action cannot be undone</p>
-              </div>
-            </div>
-            <div className="p-6 space-y-3">
-              <p className="text-sm text-gray-700 leading-relaxed">
-                Are you sure you want to permanently remove this evidence file?
-              </p>
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-2">
+      <ReusableConfirmModal
+        isOpen={showDeleteIsoEvidenceModal && !!isoEvidenceToDelete}
+        onClose={() => { setShowDeleteIsoEvidenceModal(false); setIsoEvidenceToDelete(null); }}
+        onConfirm={executeDeleteIsoEvidence}
+        isProcessing={isDeleting}
+        title="Remove ISO Evidence"
+        confirmText="Yes, Remove"
+        icon={Archive}
+        description={
+          <>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to permanently remove this evidence file?
+            </p>
+            {isoEvidenceToDelete && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-2 mt-2">
                 <FileText className="h-4 w-4 text-red-500 shrink-0" />
                 <span className="text-sm font-bold text-gray-900 truncate">{isoEvidenceToDelete.document_name}</span>
               </div>
-              <p className="text-xs text-gray-400 leading-relaxed">The file will be removed from the ISO evidence repository and the Knowledge Base. The clause compliance status may be affected.</p>
-            </div>
-            <div className="p-5 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => { setShowDeleteIsoEvidenceModal(false); setIsoEvidenceToDelete(null); }} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
-                Cancel
-              </button>
-              <button onClick={executeDeleteIsoEvidence} disabled={isDeleting} className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-all disabled:opacity-50 flex justify-center items-center gap-2 uppercase tracking-widest shadow-md cursor-pointer">
-                {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin"/> Removing...</> : <><Archive className="h-4 w-4" /> Yes, Remove</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
+            <p className="text-xs text-gray-400 leading-relaxed mt-2">The file will be removed from the ISO evidence repository and the Knowledge Base. The clause compliance status may be affected.</p>
+          </>
+        }
+      />
 
       {/* Start New ISO Audit Cycle Modal */}
       {showAddIsoCycleModal && (
@@ -4648,39 +4648,27 @@ export function AccreditationSupport() {
       )}
 
       {/* --- DELETE QMS ACTION PLAN MODAL --- */}
-      {showDeleteQmsModal && qmsPlanToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-red-500">
-            <div className="p-6 border-b border-red-100 bg-red-50 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <Trash2 className="h-6 w-6 text-red-600" />
-                <h2 className="text-lg font-bold text-red-800">Delete Action Plan</h2>
-              </div>
-              <button onClick={() => setShowDeleteQmsModal(false)} className="p-2 hover:bg-red-100 rounded-full transition-colors cursor-pointer text-red-700">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-3">
-              <p className="text-sm text-gray-700 leading-relaxed">
-                Are you sure you want to delete the QMS Action Plan for <span className="font-bold text-gray-900">{qmsPlanToDelete.auditee_office}</span>?
-              </p>
-              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium">
+      <ReusableConfirmModal
+        isOpen={showDeleteQmsModal && !!qmsPlanToDelete}
+        onClose={() => setShowDeleteQmsModal(false)}
+        onConfirm={handleDeleteQmsSubmit}
+        isProcessing={isDeletingQms}
+        title="Delete Action Plan"
+        confirmText="Yes, Delete"
+        icon={Trash2}
+        description={
+          <>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to delete the QMS Action Plan for <span className="font-bold text-gray-900">{qmsPlanToDelete?.auditee_office}</span>?
+            </p>
+            {qmsPlanToDelete && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2">
                 "{qmsPlanToDelete.opportunity_description}"
               </div>
-            </div>
-
-            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-              <button type="button" onClick={() => setShowDeleteQmsModal(false)} disabled={isDeletingQms} className="px-5 py-2.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
-                Cancel
-              </button>
-              <button type="button" onClick={handleDeleteQmsSubmit} disabled={isDeletingQms} className="px-5 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer">
-                {isDeletingQms ? <><Loader2 className="h-4 w-4 animate-spin"/> Deleting...</> : "Yes, Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
+          </>
+        }
+      />
 
       {/* --- ATTACH QMS EVIDENCE / PROOF MODAL --- */}
       {showQmsEvidenceUploadModal && targetQmsPlanForEvidence && (

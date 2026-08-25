@@ -580,7 +580,17 @@ export function KnowledgeRepository() {
                 <option value="AB_ELS">AB ELS</option>
                 <option value="AB_LIT">AB Lit</option>
                 <option value="AB_PSYCH">AB Psych</option>
+                <option value="BSF">BSF</option>
+                <option value="BSA">BSA</option>
+                <option value="BSES">BSES</option>
                 <option value="BSIE">BSIE</option>
+                <option value="BIT_AT">BIT-AT</option>
+                <option value="BIT_CT">BIT-CT</option>
+                <option value="BIT_DT">BIT-DT</option>
+                <option value="BIT_ET">BIT-ET</option>
+                <option value="BIT_GT">BIT-GT</option>
+                <option value="BSHM">BSHM</option>
+                <option value="BSTM">BSTM</option>
                 <option value="GLOBAL">Global Campus</option>
               </select>
             </div>
