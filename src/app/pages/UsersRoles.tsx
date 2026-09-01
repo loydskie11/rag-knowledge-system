@@ -237,10 +237,12 @@ export function UsersRoles() {
       
       {/* --- TOAST NOTIFICATION --- */}
       {toast && (
-        <div className={`fixed bottom-8 right-8 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 text-sm font-bold z-[100] transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in ${
-          toast.type === 'success' ? 'bg-[#E6F7ED] text-[#006837] border-2 border-[#006837]/20' : 'bg-red-50 text-red-700 border-2 border-red-200'
+        <div className={`fixed bottom-8 right-8 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-medium z-[100] transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in ${
+          toast.type === 'success' 
+            ? 'bg-[#FFF4E5] text-[#D97E00] border border-[#FF9501]/30' 
+            : 'bg-rose-50 text-rose-800 border border-rose-200'
         }`}>
-          {toast.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+          {toast.type === 'success' ? <CheckCircle className="h-4 w-4 text-[#FF9501]" /> : <AlertCircle className="h-4 w-4 text-rose-500" />}
           {toast.message}
         </div>
       )}
@@ -248,59 +250,67 @@ export function UsersRoles() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl text-gray-900 mb-2">Users & Roles</h1>
-          <p className="text-gray-600">Manage user accounts, roles, and access status</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Users & Roles</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Manage user accounts, system roles, and office assignments</p>
         </div>
         <button
           onClick={() => setShowAddUserModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors shadow-sm cursor-pointer active:scale-95"
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-[#FF9501] text-white text-xs font-semibold rounded-lg hover:bg-[#D97E00] transition-all shadow-2xs cursor-pointer active:scale-95 self-start sm:self-auto"
         >
-          <UserPlus className="h-5 w-5" />
-          Add User
+          <UserPlus className="h-3.5 w-3.5" />
+          <span>Add User</span>
         </button>
       </div>
 
       {/* Role Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {roleStats.map((role) => (
-          <div key={role.role} className="bg-white rounded-xl shadow-sm p-6 border-t-4" style={{ borderColor: role.color }}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{role.role}</h3>
-            <div className="text-4xl font-bold mb-2" style={{ color: role.color }}>{role.userCount}</div>
-            <p className="text-sm text-gray-500 font-medium">Registered accounts</p>
+          <div key={role.role} className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-gray-700">{role.role}</span>
+              <span className="text-[10px] font-medium text-gray-400">Total Accounts</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 tracking-tight">{role.userCount}</div>
+            <p className="text-[11px] text-gray-500 mt-1">Registered users</p>
           </div>
         ))}
       </div>
 
       {/* Pending Faculty */}
       {pendingFaculty.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border-l-4 border-[#FDB913] overflow-hidden">
-          <div className="bg-[#FDB913]/10 p-5 border-b border-gray-100 flex items-center gap-3">
-            <Clock className="h-6 w-6 text-[#FDB913]" />
-            <h2 className="text-lg font-bold text-gray-900">Pending Faculty Approvals ({pendingFaculty.length})</h2>
+        <div className="bg-white rounded-xl shadow-2xs border border-amber-200/80 overflow-hidden">
+          <div className="bg-amber-50/60 p-4 border-b border-amber-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-600" />
+              <h2 className="text-xs font-semibold text-gray-900">Pending Faculty Approvals</h2>
+            </div>
+            <span className="px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800 rounded-full">
+              {pendingFaculty.length} awaiting review
+            </span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-[#F9FAFB] border-b border-gray-100">
+              <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Name</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Email</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Registration Date</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Actions</th>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Registration Date</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-200/70">
                 {pendingFaculty.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-gray-900">{user.full_name || "N/A"}</td>
-                    <td className="px-6 py-4 text-gray-600 font-medium">{user.email}</td>
-                    <td className="px-6 py-4 text-gray-500 text-sm">{new Date(user.created_at).toLocaleDateString()}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleApprove(user.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 font-semibold text-xs rounded border border-green-200 hover:bg-green-100 transition-colors cursor-pointer">
-                          <CheckCircle className="h-4 w-4" /> Approve
+                  <tr key={user.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-4 py-3 text-xs font-semibold text-gray-900">{user.full_name || "N/A"}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{user.email}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{new Date(user.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => handleApprove(user.id)} className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 font-medium text-xs rounded-lg border border-emerald-200/60 hover:bg-emerald-100 transition-colors cursor-pointer">
+                          <CheckCircle className="h-3.5 w-3.5" /> Approve
                         </button>
-                        <button onClick={() => { setUserToReject(user); setShowRejectModal(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 font-semibold text-xs rounded hover:bg-red-100 transition-colors cursor-pointer">
-                          <XCircle className="h-4 w-4" /> Reject
+                        <button onClick={() => { setUserToReject(user); setShowRejectModal(true); }} className="flex items-center gap-1 px-2.5 py-1 bg-rose-50 border border-rose-200/60 text-rose-700 font-medium text-xs rounded-lg hover:bg-rose-100 transition-colors cursor-pointer">
+                          <XCircle className="h-3.5 w-3.5" /> Reject
                         </button>
                       </div>
                     </td>
@@ -313,27 +323,26 @@ export function UsersRoles() {
       )}
 
       {/* Main Users Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-[#F9FAFB]">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">User Directory</h2>
-          
-          <div className="flex flex-col md:flex-row gap-4">
+      <div className="space-y-4">
+        {/* Search and Filters Bar */}
+        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+          <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
               <input 
                 type="text" 
                 placeholder="Search by name or email..." 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)} 
-                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501]" 
+                className="w-full pl-9 pr-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-colors" 
               />
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-2.5">
               <select 
                 value={selectedRole} 
                 onChange={(e) => setSelectedRole(e.target.value)} 
-                className="sm:w-40 px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer hover:bg-gray-50"
+                className="sm:w-40 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-700 cursor-pointer transition-colors"
               >
                 <option value="all">All Roles</option>
                 <option value="ADMIN">Admin</option>
@@ -344,7 +353,7 @@ export function UsersRoles() {
               <select 
                 value={selectedStatus} 
                 onChange={(e) => setSelectedStatus(e.target.value)} 
-                className="sm:w-40 px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer hover:bg-gray-50"
+                className="sm:w-40 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-700 cursor-pointer transition-colors"
               >
                 <option value="all">All Status</option>
                 <option value="Active">Active</option>
@@ -354,114 +363,127 @@ export function UsersRoles() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-[#F5F7FA] border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">ISO Admin Office</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredUsers.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500 font-medium">No users found matching your filters.</td></tr>
-              ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-gray-900 font-bold">{user.full_name || "N/A"}</td>
-                    <td className="px-6 py-4 text-gray-600 font-medium">{user.email}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
-                        user.role === 'ADMIN' ? 'bg-[#FFF4E5] text-[#FF9501] border-[#FF9501]/30' : 
-                        user.role === 'FACULTY' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 
-                        'bg-green-50 text-[#006837] border-green-200'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 text-xs font-bold rounded-lg border ${
-                        user.administrative_office 
-                          ? 'bg-orange-50 text-[#D97E00] border-[#FF9501]/30'
-                          : 'bg-gray-50 text-gray-400 border-gray-200 font-normal'
-                      }`}>
-                        {user.administrative_office || "Academic Only"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                        (user.status || 'Active') === 'Active' 
-                        ? 'bg-green-50 border-green-200 text-green-700' 
-                        : 'bg-gray-100 border-gray-200 text-gray-500'
-                      }`}>
-                        {user.status || "Active"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => { setEditingUser({ ...user }); setShowEditUserModal(true); }}
-                        className="px-2.5 py-1 text-xs font-bold text-[#FF9501] bg-orange-50 hover:bg-orange-100 border border-[#FF9501]/30 rounded-lg transition-colors cursor-pointer"
-                        title="Edit User & Office Assignment"
-                      >
-                        Edit Office
-                      </button>
-                      {user.role !== 'ADMIN' && (
-                        (user.status || 'Active') === 'Active' ? (
-                          <button 
-                            onClick={() => { setUserToDisable(user); setShowDisableModal(true); }} 
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" 
-                            title="Disable Account"
-                          >
-                            <Ban className="h-5 w-5" />
-                          </button>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left whitespace-nowrap">
+              <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">ISO Admin Office</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200/70">
+                {filteredUsers.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-xs text-gray-400">No users found matching your filters.</td></tr>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-4 py-3 text-xs font-semibold text-gray-900">{user.full_name || "N/A"}</td>
+                      <td className="px-4 py-3 text-xs text-gray-600">{user.email}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${
+                          user.role === 'ADMIN' ? 'bg-orange-50 text-[#D97E00] border-[#FF9501]/30' : 
+                          user.role === 'FACULTY' ? 'bg-amber-50 text-amber-700 border-amber-200/60' : 
+                          'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {user.role === 'STUDENT' ? (
+                          <span className="text-xs text-gray-400">—</span>
                         ) : (
-                          <button 
-                            onClick={() => { setUserToEnable(user); setShowEnableModal(true); }} 
-                            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors cursor-pointer" 
-                            title="Re-enable Account"
-                          >
-                            <Unlock className="h-5 w-5" />
-                          </button>
-                        )
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                          <span className={`px-2 py-0.5 text-[10px] font-medium rounded border ${
+                            user.administrative_office 
+                              ? 'bg-blue-50 text-blue-700 border-blue-200/60'
+                              : 'bg-gray-100 text-gray-500 border-gray-200'
+                          }`}>
+                            {user.administrative_office || "Academic Only"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+                          (user.status || 'Active') === 'Active' 
+                          ? 'bg-emerald-50 border-emerald-200/60 text-emerald-700' 
+                          : 'bg-gray-100 border-gray-200 text-gray-500'
+                        }`}>
+                          {user.status || "Active"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {user.role !== 'STUDENT' && (
+                            <button
+                              onClick={() => { setEditingUser({ ...user }); setShowEditUserModal(true); }}
+                              className="px-2.5 py-1 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              title="Edit User & Office Assignment"
+                            >
+                              Edit Office
+                            </button>
+                          )}
+                          {user.role !== 'ADMIN' && (
+                            (user.status || 'Active') === 'Active' ? (
+                              <button 
+                                onClick={() => { setUserToDisable(user); setShowDisableModal(true); }} 
+                                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" 
+                                title="Disable Account"
+                              >
+                                <Ban className="h-3.5 w-3.5" />
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => { setUserToEnable(user); setShowEnableModal(true); }} 
+                                className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer" 
+                                title="Re-enable Account"
+                              >
+                                <Unlock className="h-3.5 w-3.5" />
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
       {/* --- ADD USER MODAL --- */}
       {showAddUserModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F5F7FA]">
-              <h2 className="text-xl font-bold text-[#1F2937]">Create User Account</h2>
-              <button onClick={() => setShowAddUserModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-gray-500" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-900">Create User Account</h2>
+                <p className="text-[11px] text-gray-500">Add a new user and assign institutional role</p>
+              </div>
+              <button onClick={() => setShowAddUserModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <form onSubmit={handleAddUserSubmit} className="p-6 space-y-5">
+            <form onSubmit={handleAddUserSubmit} className="p-5 space-y-3.5">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Full Name</label>
-                <input type="text" name="name" value={addUserData.name} onChange={handleAddUserChange} className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="e.g., Jane Doe" />
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Full Name</label>
+                <input type="text" name="name" value={addUserData.name} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="e.g., Jane Doe" />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Email Address</label>
-                <input type="email" name="email" value={addUserData.email} onChange={handleAddUserChange} className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="jane.doe@ctu.edu.ph" />
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Email Address</label>
+                <input type="email" name="email" value={addUserData.email} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="jane.doe@ctu.edu.ph" />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">System Role</label>
-                <select name="role" value={addUserData.role} onChange={handleAddUserChange} className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">System Role</label>
+                <select name="role" value={addUserData.role} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
                   <option value="" disabled>Select User Role</option>
                   <option value="ADMIN">Administrator</option>
                   <option value="FACULTY">Faculty</option>
@@ -471,12 +493,12 @@ export function UsersRoles() {
 
               {addUserData.role !== "STUDENT" && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Administrative Office (ISO Matrix Decoupled)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Administrative Office (ISO Matrix)</label>
                   <select 
                     name="administrative_office" 
                     value={addUserData.administrative_office} 
                     onChange={handleAddUserChange} 
-                    className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
                   >
                     <option value="">None / Unassigned (Academic Only)</option>
                     {ISO_OFFICES_16.map((off) => (
@@ -487,31 +509,31 @@ export function UsersRoles() {
               )}
 
               {addUserData.role === "FACULTY" && (
-                <div className="flex items-center gap-3 p-3 bg-orange-50/70 border border-[#FF9501]/30 rounded-xl">
+                <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#FF9501]/30 rounded-lg">
                   <input
                     type="checkbox"
                     id="add_is_iqa_auditor"
                     checked={addUserData.is_iqa_auditor}
                     onChange={(e) => setAddUserData({ ...addUserData, is_iqa_auditor: e.target.checked })}
-                    className="h-4 w-4 text-[#FF9501] focus:ring-[#FF9501] border-gray-300 rounded cursor-pointer"
+                    className="h-3.5 w-3.5 mt-0.5 text-[#FF9501] focus:ring-[#FF9501] border-gray-300 rounded cursor-pointer"
                   />
-                  <label htmlFor="add_is_iqa_auditor" className="text-xs font-bold text-gray-800 cursor-pointer">
-                    Designate as Internal Quality Auditor (IQA Auditor) — Grants Campus-Wide Audit Access
+                  <label htmlFor="add_is_iqa_auditor" className="text-xs text-gray-700 font-medium cursor-pointer">
+                    Designate as Internal Quality Auditor (IQA Auditor) — Campus-wide audit access
                   </label>
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Temporary Password</label>
-                <input type="password" name="password" value={addUserData.password} onChange={handleAddUserChange} className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="Enter secure password" />
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Temporary Password</label>
+                <input type="password" name="password" value={addUserData.password} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="Enter secure password" />
               </div>
             
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setShowAddUserModal(false)} className="flex-1 px-5 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+              <div className="pt-2 flex gap-2 justify-end border-t border-gray-200">
+                <button type="button" onClick={() => setShowAddUserModal(false)} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" disabled={isCreating} className="flex-1 px-5 py-3 text-sm font-bold bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer">
-                   {isCreating ? <><Loader2 className="h-4 w-4 animate-spin"/> Creating...</> : "Create Account"}
+                <button type="submit" disabled={isCreating} className="px-4 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                   {isCreating ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Creating...</> : "Create Account"}
                 </button>
               </div>
             </form>
@@ -521,74 +543,77 @@ export function UsersRoles() {
 
       {/* --- EDIT USER & OFFICE ASSIGNMENT MODAL --- */}
       {showEditUserModal && editingUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F5F7FA]">
-              <h2 className="text-xl font-bold text-[#1F2937]">Edit User & Office Assignment</h2>
-              <button onClick={() => setShowEditUserModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-gray-500" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-900">Edit User & Office Assignment</h2>
+                <p className="text-[11px] text-gray-500">Update metadata and administrative permissions</p>
+              </div>
+              <button onClick={() => setShowEditUserModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <form onSubmit={handleEditUserSubmit} className="p-6 space-y-5">
+            <form onSubmit={handleEditUserSubmit} className="p-5 space-y-3.5">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Full Name</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Full Name</label>
                 <input 
                   type="text" 
                   value={editingUser.full_name || ""} 
                   onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })} 
-                  className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501]" 
+                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" 
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Email Address</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Email Address</label>
                 <input 
                   type="email" 
                   value={editingUser.email || ""} 
                   disabled 
-                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 cursor-not-allowed" 
+                  className="w-full px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-xs text-gray-400 cursor-not-allowed" 
                 />
               </div>
 
               {editingUser.role !== "STUDENT" && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Administrative Office (Decoupled ISO Matrix)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Administrative Office (ISO Matrix)</label>
                   <select 
                     value={editingUser.administrative_office || ""} 
                     onChange={(e) => setEditingUser({ ...editingUser, administrative_office: e.target.value })} 
-                    className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
                   >
                     <option value="">None / Unassigned (Academic Only)</option>
                     {ISO_OFFICES_16.map((off) => (
                       <option key={off} value={off}>{off}</option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">Assigning an office will automatically default their ISO Audit Dashboard to that office.</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Assigning an office defaults their ISO audit dashboard to that office.</p>
                 </div>
               )}
 
               {editingUser.role === "FACULTY" && (
-                <div className="flex items-center gap-3 p-3 bg-orange-50/70 border border-[#FF9501]/30 rounded-xl">
+                <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#FF9501]/30 rounded-lg">
                   <input
                     type="checkbox"
                     id="edit_is_iqa_auditor"
                     checked={Boolean(editingUser.is_iqa_auditor)}
                     onChange={(e) => setEditingUser({ ...editingUser, is_iqa_auditor: e.target.checked })}
-                    className="h-4 w-4 text-[#FF9501] focus:ring-[#FF9501] border-gray-300 rounded cursor-pointer"
+                    className="h-3.5 w-3.5 mt-0.5 text-[#FF9501] focus:ring-[#FF9501] border-gray-300 rounded cursor-pointer"
                   />
-                  <label htmlFor="edit_is_iqa_auditor" className="text-xs font-bold text-gray-800 cursor-pointer">
-                    Designate as Internal Quality Auditor (IQA Auditor) — Grants Campus-Wide Audit Access
+                  <label htmlFor="edit_is_iqa_auditor" className="text-xs text-gray-700 font-medium cursor-pointer">
+                    Designate as Internal Quality Auditor (IQA Auditor) — Campus-wide audit access
                   </label>
                 </div>
               )}
             
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setShowEditUserModal(false)} className="flex-1 px-5 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+              <div className="pt-2 flex gap-2 justify-end border-t border-gray-200">
+                <button type="button" onClick={() => setShowEditUserModal(false)} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" disabled={isUpdatingUser} className="flex-1 px-5 py-3 text-sm font-bold bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer">
-                   {isUpdatingUser ? <><Loader2 className="h-4 w-4 animate-spin"/> Saving...</> : "Save Office Assignment"}
+                <button type="submit" disabled={isUpdatingUser} className="px-4 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                   {isUpdatingUser ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Saving...</> : "Save Assignment"}
                 </button>
               </div>
             </form>
@@ -598,33 +623,33 @@ export function UsersRoles() {
 
       {/* --- DISABLE ACCOUNT MODAL --- */}
       {showDisableModal && userToDisable && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-red-100 bg-red-50 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <ShieldAlert className="h-6 w-6 text-red-600" />
-                <h2 className="text-xl font-bold text-red-700">Disable Account</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 bg-rose-50/50 flex justify-between items-center">
+              <div className="flex items-center gap-2 text-rose-700">
+                <ShieldAlert className="h-4 w-4" />
+                <h2 className="text-xs font-semibold">Disable Account</h2>
               </div>
-              <button onClick={() => setShowDisableModal(false)} className="p-2 hover:bg-red-100 rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-red-700" />
+              <button onClick={() => setShowDisableModal(false)} className="p-1 hover:bg-rose-100 rounded-md transition-colors cursor-pointer text-rose-700">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 leading-relaxed">
-                You are about to disable the account for <span className="font-bold text-gray-900">{userToDisable.full_name} ({userToDisable.email})</span>.
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                You are about to disable the account for <span className="font-semibold text-gray-900">{userToDisable.full_name} ({userToDisable.email})</span>.
               </p>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                They will immediately lose access to log into the system. However, any documents or evidence they previously uploaded will remain intact for audit purposes.
+              <p className="text-xs text-gray-500 leading-relaxed">
+                They will lose login access, but previously uploaded records will remain intact.
               </p>
             </div>
 
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => setShowDisableModal(false)} disabled={isDisabling} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
+              <button onClick={() => setShowDisableModal(false)} disabled={isDisabling} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                 Cancel
               </button>
-              <button onClick={executeDisable} disabled={isDisabling} className="px-5 py-2.5 text-sm font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer">
-                {isDisabling ? <><Loader2 className="h-4 w-4 animate-spin"/> Disabling...</> : "Yes, Disable Account"}
+              <button onClick={executeDisable} disabled={isDisabling} className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-rose-600 hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                {isDisabling ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Disabling...</> : "Disable Account"}
               </button>
             </div>
           </div>
@@ -633,33 +658,30 @@ export function UsersRoles() {
 
       {/* --- ENABLE ACCOUNT MODAL --- */}
       {showEnableModal && userToEnable && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-green-100 bg-green-50 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <Unlock className="h-6 w-6 text-green-600" />
-                <h2 className="text-xl font-bold text-green-700">Re-enable Account</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 bg-emerald-50/50 flex justify-between items-center">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <Unlock className="h-4 w-4" />
+                <h2 className="text-xs font-semibold">Re-enable Account</h2>
               </div>
-              <button onClick={() => setShowEnableModal(false)} className="p-2 hover:bg-green-100 rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-green-700" />
+              <button onClick={() => setShowEnableModal(false)} className="p-1 hover:bg-emerald-100 rounded-md transition-colors cursor-pointer text-emerald-700">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 leading-relaxed">
-                You are about to restore login access for <span className="font-bold text-gray-900">{userToEnable.full_name} ({userToEnable.email})</span>.
-              </p>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                They will immediately be able to log back into the dashboard using their existing password.
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                Restore login access for <span className="font-semibold text-gray-900">{userToEnable.full_name} ({userToEnable.email})</span>.
               </p>
             </div>
 
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => setShowEnableModal(false)} disabled={isEnabling} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
+              <button onClick={() => setShowEnableModal(false)} disabled={isEnabling} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                 Cancel
               </button>
-              <button onClick={executeEnable} disabled={isEnabling} className="px-5 py-2.5 text-sm font-bold text-white rounded-xl bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer">
-                {isEnabling ? <><Loader2 className="h-4 w-4 animate-spin"/> Enabling...</> : "Yes, Re-enable"}
+              <button onClick={executeEnable} disabled={isEnabling} className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                {isEnabling ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Enabling...</> : "Re-enable Account"}
               </button>
             </div>
           </div>
@@ -668,33 +690,33 @@ export function UsersRoles() {
 
       {/* --- REJECT PENDING ACCOUNT MODAL --- */}
       {showRejectModal && userToReject && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-red-100 bg-red-50 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <UserX className="h-6 w-6 text-red-600" />
-                <h2 className="text-xl font-bold text-red-700">Reject Registration</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 bg-rose-50/50 flex justify-between items-center">
+              <div className="flex items-center gap-2 text-rose-700">
+                <UserX className="h-4 w-4" />
+                <h2 className="text-xs font-semibold">Reject Registration</h2>
               </div>
-              <button onClick={() => setShowRejectModal(false)} className="p-2 hover:bg-red-100 rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-red-700" />
+              <button onClick={() => setShowRejectModal(false)} className="p-1 hover:bg-rose-100 rounded-md transition-colors cursor-pointer text-rose-700">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Are you sure you want to reject the faculty registration for <span className="font-bold text-gray-900">{userToReject.email}</span>?
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                Are you sure you want to reject the faculty registration for <span className="font-semibold text-gray-900">{userToReject.email}</span>?
               </p>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Since this account was never approved, this action will permanently delete their request from the system.
+              <p className="text-xs text-gray-500 leading-relaxed">
+                This will permanently delete their pending request.
               </p>
             </div>
 
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
-              <button onClick={() => setShowRejectModal(false)} disabled={isRejecting} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
+              <button onClick={() => setShowRejectModal(false)} disabled={isRejecting} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                 Cancel
               </button>
-              <button onClick={executeReject} disabled={isRejecting} className="px-5 py-2.5 text-sm font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer">
-                {isRejecting ? <><Loader2 className="h-4 w-4 animate-spin"/> Rejecting...</> : "Reject Request"}
+              <button onClick={executeReject} disabled={isRejecting} className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-rose-600 hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                {isRejecting ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Rejecting...</> : "Reject Request"}
               </button>
             </div>
           </div>
