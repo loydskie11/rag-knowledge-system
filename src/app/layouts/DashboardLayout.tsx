@@ -121,8 +121,8 @@ export function DashboardLayout() {
               <Menu className="h-5 w-5" />
             </button>
 
-            <div className="w-9 h-9 bg-[#FF9501] rounded-lg flex items-center justify-center shrink-0">
-              <GraduationCap className="h-5 w-5 text-white" />
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+              <img src="/ctu-logo.png" alt="CTU Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="text-xs sm:text-sm font-bold text-gray-900 leading-tight">CTU Argao Campus</div>
@@ -214,8 +214,8 @@ export function DashboardLayout() {
             {/* Mobile Header with Close Button */}
             <div className="p-4 border-b border-gray-200 flex items-center justify-between md:hidden bg-gray-50/60 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-[#FF9501] rounded-lg flex items-center justify-center">
-                  <GraduationCap className="h-5 w-5 text-white" />
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                  <img src="/ctu-logo.png" alt="CTU Logo" className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <div className="text-xs font-bold text-gray-900 leading-tight">CTU Argao Campus</div>
@@ -232,7 +232,7 @@ export function DashboardLayout() {
             </div>
 
             <div className="flex flex-col h-full overflow-hidden">
-              <div className="flex-1 overflow-y-auto py-3 px-2.5 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto pt-4.5 pb-3 px-2.5 custom-scrollbar space-y-1">
                 {menuItems.map((item: any) => {
                   const isActive = location.pathname === item.path;
                   const Icon = item.icon;
