@@ -128,65 +128,65 @@ export function GradeEvaluation() {
   };
 
   const getStatusBadge = (status: string) => {
-    if (status === "Dean's Lister") return "bg-gradient-to-r from-[#D4AF37] to-[#FDB913] text-white shadow-sm border border-[#D4AF37]";
-    if (status === "Pass") return "bg-[#006837] text-white shadow-sm";
-    if (status === "Fail") return "bg-[#CE0000] text-white shadow-sm";
-    return "bg-[#FDB913] text-gray-900 shadow-sm";
+    if (status === "Dean's Lister") return "bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold";
+    if (status === "Pass") return "bg-emerald-50 text-emerald-800 border border-emerald-200/60 font-semibold";
+    if (status === "Fail") return "bg-rose-50 text-rose-800 border border-rose-200/60 font-semibold";
+    return "bg-gray-100 text-gray-800 border border-gray-200 font-semibold";
   };
 
   const cumulativeData = result && Array.isArray(result.semesters) ? getCumulativeMath(result.semesters) : { gwa: "N/A", status: "Unknown" };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-300">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">AI Grade Evaluation</h2>
-        <p className="text-gray-600 mt-1">Upload your CTU grade slip for instant academic analysis.</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Grade Evaluation</h1>
+        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Upload your CTU grade slip for instant academic analysis and GWA verification.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
         {/* --- UPLOAD SECTION --- */}
         <div className="lg:col-span-1 space-y-4 sticky top-6 self-start">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 bg-gray-50/80 border-b border-gray-100">
-              <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                <Upload className="h-4 w-4 text-[#FF9501]" /> Document Upload
+          <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden">
+            <div className="p-3.5 bg-gray-50/80 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900 text-xs flex items-center gap-2">
+                <Upload className="h-3.5 w-3.5 text-[#FF9501]" /> Document Upload
               </h3>
             </div>
             
-            <div className="p-6">
+            <div className="p-5">
               <div 
                 onDragOver={(e) => {e.preventDefault(); setIsDragging(true)}}
                 onDragLeave={(e) => {e.preventDefault(); setIsDragging(false)}}
                 onDrop={handleDrop}
                 onClick={() => !selectedFile && fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
+                className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
                   selectedFile ? "border-transparent bg-transparent p-0" : 
-                  isDragging ? "border-[#FF9501] bg-[#FFF4E5] cursor-pointer" : "border-gray-200 hover:border-[#FF9501] bg-gray-50 hover:bg-gray-50/50 cursor-pointer"
+                  isDragging ? "border-[#FF9501] bg-orange-50/30 cursor-pointer" : "border-gray-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
                 }`}
               >
-                {/* IMPROVED FILE DISPLAY WITH CLOSE ICON */}
+                {/* FILE DISPLAY WITH CLOSE ICON */}
                 {selectedFile ? (
-                  <div className="relative flex flex-col items-center p-6 border border-[#FF9501]/20 bg-[#FFF4E5]/50 rounded-xl group transition-all hover:border-[#FF9501]/40">
+                  <div className="relative flex flex-col items-center p-4 border border-gray-200 bg-gray-50/50 rounded-xl group transition-all">
                     <button 
                       onClick={handleRemoveFile}
-                      className="absolute top-3 right-3 p-1.5 bg-white text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full shadow-sm transition-all opacity-80 group-hover:opacity-100"
+                      className="absolute top-2.5 right-2.5 p-1 bg-white text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-md border border-gray-200 transition-all cursor-pointer"
                       title="Remove PDF"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                    <div className="p-3 bg-white rounded-full shadow-sm mb-3">
-                      <FileText className="h-8 w-8 text-[#FF9501]" />
+                    <div className="p-2.5 bg-white rounded-lg border border-gray-200 mb-2">
+                      <FileText className="h-6 w-6 text-[#FF9501]" />
                     </div>
-                    <p className="text-sm font-bold text-[#1F2937] text-center px-4 truncate w-full">{selectedFile.name}</p>
-                    <p className="text-xs font-medium text-[#6B7280] mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    <p className="text-xs font-semibold text-gray-900 text-center px-2 truncate w-full">{selectedFile.name}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
                 ) : (
                   <div>
-                    <div className="mx-auto w-12 h-12 bg-white rounded-full shadow-sm border border-gray-100 flex items-center justify-center mb-4">
-                      <Upload className="h-6 w-6 text-gray-400" />
+                    <div className="mx-auto w-10 h-10 bg-white rounded-lg border border-gray-200 flex items-center justify-center mb-3 text-gray-400">
+                      <Upload className="h-5 w-5" />
                     </div>
-                    <p className="text-sm font-semibold text-gray-700">Click or drag PDF here</p>
-                    <p className="text-xs text-gray-400 mt-2">Max file size: 10MB</p>
+                    <p className="text-xs font-semibold text-gray-800">Click or drag PDF grade slip</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Supports official CTU grade slip PDF (Max 10MB)</p>
                   </div>
                 )}
                 <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
@@ -195,16 +195,16 @@ export function GradeEvaluation() {
               <button
                 onClick={submitForEvaluation}
                 disabled={!selectedFile || isEvaluating}
-                className="w-full mt-6 py-3.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-all disabled:opacity-50 disabled:hover:bg-[#FF9501] flex justify-center items-center gap-2 font-bold shadow-md active:scale-[0.98]"
+                className="w-full mt-4 py-2.5 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all disabled:opacity-50 disabled:hover:bg-[#FF9501] flex justify-center items-center gap-2 text-xs font-semibold shadow-2xs cursor-pointer active:scale-95"
               >
-                {isEvaluating ? <><Loader2 className="h-5 w-5 animate-spin" /> Analyzing Grades...</> : "Evaluate Performance"}
+                {isEvaluating ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing Grades...</> : "Evaluate Performance"}
               </button>
 
-              <div className="mt-6 p-4 bg-gray-50 border border-gray-100 rounded-xl flex gap-3">
-                <AlertCircle className="h-5 w-5 text-[#FF9501] flex-shrink-0" />
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  <span className="font-semibold text-gray-700 block mb-0.5">Privacy Guarantee</span>
-                  Uploaded grades are processed ephemerally in RAM and are never saved to the database.
+              <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  <span className="font-medium text-gray-700 block">Privacy Guarantee</span>
+                  Uploaded grades are processed ephemerally in RAM and are never permanently stored.
                 </p>
               </div>
             </div>
@@ -214,121 +214,117 @@ export function GradeEvaluation() {
         {/* --- RESULTS SECTION --- */}
         <div className="lg:col-span-2">
           {isEvaluating ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-full min-h-[600px] flex flex-col items-center justify-center p-8 text-center animate-pulse">
-              <div className="relative">
-                <div className="absolute inset-0 bg-[#FF9501] rounded-full blur-xl opacity-20 animate-pulse"></div>
-                <Loader2 className="h-16 w-16 text-[#FF9501] animate-spin mb-6 relative z-10 mx-auto" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Extracting Academic Data...</h3>
-              <p className="text-gray-500 max-w-sm mt-3 leading-relaxed">The AI is currently scanning your transcript to accurately extract subjects and perform deterministic math.</p>
+            <div className="bg-white rounded-xl shadow-2xs border border-gray-200 h-full min-h-[460px] flex flex-col items-center justify-center p-8 text-center">
+              <Loader2 className="h-8 w-8 text-[#FF9501] animate-spin mb-4" />
+              <h3 className="text-base font-semibold text-gray-900">Extracting Academic Data...</h3>
+              <p className="text-xs text-gray-500 max-w-sm mt-1.5 leading-relaxed">Scanning transcripts and computing weighted averages using deterministic CTU grading mathematics.</p>
             </div>
           ) : result ? (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden h-full animate-in slide-in-from-bottom-4 duration-500">
-              <div className={`h-2.5 w-full ${cumulativeData.status === "Dean's Lister" ? "bg-gradient-to-r from-[#D4AF37] via-[#FDB913] to-[#D4AF37]" : "bg-[#006837]"}`}></div>
-              
-              <div className="p-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden h-full animate-in fade-in duration-300">
+              <div className="p-6 sm:p-7">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                   <div>
-                    <h3 className="font-extrabold text-gray-900 text-2xl flex items-center gap-2 mb-1">
-                      <TrendingUp className="h-6 w-6 text-[#FF9501]" /> Academic Evaluation
+                    <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                      Academic Evaluation Result
                     </h3>
-                    <p className="text-sm text-gray-500 font-medium">Official CTU Ruleset Applied</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Official CTU Grading Ruleset Applied</p>
                   </div>
-                  <span className={`px-5 py-2 rounded-full text-sm tracking-wide font-bold flex items-center gap-2 ${getStatusBadge(cumulativeData.status)}`}>
-                    {cumulativeData.status === "Dean's Lister" && <Award className="h-4 w-4" />}
+                  <span className={`px-3 py-1 rounded-full text-xs tracking-wide font-semibold flex items-center gap-1.5 self-start sm:self-auto ${getStatusBadge(cumulativeData.status)}`}>
+                    {cumulativeData.status === "Dean's Lister" && <Award className="h-3.5 w-3.5" />}
                     {cumulativeData.status}
                   </span>
                 </div>
 
-                {/* Massive GWA Card */}
-                <div className="flex flex-col md:flex-row items-center justify-between p-8 bg-gray-50/80 border border-gray-100 rounded-2xl mb-8">
-                  <div className="text-center md:text-left mb-4 md:mb-0">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Total Cumulative GWA</h4>
-                    <p className="text-6xl font-black text-[#FF9501] tracking-tight">{cumulativeData.gwa}</p>
+                {/* GWA Card */}
+                <div className="flex flex-col sm:flex-row items-center justify-between p-5 bg-gray-50/80 border border-gray-200 rounded-xl mb-6 gap-4">
+                  <div className="text-center sm:text-left">
+                    <h4 className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Total Cumulative GWA</h4>
+                    <p className="text-4xl font-extrabold text-gray-900 tracking-tight">{cumulativeData.gwa}</p>
                   </div>
-                  <div className="hidden md:block w-px h-16 bg-gray-200 mx-8"></div>
-                  <div className="text-center md:text-left max-w-[280px]">
-                    <p className="text-sm text-gray-600 font-medium leading-relaxed">Calculated natively via deterministic mathematics ensuring 100% precision from extracted AI data.</p>
+                  <div className="hidden sm:block w-px h-12 bg-gray-200"></div>
+                  <div className="text-center sm:text-left max-w-[280px]">
+                    <p className="text-xs text-gray-500 leading-relaxed">Calculated natively via deterministic mathematics ensuring 100% precision from extracted AI data.</p>
                   </div>
                 </div>
 
                 {Array.isArray(result.semesters) && (
-                  <div className="mb-10 space-y-4">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <Calendar className="h-4 w-4" /> Semester Breakdown
+                  <div className="mb-6 space-y-3">
+                    <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">
+                      Semester Breakdown
                     </h3>
                     
                     {result.semesters.map((sem, idx) => {
                       const math = getAccurateMath(sem); 
                       
                       return (
-                        <div key={idx} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 relative z-10">
+                        <div key={idx} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-2xs transition-all">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4">
                             
-                            <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                              <div className="bg-[#FFF4E5]/50 p-2.5 rounded-xl border border-[#FF9501]/20">
-                                <BookOpen className="h-5 w-5 text-[#FF9501]" />
+                            <div className="flex items-center gap-3 mb-3 sm:mb-0">
+                              <div className="bg-gray-100 p-2 rounded-lg text-gray-600">
+                                <BookOpen className="h-4 w-4" />
                               </div>
                               <div>
-                                <span className="block font-bold text-gray-900 text-base">{sem.semester_name || "Unknown Semester"}</span>
-                                <span className="block text-sm text-gray-500 mt-0.5 font-medium">Evaluated Units: {math.totalUnits}</span>
+                                <span className="block font-semibold text-gray-900 text-xs sm:text-sm">{sem.semester_name || "Unknown Semester"}</span>
+                                <span className="block text-[11px] text-gray-500 mt-0.5">Evaluated Units: {math.totalUnits}</span>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-5 sm:pl-6 sm:border-l border-gray-100">
+                            <div className="flex items-center gap-4 sm:pl-5 sm:border-l border-gray-100">
                               <div className="text-right">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-0.5">Semester GWA</span>
-                                <span className="text-2xl font-black text-[#1F2937] leading-none">{math.gwa}</span>
+                                <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider block">Semester GWA</span>
+                                <span className="text-lg font-bold text-gray-900 leading-none">{math.gwa}</span>
                               </div>
                               {Array.isArray(sem.subjects_scratchpad) && (
                                 <button 
                                   onClick={() => toggleSemester(idx)} 
-                                  className={`p-2.5 rounded-xl transition-all ${expandedSemesters.includes(idx) ? 'bg-[#FF9501] text-white shadow-md' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}
+                                  className={`p-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
+                                    expandedSemesters.includes(idx) 
+                                      ? 'bg-gray-900 text-white border-gray-900' 
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                  }`}
+                                  title="Toggle details"
                                 >
-                                  {expandedSemesters.includes(idx) ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                                  {expandedSemesters.includes(idx) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                 </button>
                               )}
                             </div>
                           </div>
 
-                          {/* CLEANER MISSING GRADES BANNER */}
+                          {/* MISSING GRADES BANNER */}
                           {sem.has_missing_grades && (
-                            <div className="px-5 py-2.5 bg-red-50/80 border-t border-red-100 flex items-center gap-2">
-                              <AlertTriangle className="h-4 w-4 text-red-600" />
-                              <span className="text-xs font-bold text-red-700">Missing/Pending Grades Detected — GWA is partially calculated.</span>
+                            <div className="px-4 py-2 bg-rose-50 border-t border-rose-100 flex items-center gap-2">
+                              <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                              <span className="text-[11px] font-medium text-rose-700">Missing or incomplete grades detected in this semester.</span>
                             </div>
                           )}
 
                           {/* MATH SCRATCHPAD */}
                           {expandedSemesters.includes(idx) && Array.isArray(sem.subjects_scratchpad) && (
-                            <div className="border-t border-gray-100 bg-[#F9FAFB] p-5">
-                              <div className="flex items-center gap-2 mb-4">
-                                <Calculator className="h-4 w-4 text-gray-400" />
-                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Calculation Breakdown</span>
-                              </div>
+                            <div className="border-t border-gray-200 bg-gray-50/50 p-4">
                               <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
+                                <table className="w-full text-left text-xs">
                                   <thead>
-                                    <tr className="text-xs text-gray-400 border-b border-gray-200 uppercase tracking-wider">
-                                      <th className="pb-3 font-semibold">Subject</th>
-                                      <th className="pb-3 font-semibold text-center">Units</th>
-                                      <th className="pb-3 font-semibold text-center">Grade</th>
-                                      <th className="pb-3 font-semibold text-right">Weighted</th>
+                                    <tr className="text-[11px] text-gray-500 border-b border-gray-200 uppercase tracking-wider font-medium">
+                                      <th className="pb-2 font-medium">Subject</th>
+                                      <th className="pb-2 font-medium text-center">Units</th>
+                                      <th className="pb-2 font-medium text-center">Grade</th>
+                                      <th className="pb-2 font-medium text-right">Weighted</th>
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-gray-100">
+                                  <tbody className="divide-y divide-gray-200/60">
                                     {sem.subjects_scratchpad.map((item, i) => (
-                                      <tr key={i} className={`text-gray-700 hover:bg-white transition-colors ${!item.grade || item.grade === 0 ? 'opacity-50' : ''}`}>
-                                        <td className="py-3 font-medium text-gray-900 truncate max-w-[180px]">{item.subject}</td>
-                                        <td className="py-3 text-center text-gray-600">{item.units}</td>
-                                        <td className="py-3 text-center">
+                                      <tr key={i} className={`text-gray-700 hover:bg-white/60 transition-colors ${!item.grade || item.grade === 0 ? 'opacity-50' : ''}`}>
+                                        <td className="py-2.5 font-medium text-gray-900 truncate max-w-[180px]">{item.subject}</td>
+                                        <td className="py-2.5 text-center text-gray-600">{item.units}</td>
+                                        <td className="py-2.5 text-center">
                                           {item.grade > 0 ? (
-                                            <span className="font-bold text-[#006837] bg-green-50 px-2 py-1 rounded-md">{item.grade}</span>
+                                            <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded text-[11px]">{item.grade}</span>
                                           ) : (
-                                            <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-md">INC/NONE</span>
+                                            <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200/60 px-1.5 py-0.5 rounded">INC</span>
                                           )}
                                         </td>
-                                        <td className="py-3 text-right font-medium text-gray-500">{(item.units * item.grade).toFixed(2)}</td>
+                                        <td className="py-2.5 text-right font-medium text-gray-500">{(item.units * item.grade).toFixed(2)}</td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -343,36 +339,36 @@ export function GradeEvaluation() {
                 )}
                 
                 {/* Advisor Summary */}
-                <div className="mb-8">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Advisor Summary</h3>
-                  <div className="p-6 bg-[#FFF4E5]/40 rounded-2xl border border-[#FF9501]/20">
-                    <p className="text-gray-700 font-medium leading-relaxed">{result.summary || "Summary generation skipped by AI."}</p>
+                <div className="mb-6">
+                  <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Advisor Summary</h3>
+                  <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-200">
+                    <p className="text-gray-700 text-xs leading-relaxed">{result.summary || "Summary generation skipped by AI."}</p>
                   </div>
                 </div>
 
                 {/* Recommendations */}
                 <div>
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Recommended Actions</h3>
-                  <div className="space-y-3">
+                  <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2.5">Recommended Actions</h3>
+                  <div className="space-y-2">
                     {Array.isArray(result.recommendations) ? result.recommendations.map((rec, index) => (
-                      <div key={index} className="flex items-start gap-4 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-gray-200 transition-colors">
-                        <CheckCircle className="h-5 w-5 text-[#006837] mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-700 text-sm font-medium leading-relaxed">{rec}</span>
+                      <div key={index} className="flex items-start gap-3 p-3.5 bg-white border border-gray-200 rounded-xl shadow-2xs">
+                        <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                        <span className="text-gray-700 text-xs leading-relaxed">{rec}</span>
                       </div>
-                    )) : <p className="text-sm text-gray-500">AI did not provide recommendations.</p>}
+                    )) : <p className="text-xs text-gray-500">AI did not provide recommendations.</p>}
                   </div>
                 </div>
 
               </div>
             </div>
           ) : (
-            <div className="bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 h-full min-h-[600px] flex items-center justify-center p-8">
+            <div className="bg-gray-50/50 rounded-xl border-2 border-dashed border-gray-200 h-full min-h-[460px] flex items-center justify-center p-8">
                <div className="text-center">
-                 <div className="bg-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
-                    <FileText className="h-8 w-8 text-gray-300" />
+                 <div className="bg-white w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-2xs border border-gray-200 text-gray-400">
+                    <FileText className="h-6 w-6" />
                  </div>
-                 <h3 className="text-lg font-bold text-gray-400">Awaiting Grade Slip</h3>
-                 <p className="text-sm text-gray-400 mt-2 max-w-[250px] mx-auto">Upload a document to view your personalized academic evaluation.</p>
+                 <h3 className="text-sm font-semibold text-gray-700">Awaiting Grade Slip</h3>
+                 <p className="text-xs text-gray-400 mt-1 max-w-[240px] mx-auto">Upload a PDF grade slip to view your verified GWA and academic evaluation.</p>
                </div>
             </div>
           )}

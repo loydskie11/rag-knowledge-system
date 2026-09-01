@@ -461,41 +461,42 @@ export function KnowledgeRepository() {
   return (
     <div className="space-y-6 flex flex-col h-[calc(100vh-6rem)] relative">
       
-      {/* TOAST NOTIFICATION - Updated to Amber scheme */}
+      {/* TOAST NOTIFICATION */}
       {toast && (
-        <div className={`fixed bottom-8 right-8 px-6 py-4 rounded-xl shadow-xl flex items-center gap-3 text-sm font-bold z-[100] transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in ${
+        <div className={`fixed bottom-8 right-8 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-medium z-[100] transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in ${
           toast.type === 'success' 
-            ? 'bg-[#FFF4E5] text-[#D97E00] border-2 border-[#FF9501]/20' 
-            : 'bg-red-50 text-red-700 border-2 border-red-200'
+            ? 'bg-[#FFF4E5] text-[#D97E00] border border-[#FF9501]/30' 
+            : 'bg-rose-50 text-rose-800 border border-rose-200'
         }`}>
-          {toast.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+          {toast.type === 'success' ? <CheckCircle className="h-4 w-4 text-[#FF9501]" /> : <AlertCircle className="h-4 w-4 text-rose-500" />}
           {toast.message}
         </div>
       )}
 
-      <div className="flex-none space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="flex-none space-y-4">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-[#1F2937]">Knowledge Repository</h1>
-            <p className="text-sm text-[#6B7280] mt-1">Centralized storage for institutional documents and policies</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Knowledge Repository</h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Centralized storage for institutional documents, policies, and evidence.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${accessBadge.color}`}>
-              <accessBadge.icon className="h-4 w-4" />
-              <span className="text-sm font-medium">{accessBadge.label}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50/60 text-gray-700 text-xs font-medium">
+              <accessBadge.icon className="h-3.5 w-3.5 text-gray-500" />
+              <span>{accessBadge.label}</span>
             </div>
             
             {canEdit && (
               <button
                 onClick={() => setShowArchived(!showArchived)}
-                className={`flex items-center justify-center w-40 gap-2 px-4 py-2 rounded-lg border transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
                   showArchived 
-                    ? "bg-[#1F2937] text-white border-[#1F2937] hover:bg-gray-700" 
-                    : "bg-white text-gray-700 border-[#E5E7EB] hover:bg-[#F9FAFB]"
+                    ? "bg-gray-900 text-white border-gray-900 hover:bg-black" 
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                 }`}
               >
-                <Archive className="h-4 w-4 flex-shrink-0" />
-                <span className="text-sm font-medium whitespace-nowrap">
+                <Archive className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="whitespace-nowrap">
                   {showArchived ? "Hide Archived" : "Show Archived"}
                 </span>
               </button>
@@ -504,10 +505,10 @@ export function KnowledgeRepository() {
             {activeUploads.some(t => t.status === 'uploading' || t.status === 'vectorizing') && (
               <button
                 onClick={() => setIsQueueMinimized(false)}
-                className="flex items-center gap-2 px-3.5 py-2 bg-orange-50 text-[#D97E00] border border-[#FF9501]/30 rounded-lg text-xs font-bold animate-pulse cursor-pointer shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-[#D97E00] border border-[#FF9501]/30 rounded-lg text-xs font-semibold cursor-pointer shadow-2xs"
                 title="View active ingestion progress"
               >
-                <UploadCloud className="h-4 w-4 text-[#FF9501] animate-bounce" />
+                <UploadCloud className="h-3.5 w-3.5 text-[#FF9501] animate-bounce" />
                 <span>Ingesting ({activeUploads.filter(t => t.status === 'uploading' || t.status === 'vectorizing').length})</span>
               </button>
             )}
@@ -515,31 +516,31 @@ export function KnowledgeRepository() {
             {canUpload && (
               <button
                 onClick={() => setShowUploadModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all cursor-pointer shadow-sm active:scale-95"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#FF9501] text-white text-xs font-semibold rounded-lg hover:bg-[#D97E00] transition-all cursor-pointer shadow-2xs active:scale-95"
               >
-                <Upload className="h-4 w-4" />
-                <span className="text-sm font-medium">Upload Document</span>
+                <Upload className="h-3.5 w-3.5" />
+                <span>Upload Document</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Search and Filters Bar */}
-        <div className="bg-white p-5 rounded-lg border border-[#E5E7EB] shadow-sm">
-          <div className="flex flex-col lg:flex-row gap-4">
+        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+          <div className="flex flex-col lg:flex-row gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#9CA3AF]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search by document name, category, office, or date..."
-                className="w-full pl-11 pr-4 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-colors"
+                className="w-full pl-9 pr-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-colors"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-2.5">
               <select
-                className="sm:w-44 px-4 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-[#374151] cursor-pointer hover:bg-gray-50 transition-colors"
+                className="sm:w-44 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-700 cursor-pointer transition-colors"
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
               >
@@ -554,7 +555,7 @@ export function KnowledgeRepository() {
               </select>
               
               <select
-                className="sm:w-44 px-4 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-[#374151] cursor-pointer hover:bg-gray-50 transition-colors"
+                className="sm:w-44 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-700 cursor-pointer transition-colors"
                 value={selectedOffice}
                 onChange={(e) => setSelectedOffice(e.target.value)}
               >
@@ -566,7 +567,7 @@ export function KnowledgeRepository() {
               </select>
 
               <select
-                className="sm:w-44 px-4 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-[#374151] cursor-pointer hover:bg-gray-50 transition-colors"
+                className="sm:w-44 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-700 cursor-pointer transition-colors"
                 value={selectedProgram}
                 onChange={(e) => setSelectedProgram(e.target.value)}
                 disabled={currentRole === "FACULTY"}
@@ -598,82 +599,82 @@ export function KnowledgeRepository() {
         </div>
       </div>
 
-      <div className="flex-1 h-auto bg-white rounded-lg border border-[#E5E7EB] shadow-sm flex flex-col min-h-0 overflow-hidden">
+      <div className="flex-1 h-auto bg-white rounded-xl border border-gray-200 shadow-2xs flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 h-auto overflow-auto">
           <table className="w-full whitespace-nowrap relative table-fixed">
-            <thead className="bg-[#FF9501] text-white sticky top-0 z-20 shadow-md outline outline-1 outline-[#FF9501]">
+            <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 z-20">
               <tr>
-                <th className="w-[28%] px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider">Document Name</th>
-                <th className="w-[16%] px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider">Category & Program</th>
-                <th className="w-[16%] px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider">Office</th>
-                <th className="w-[8%] px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider">Version</th>
-                <th className="w-[12%] px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider">Effectivity</th>
-                <th className="w-[8%] px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
-                <th className="w-[12%] px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider">Actions</th>
+                <th className="w-[28%] px-4 py-3 text-left">Document Name</th>
+                <th className="w-[18%] px-4 py-3 text-left">Category & Program</th>
+                <th className="w-[16%] px-4 py-3 text-left">Office</th>
+                <th className="w-[8%] px-4 py-3 text-left">Version</th>
+                <th className="w-[12%] px-4 py-3 text-left">Effectivity</th>
+                <th className="w-[8%] px-4 py-3 text-left">Status</th>
+                <th className="w-[10%] px-4 py-3 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="h-auto divide-y divide-[#E5E7EB]">
+            <tbody className="h-auto divide-y divide-gray-200/70">
               {filteredDocuments.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-[#6B7280]">
+                  <td colSpan={7} className="px-4 py-12 text-center text-xs text-gray-400">
                     No documents found matching your search criteria.
                   </td>
                 </tr>
               ) : (
                 filteredDocuments.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-[#F9FAFB] transition-colors">
-                    <td className="px-6 py-4 overflow-hidden">
-                      <div className="text-sm font-semibold text-[#1F2937] truncate" title={doc.name}>{doc.name}</div>
-                      <div className="text-[11px] text-[#6B7280] mt-0.5 truncate">{doc.status === "Archived" ? "Historical Record" : "Active File"}</div>
+                  <tr key={doc.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-4 py-3 overflow-hidden">
+                      <div className="text-xs font-semibold text-gray-900 truncate" title={doc.name}>{doc.name}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5 truncate">{doc.status === "Archived" ? "Historical Record" : "Active File"}</div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-[#4B5563] truncate flex flex-col items-start gap-1" title={doc.category}>
+                    <td className="px-4 py-3 text-xs text-gray-600 truncate flex flex-col items-start gap-1" title={doc.category}>
                       <span>{doc.category}</span>
                       {doc.program && doc.program !== "GLOBAL" ? (
-                        <span className="px-2 py-0.5 text-[9px] font-bold uppercase bg-blue-50 text-blue-700 rounded border border-blue-200 shadow-2xs">
+                        <span className="px-1.5 py-0.5 text-[9px] font-medium uppercase bg-blue-50 text-blue-700 rounded border border-blue-200/60">
                           {doc.program}
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 text-[9px] font-bold uppercase bg-gray-100 text-gray-600 rounded border border-gray-200 shadow-2xs">
+                        <span className="px-1.5 py-0.5 text-[9px] font-medium uppercase bg-gray-100 text-gray-600 rounded border border-gray-200">
                           Global
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-[#4B5563] truncate" title={doc.office}>{doc.office}</td>
-                    <td className="px-6 py-4">
-                      <span className={`text-sm font-bold ${doc.status === "Archived" ? "text-gray-400" : "text-[#D97E00]"}`}>
+                    <td className="px-4 py-3 text-xs text-gray-600 truncate" title={doc.office}>{doc.office}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-medium ${doc.status === "Archived" ? "text-gray-400" : "text-gray-900"}`}>
                         v{doc.version}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-[#4B5563]">
+                    <td className="px-4 py-3 text-xs text-gray-500">
                       {doc.effectivity_date || "N/A"}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 inline-flex text-[10px] font-medium rounded-full border ${
                         doc.status === "Archived" 
                           ? "bg-gray-100 text-gray-600 border-gray-200" 
-                          : "bg-orange-50 text-[#D97E00] border-[#FF9501]/20"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                       }`}>
                         {doc.status || "Active"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        <button onClick={() => handleView(doc)} className="text-[#6B7280] hover:text-[#FF9501] transition-colors cursor-pointer" title="View Document">
-                          <Eye className="h-4 w-4" />
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => handleView(doc)} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer p-1" title="View Document">
+                          <Eye className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => handleDownload(doc)} className="text-[#6B7280] hover:text-[#FF9501] transition-colors cursor-pointer" title="Download">
-                          <Download className="h-4 w-4" />
+                        <button onClick={() => handleDownload(doc)} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer p-1" title="Download">
+                          <Download className="h-3.5 w-3.5" />
                         </button>
                         {canEdit && doc.status !== "Archived" && (
                           <>
-                            <button onClick={() => handleUpdateVersionClick(doc)} className="text-[#6B7280] hover:text-[#FF9501] transition-colors cursor-pointer" title="Upload New Version">
-                              <UploadCloud className="h-4 w-4" />
+                            <button onClick={() => handleUpdateVersionClick(doc)} className="text-gray-400 hover:text-[#FF9501] transition-colors cursor-pointer p-1" title="Upload New Version">
+                              <UploadCloud className="h-3.5 w-3.5" />
                             </button>
-                            <button onClick={() => handleEditClick(doc)} className="text-[#6B7280] hover:text-[#FF9501] transition-colors cursor-pointer" title="Edit Metadata">
-                              <Edit className="h-4 w-4" />
+                            <button onClick={() => handleEditClick(doc)} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer p-1" title="Edit Metadata">
+                              <Edit className="h-3.5 w-3.5" />
                             </button>
-                            <button onClick={() => handleArchiveClick(doc)} className="text-[#6B7280] hover:text-[#EF4444] transition-colors cursor-pointer" title="Archive Document">
-                              <Archive className="h-4 w-4" />
+                            <button onClick={() => handleArchiveClick(doc)} className="text-gray-400 hover:text-rose-600 transition-colors cursor-pointer p-1" title="Archive Document">
+                              <Archive className="h-3.5 w-3.5" />
                             </button>
                           </>
                         )}
@@ -689,73 +690,76 @@ export function KnowledgeRepository() {
 
       {/* NEW VERSION MODAL */}
       {showUpdateModal && docToUpdate && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-xl w-full shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F5F7FA]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl overflow-hidden border border-gray-200">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
               <div>
-                <h2 className="text-xl font-semibold text-[#1F2937]">Upload New Version</h2>
-                <p className="text-sm text-[#6B7280] mt-1">Supersede the active document</p>
+                <h2 className="text-xs font-semibold text-gray-900">Upload New Version</h2>
+                <p className="text-[11px] text-gray-500">Supersede the active document</p>
               </div>
-              <button onClick={() => setShowUpdateModal(false)} className="p-2 hover:bg-[#E5E7EB] rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-[#6B7280]" />
+              <button onClick={() => setShowUpdateModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <form onSubmit={handleUpdateVersionSubmit} className="p-6 space-y-5">
-              <div className="p-4 bg-[#FFF4E5] rounded-lg border border-[#FF9501]/10">
-                <label className="block text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Target Document (Locked)</label>
-                <div className="text-sm font-semibold text-[#D97E00]">{docToUpdate.name}</div>
-                <div className="flex items-center gap-4 mt-2 text-xs text-[#6B7280]">
-                  <span>Category: {docToUpdate.category}</span>
-                  <span>Office: {docToUpdate.office}</span>
+            <form onSubmit={handleUpdateVersionSubmit} className="p-5 space-y-4">
+              <div className="p-3 bg-gray-50/70 rounded-lg border border-gray-200">
+                <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">Target Document</label>
+                <div className="text-xs font-semibold text-gray-900 truncate">{docToUpdate.name}</div>
+                <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-500">
+                  <span>{docToUpdate.category}</span>
+                  <span>•</span>
+                  <span>{docToUpdate.office}</span>
+                  <span>•</span>
                   <span>Current: v{docToUpdate.version}</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-[#1F2937] mb-2">New Version Number</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">New Version Number</label>
                   <input
                     type="text"
                     required
                     value={updateFormData.version}
                     onChange={(e) => setUpdateFormData({...updateFormData, version: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                     placeholder={`e.g., ${(parseFloat(docToUpdate.version) + 1.0).toFixed(1)}`}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#1F2937] mb-2">New Effectivity Date</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">New Effectivity Date</label>
                   <input
                     type="date"
                     required
                     value={updateFormData.effectivityDate}
                     onChange={(e) => setUpdateFormData({...updateFormData, effectivityDate: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#1F2937] mb-2">Upload New File</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Upload New File</label>
                 <div 
                   onDragOver={(e) => handleDragOver(e)}
                   onDragLeave={(e) => handleDragLeave(e)}
                   onDrop={(e) => handleDrop(e, true)}
                   onClick={() => updateFileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer ${
-                    isDragging ? "border-[#FF9501] bg-[#FFF4E5]" : "border-[#E5E7EB] hover:border-[#FF9501] bg-[#F9FAFB]"
+                  className={`border-2 border-dashed rounded-lg p-5 text-center transition-all cursor-pointer ${
+                    isDragging ? "border-[#FF9501] bg-orange-50/30" : "border-gray-200 hover:border-gray-300 bg-gray-50/40"
                   }`}
                 >
                   {updateFile ? (
                     <div className="flex flex-col items-center">
-                      <FileText className="h-10 w-10 text-[#FF9501] mb-2" />
-                      <p className="text-sm font-semibold text-[#1F2937]">{updateFile.name}</p>
+                      <FileText className="h-6 w-6 text-[#FF9501] mb-1.5" />
+                      <p className="text-xs font-semibold text-gray-900">{updateFile.name}</p>
                     </div>
                   ) : (
                     <div>
-                      <UploadCloud className="h-8 w-8 mx-auto mb-2 text-[#9CA3AF]" />
-                      <p className="text-sm text-[#1F2937] font-medium">Click or drag new PDF, Word, TXT, or Image</p>
+                      <UploadCloud className="h-6 w-6 mx-auto mb-1.5 text-gray-400" />
+                      <p className="text-xs text-gray-700 font-medium">Click or drag new document file</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Supports PDF, DOCX, TXT, or Images</p>
                     </div>
                   )}
                   <input 
@@ -768,20 +772,20 @@ export function KnowledgeRepository() {
                 </div>
               </div>
 
-              <div className="pt-2 flex gap-3">
+              <div className="pt-2 flex gap-2 justify-end border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => setShowUpdateModal(false)}
-                  className="flex-1 px-5 py-2.5 text-sm font-semibold text-[#4B5563] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F3F4F6] transition-colors cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!updateFile || isUpdatingVersion}
-                  className="flex-1 px-5 py-2.5 text-sm font-semibold bg-[#FF9501] text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#D97E00] transition-colors flex justify-center items-center gap-2 cursor-pointer"
+                  className="px-4 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#D97E00] transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
-                  {isUpdatingVersion ? <><Loader2 className="h-4 w-4 animate-spin"/> Processing...</> : "Update Version"}
+                  {isUpdatingVersion ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Processing...</> : "Update Version"}
                 </button>
               </div>
             </form>
@@ -791,33 +795,33 @@ export function KnowledgeRepository() {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl">
-            <div className="p-6 border-b border-[#E5E7EB] flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-[#1F2937]">Upload New Document</h2>
-              <button onClick={() => setShowUploadModal(false)} className="p-2 hover:bg-[#E5E7EB] rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-[#6B7280]" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-xs font-semibold text-gray-900">Upload New Document</h2>
+              <button onClick={() => setShowUploadModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-5">
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="space-y-3.5">
                 <div>
-                  <label className="block text-sm font-medium text-[#1F2937] mb-2">Document Name</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Document Name</label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                     placeholder="Enter document name"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-[#1F2937] mb-2">Category</label>
-                    <select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Category</label>
+                    <select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
                       <option>Policy</option>
                       <option>Procedure / Guideline</option>
                       <option>Memorandum</option>
@@ -829,8 +833,8 @@ export function KnowledgeRepository() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-[#1F2937] mb-2">Office</label>
-                    <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Office</label>
+                    <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
                       <option>Academic Affairs</option>
                       <option>Student Affairs</option>
                       <option>Research Office</option>
@@ -839,53 +843,53 @@ export function KnowledgeRepository() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-[#1F2937] mb-2">Version</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Version</label>
                     <input
                       type="text"
                       name="version"
                       value={formData.version}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                      className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                       placeholder="e.g., v1.0, v2.5"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-[#1F2937] mb-2">Effectivity Date</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Effectivity Date</label>
                     <input
                       type="date"
                       name="effectivityDate"
                       value={formData.effectivityDate}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                      className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-[#1F2937] mb-2">Upload File</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Upload File</label>
                   <div 
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, false)}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer ${
-                      isDragging ? "border-[#FF9501] bg-[#FFF4E5]" : "border-[#E5E7EB] hover:border-[#FF9501] hover:bg-[#F9FAFB]"
+                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer ${
+                      isDragging ? "border-[#FF9501] bg-orange-50/30" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/50"
                     }`}
                   >
                     {selectedFile ? (
                       <div className="flex flex-col items-center">
-                        <FileText className="h-12 w-12 text-[#FF9501] mb-3" />
-                        <p className="text-sm font-semibold text-[#1F2937]">{selectedFile.name}</p>
-                        <p className="text-xs text-[#6B7280] mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <FileText className="h-8 w-8 text-[#FF9501] mb-2" />
+                        <p className="text-xs font-semibold text-gray-900">{selectedFile.name}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                       </div>
                     ) : (
                       <div>
-                        <Upload className="h-10 w-10 mx-auto mb-3 text-[#9CA3AF]" />
-                        <p className="text-sm text-[#1F2937] mb-1 font-medium">Drag and drop your PDF, Word, TXT, or Image here</p>
-                        <p className="text-xs text-[#6B7280]">or click to browse from your computer</p>
+                        <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                        <p className="text-xs text-gray-700 font-medium">Click or drag document file here</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">PDF, DOCX, TXT, or Image (Max 25MB)</p>
                       </div>
                     )}
                     <input 
@@ -900,22 +904,22 @@ export function KnowledgeRepository() {
               </div>
             </div>
 
-            <div className="p-6 border-t border-[#E5E7EB] bg-[#F9FAFB] flex justify-end gap-3 rounded-b-xl">
+            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowUploadModal(false)
                   setSelectedFile(null)
                 }}
-                className="px-5 py-2.5 text-sm font-semibold text-[#4B5563] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F3F4F6] transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUploadSubmit}
                 disabled={!selectedFile || isUploading}
-                className="px-5 py-2.5 text-sm font-semibold bg-[#FF9501] text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#D97E00] transition-colors flex items-center gap-2 cursor-pointer"
+                className="px-4 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#D97E00] transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                {isUploading ? <><Loader2 className="h-4 w-4 animate-spin"/> Uploading...</> : "Upload Document"}
+                {isUploading ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Uploading...</> : "Upload Document"}
               </button>
             </div>
           </div>
@@ -924,31 +928,31 @@ export function KnowledgeRepository() {
 
       {/* Edit Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full shadow-2xl">
-            <div className="p-6 border-b border-[#E5E7EB] flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-[#1F2937]">Edit Document Metadata</h2>
-              <button onClick={() => setShowEditModal(false)} className="p-2 hover:bg-[#E5E7EB] rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-[#6B7280]" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-xl w-full shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-xs font-semibold text-gray-900">Edit Document Metadata</h2>
+              <button onClick={() => setShowEditModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <div className="p-6 space-y-5">
+            <div className="p-5 space-y-3.5">
               <div>
-                <label className="block text-sm font-medium text-[#1F2937] mb-2">Document Name</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Document Name</label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-[#1F2937] mb-2">Category</label>
-                  <select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Category</label>
+                  <select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
                     <option>Policy</option>
                     <option>Procedure / Guideline</option>
                     <option>Memorandum</option>
@@ -959,8 +963,8 @@ export function KnowledgeRepository() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#1F2937] mb-2">Office</label>
-                  <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Office</label>
+                  <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
                     <option>Academic Affairs</option>
                     <option>Student Affairs</option>
                     <option>Research Office</option>
@@ -969,43 +973,43 @@ export function KnowledgeRepository() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-[#1F2937] mb-2">Version</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Version</label>
                   <input
                     type="text"
                     name="version"
                     value={formData.version}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#1F2937] mb-2">Effectivity Date</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Effectivity Date</label>
                   <input
                     type="date"
                     name="effectivityDate"
                     value={formData.effectivityDate}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="p-6 border-t border-[#E5E7EB] bg-[#F9FAFB] flex justify-end gap-3 rounded-b-xl">
+            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
               <button
                 onClick={() => setShowEditModal(false)}
-                className="px-5 py-2.5 text-sm font-semibold text-[#4B5563] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F3F4F6] transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleEditSubmit}
                 disabled={isEditing}
-                className="px-5 py-2.5 text-sm font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                className="px-4 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                {isEditing ? <><Loader2 className="h-4 w-4 animate-spin"/> Saving...</> : "Save Changes"}
+                {isEditing ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Saving...</> : "Save Changes"}
               </button>
             </div>
           </div>
@@ -1014,58 +1018,58 @@ export function KnowledgeRepository() {
       
       {/* Type-to-Confirm Archive Modal */}
       {showDeleteModal && docToDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-[#E5E7EB] bg-red-50 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-red-700 flex items-center gap-2">
-                <Archive className="h-5 w-5" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 bg-rose-50/50 flex justify-between items-center">
+              <h2 className="text-xs font-semibold text-rose-700 flex items-center gap-1.5">
+                <Archive className="h-4 w-4" />
                 Archive Document
               </h2>
-              <button onClick={() => setShowDeleteModal(false)} className="p-2 hover:bg-red-100 rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-red-700" />
+              <button onClick={() => setShowDeleteModal(false)} className="p-1 hover:bg-rose-100 rounded-md transition-colors cursor-pointer text-rose-700">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-[#4B5563]">
-                This action will permanently remove this document from the AI's knowledge base. It cannot be undone.
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                This action will remove this document from active searches and archive its historical record.
               </p>
               
-              <div className="bg-[#F9FAFB] p-3 rounded-md border border-[#E5E7EB]">
-                <p className="text-xs text-[#6B7280] mb-1">Document to archive:</p>
-                <p className="text-sm font-bold text-[#1F2937]">{docToDelete.name}</p>
+              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Document to archive:</p>
+                <p className="text-xs font-semibold text-gray-900 truncate">{docToDelete.name}</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#1F2937] mb-2">
-                  Please type <span className="font-bold select-none">{docToDelete.name}</span> to confirm.
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Type <span className="font-semibold select-none text-gray-900">{docToDelete.name}</span> to confirm:
                 </label>
                 <input
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
                   placeholder="Type document name here..."
                 />
               </div>
             </div>
 
-            <div className="p-6 border-t border-[#E5E7EB] bg-[#F9FAFB] flex justify-end gap-3">
+            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowDeleteModal(false)
                   setDocToDelete(null)
                 }}
-                className="px-5 py-2.5 text-sm font-semibold text-[#4B5563] bg-white border border-[#E5E7EB] rounded-lg hover:bg-[#F3F4F6] transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={executeArchive}
                 disabled={deleteConfirmText !== docToDelete.name || isArchiving}
-                className="px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-colors disabled:bg-red-300 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 flex items-center gap-2 cursor-pointer"
+                className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors disabled:bg-rose-300 disabled:cursor-not-allowed bg-rose-600 hover:bg-rose-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                 {isArchiving ? <><Loader2 className="h-4 w-4 animate-spin"/> Archiving...</> : "Archive Document"}
+                 {isArchiving ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Archiving...</> : "Archive Document"}
               </button>
             </div>
           </div>
@@ -1074,19 +1078,19 @@ export function KnowledgeRepository() {
 
       {/* --- BACKGROUND INGESTION TASK MANAGER FLOATING PANEL --- */}
       {activeUploads.length > 0 && (
-        <div className="fixed top-20 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 border-t-4 border-t-[#FF9501] overflow-hidden animate-in slide-in-from-top-5 fade-in duration-300">
+        <div className="fixed top-20 right-6 z-50 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden animate-in slide-in-from-top-3 fade-in duration-200">
           {/* Header */}
-          <div className="px-4 py-3 bg-[#1F2937] text-white flex items-center justify-between">
+          <div className="px-4 py-2.5 bg-gray-900 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
               <UploadCloud className="h-4 w-4 text-[#FF9501] animate-bounce" />
-              <span className="text-xs font-bold uppercase tracking-wider">
+              <span className="text-xs font-semibold">
                 Ingestion Queue ({activeUploads.filter(t => t.status === 'uploading' || t.status === 'vectorizing').length} Active)
               </span>
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsQueueMinimized(!isQueueMinimized)}
-                className="p-1 text-gray-300 hover:text-white rounded hover:bg-white/10 transition-colors cursor-pointer"
+                className="p-1 text-gray-400 hover:text-white rounded transition-colors cursor-pointer"
                 title={isQueueMinimized ? "Expand Queue" : "Minimize Queue"}
               >
                 {isQueueMinimized ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -1096,27 +1100,27 @@ export function KnowledgeRepository() {
 
           {/* Body */}
           {!isQueueMinimized && (
-            <div className="p-4 max-h-72 overflow-y-auto divide-y divide-gray-100 space-y-3">
+            <div className="p-3.5 max-h-72 overflow-y-auto divide-y divide-gray-100 space-y-2.5">
               {activeUploads.map((task) => (
-                <div key={task.id} className="pt-2 first:pt-0 space-y-2">
+                <div key={task.id} className="pt-2 first:pt-0 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-gray-900 text-xs truncate max-w-[180px]" title={task.docName}>
+                        <span className="font-semibold text-gray-900 text-xs truncate max-w-[180px]" title={task.docName}>
                           {task.docName}
                         </span>
-                        <span className="px-1.5 py-0.5 bg-orange-100 text-[#D97E00] text-[9px] font-extrabold uppercase rounded">
+                        <span className="px-1.5 py-0.2 bg-gray-100 text-gray-700 text-[9px] font-medium uppercase rounded">
                           v{task.version}
                         </span>
                       </div>
-                      <p className="text-[10px] text-gray-500 truncate mt-0.5" title={task.fileName}>{task.fileName}</p>
+                      <p className="text-[10px] text-gray-400 truncate mt-0.5" title={task.fileName}>{task.fileName}</p>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
                       {(task.status === 'uploading' || task.status === 'vectorizing') && (
                         <button
                           onClick={() => cancelUploadTask(task.id)}
-                          className="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 text-[10px] font-bold uppercase rounded transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          className="px-2 py-0.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-[10px] font-medium rounded transition-colors cursor-pointer flex items-center gap-1"
                           title="Cancel Upload Task"
                         >
                           <X className="h-3 w-3" /> Cancel
@@ -1137,14 +1141,14 @@ export function KnowledgeRepository() {
 
                   {/* Progress Bar */}
                   <div className="space-y-1">
-                    <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
                       <div
                         className={`h-full transition-all duration-300 ${
                           task.status === 'completed'
-                            ? 'bg-[#006837]'
+                            ? 'bg-emerald-600'
                             : task.status === 'error' || task.status === 'cancelled'
-                            ? 'bg-red-500'
-                            : 'bg-[#FF9501] animate-pulse'
+                            ? 'bg-rose-500'
+                            : 'bg-[#FF9501]'
                         }`}
                         style={{ width: `${task.status === 'completed' ? 100 : task.progress}%` }}
                       ></div>
@@ -1155,11 +1159,11 @@ export function KnowledgeRepository() {
                         {(task.status === 'uploading' || task.status === 'vectorizing') && (
                           <Loader2 className="h-3 w-3 animate-spin text-[#FF9501]" />
                         )}
-                        {task.status === 'completed' && <CheckCircle className="h-3 w-3 text-[#006837]" />}
-                        {task.status === 'cancelled' && <AlertCircle className="h-3 w-3 text-red-500" />}
+                        {task.status === 'completed' && <CheckCircle className="h-3 w-3 text-emerald-600" />}
+                        {task.status === 'cancelled' && <AlertCircle className="h-3 w-3 text-rose-500" />}
                         {task.statusText}
                       </span>
-                      <span className="font-bold text-gray-700">{task.status === 'completed' ? '100%' : `${task.progress}%`}</span>
+                      <span className="font-semibold text-gray-700">{task.status === 'completed' ? '100%' : `${task.progress}%`}</span>
                     </div>
                   </div>
                 </div>
