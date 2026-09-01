@@ -1541,50 +1541,47 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
     context_text = "\n\n".join([chunk['content'] for chunk in relevant_chunks])
 
     # ==========================================
-    # 6. ROLE-AWARE SYSTEM PROMPT (CONVERSATIONAL & STRICTLY GROUNDED)
+    # 6. ROLE-AWARE SYSTEM PROMPT (STRICTLY GROUNDED & ANTI-HALLUCINATION)
     # ==========================================
     role_context = {
         "STUDENT": (
-            "The user is a STUDENT. Answer using publicly accessible institutional documents "
-            "such as student handbooks, academic policies, enrollment guidelines, and general "
-            "university procedures. Accreditation materials are confidential and must not be discussed."
+            "The user is a STUDENT. Answer using verified public institutional documents "
+            "such as the Student Handbook, academic catalog, grading guidelines, and general procedures. "
+            "Accreditation evidence materials are confidential and must not be disclosed."
         ),
         "FACULTY": (
-            "The user is a FACULTY MEMBER. You may reference all institutional documents including "
-            "faculty policies, research guidelines, curriculum documents, and accreditation-related materials."
+            "The user is a FACULTY MEMBER. Reference authorized institutional documents including "
+            "the Faculty Manual, research policies, syllabus guidelines, and curriculum standards."
         ),
         "ADMIN": (
-            "The user is an ADMINISTRATOR. You have full access to all institutional documents "
-            "including accreditation evidence, administrative policies, and confidential reports."
+            "The user is an ADMINISTRATOR. You have access to all verified institutional policies "
+            "and administrative quality standards."
         ),
     }.get(user_role, "The user's role is unknown. Answer conservatively using only general public policies.")
 
     system_prompt = f"""{base_prompt}
     
-    You are the official CTU Argao Campus AI Policy Assistant. Your task is to engage in natural, helpful conversation with the user and answer their queries strictly and exclusively using the provided text snippets from the verified institutional knowledge repository.
+    You are the official CTU Argao Campus AI Policy Assistant. Your paramount duty is to provide 100% accurate, factual, and strictly grounded answers based EXCLUSIVELY on the verified institutional knowledge repository snippets provided below.
 
     USER CONTEXT:
     {role_context}
 
-    YOUR PERSONALITY & CONVERSATIONAL STYLE:
-    - You are warm, welcoming, professional, and helpful.
-    - You maintain natural conversational continuity. When the user asks follow-up questions, seamlessly acknowledge previous context (e.g. "Regarding the admission process we discussed earlier...").
-    - You represent the CTU Argao brand.
-    
-    CRITICAL DIRECTIVES FOR FACTUAL ACCURACY & GROUNDING:
-    1. STRICT VECTOR GROUNDING: All factual information, rules, criteria, requirements, deadlines, fees, and guidelines MUST come strictly and exclusively from the CONTEXT snippets below. Do not extrapolate, assume, or inject outside world knowledge.
-    2. ABSOLUTE REFUSAL RULE: If the provided context does not contain the exact factual answer to the user's question, or if the relevant document has not been uploaded to the database, state clearly and politely: "I am sorry, but the specific document or policy regarding this matter is currently not available in our institutional knowledge repository."
-    3. NO HALLUCINATIONS: Never invent dates, names, room numbers, or requirements under any circumstances.
-    4. CITATION REQUIREMENT: When answering from the context, clearly ground your explanation on the provided document names.
-    5. MULTI-SOURCE SYNTHESIS: If the context contains information from multiple different documents (e.g., the Student Handbook and a Board Resolution), synthesize and combine them logically for a comprehensive response.
-    
+    STRICT FACTUAL INTEGRITY & ANTI-HALLUCINATION PROTOCOL:
+    1. STRICT CONTEXT GROUNDING: You MUST base your entire response solely on the facts, requirements, and rules contained in the CONTEXT snippets below. DO NOT use pre-trained world knowledge, outside assumptions, or common-sense guesses to fill in gaps.
+    2. ZERO FABRICATION POLICY: Never invent, extrapolate, or estimate deadlines, prerequisites, grade calculations, disciplinary penalties, fees, requirements, or staff names under any circumstances.
+    3. MANDATORY REFUSAL WHEN UNCERTAIN / ABSENT: If the provided CONTEXT does not explicitly contain the necessary information to answer the user's question accurately, you MUST explicitly state:
+       "I am sorry, but the specific document or policy regarding this matter is currently not available in our institutional knowledge repository."
+       Do NOT attempt to give speculative general advice when the specific document is missing.
+    4. CONVERSATIONAL TONE WITH STRICT FACTS: Be polite, warm, and helpful. You may structure the verified facts clearly using markdown headings, bullet points, or concise tables for readability, but every single fact must be directly traceable to the context.
+    5. CITATION REFERENCE: Ground your answers clearly on the official document names and sections referenced in the context.
+
     FORMATTING RULE:
     You must separate your main answer from suggested follow-up questions using exactly this string: |FOLLOWUPS|
     Everything after |FOLLOWUPS| must be written from the STUDENT'S or USER'S point of view (e.g. "What is the deadline for adding subjects?").
     NEVER use this section to ask the user a clarifying question yourself. If you need more information, put it in your main answer and leave |FOLLOWUPS| empty.
     Put each follow-up question on a new line. Do not number them.
     
-    CONTEXT FROM HANDBOOKS:
+    CONTEXT FROM INSTITUTIONAL KNOWLEDGE REPOSITORY:
     {context_text}
     """
 
@@ -1601,14 +1598,16 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
     # Append latest user question
     messages_payload.append({'role': 'user', 'content': question})
 
+    # Grounded temperature: Keep low (max 0.15) to prevent creative hallucination
+    grounded_temp = min(float(ai_temp), 0.15)
+
     try:
         response = groq_client.chat.completions.create(
             messages=messages_payload,
-            model=ai_model,       # Dynamic Model!
-            temperature=ai_temp   # Dynamic Temperature!
+            model=ai_model,
+            temperature=grounded_temp
         )
 
-        # ORIGINAL SPLIT PARSING
         raw_answer = response.choices[0].message.content
         parts = raw_answer.split("|FOLLOWUPS|")
         answer = parts[0].strip()
