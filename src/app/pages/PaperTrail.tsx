@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { useRole } from "../contexts/RoleContext";
+import { ISO_OFFICES_16, CAMPUS_COLLEGES, CAMPUS_PROGRAMS } from "./UsersRoles";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -532,17 +533,21 @@ export function PaperTrail() {
               </select>
 
               <select
-                className="w-full sm:w-44 px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-[#374151] cursor-pointer"
+                className="w-full sm:w-52 px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-[#374151] cursor-pointer"
                 value={selectedOffice}
                 onChange={(e) => setSelectedOffice(e.target.value)}
               >
-                <option value="all">All Offices</option>
-                <option value="Academic Affairs">Academic Affairs</option>
-                <option value="Student Affairs">Student Affairs</option>
-                <option value="Dean's Office">Dean's Office</option>
-                <option value="Registrar Office">Registrar Office</option>
-                <option value="Research Office">Research Office</option>
-                <option value="Quality Assurance">Quality Assurance</option>
+                <option value="all">All Offices & Colleges</option>
+                <optgroup label="Academic Colleges & Departments">
+                  {CAMPUS_COLLEGES.map((col) => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Administrative & ISO Offices">
+                  {ISO_OFFICES_16.map((off) => (
+                    <option key={off} value={off}>{off}</option>
+                  ))}
+                </optgroup>
               </select>
 
               <select
@@ -772,8 +777,8 @@ export function PaperTrail() {
                   required
                   placeholder="e.g. 2026 CS Curriculum Syllabus Revision"
                   className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
-                  value={createFormData.title}
-                  onChange={(e) => setCreateFormData({ ...createFormData, title: e.target.value })}
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 />
               </div>
 
@@ -784,8 +789,8 @@ export function PaperTrail() {
                   </label>
                   <select
                     className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
-                    value={createFormData.doc_type}
-                    onChange={(e) => setCreateFormData({ ...createFormData, doc_type: e.target.value })}
+                    value={formData.document_type}
+                    onChange={(e) => setFormData({ ...formData, document_type: e.target.value })}
                   >
                     <option value="Syllabus">Syllabus</option>
                     <option value="Transmittal Sheet">Transmittal Sheet</option>
@@ -800,33 +805,47 @@ export function PaperTrail() {
 
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Originating Office <span className="text-red-500">*</span>
+                    Originating Office / College <span className="text-red-500">*</span>
                   </label>
                   <select
                     className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
-                    value={createFormData.office}
-                    onChange={(e) => setCreateFormData({ ...createFormData, office: e.target.value })}
+                    value={formData.office}
+                    onChange={(e) => setFormData({ ...formData, office: e.target.value })}
                   >
-                    {ISO_OFFICES_16.map((off) => (
-                      <option key={off} value={off}>{off}</option>
-                    ))}
+                    <optgroup label="Academic Colleges & Departments">
+                      {CAMPUS_COLLEGES.map((col) => (
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Administrative & ISO Offices">
+                      {ISO_OFFICES_16.map((off) => (
+                        <option key={off} value={off}>{off}</option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Recipient Office / Destination <span className="text-red-500">*</span>
+                  Recipient Office / Destination College <span className="text-red-500">*</span>
                 </label>
                 <select
                   className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
-                  value={createFormData.recipient_office}
-                  onChange={(e) => setCreateFormData({ ...createFormData, recipient_office: e.target.value })}
+                  value={formData.recipient_name}
+                  onChange={(e) => setFormData({ ...formData, recipient_name: e.target.value })}
                 >
-                  <option value="" disabled>Select destination office</option>
-                  {ISO_OFFICES_16.map((off) => (
-                    <option key={off} value={off}>{off}</option>
-                  ))}
+                  <option value="" disabled>Select destination office or college</option>
+                  <optgroup label="Academic Colleges & Departments">
+                    {CAMPUS_COLLEGES.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Administrative & ISO Offices">
+                    {ISO_OFFICES_16.map((off) => (
+                      <option key={off} value={off}>{off}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -838,8 +857,8 @@ export function PaperTrail() {
                   type="email"
                   placeholder="e.g. dean.office@ctu.edu.ph"
                   className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
-                  value={createFormData.recipient_email}
-                  onChange={(e) => setCreateFormData({ ...createFormData, recipient_email: e.target.value })}
+                  value={formData.recipient_email}
+                  onChange={(e) => setFormData({ ...formData, recipient_email: e.target.value })}
                 />
               </div>
 
@@ -849,8 +868,8 @@ export function PaperTrail() {
                   rows={2}
                   placeholder="e.g. For Dean signature and formal endorsement."
                   className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] resize-none"
-                  value={createFormData.remarks}
-                  onChange={(e) => setCreateFormData({ ...createFormData, remarks: e.target.value })}
+                  value={formData.remarks}
+                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                 />
               </div>
 
@@ -1077,8 +1096,8 @@ export function PaperTrail() {
                   </label>
                   <select
                     className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
-                    value={requestFormData.doc_type}
-                    onChange={(e) => setRequestFormData({ ...requestFormData, doc_type: e.target.value })}
+                    value={requestFormData.document_type}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, document_type: e.target.value })}
                   >
                     <option value="Syllabus">Syllabus</option>
                     <option value="Transmittal Sheet">Transmittal Sheet</option>
@@ -1093,16 +1112,23 @@ export function PaperTrail() {
 
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Target Office to Provide <span className="text-red-500">*</span>
+                    Target Office or College to Provide <span className="text-red-500">*</span>
                   </label>
                   <select
                     className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
                     value={requestFormData.office}
                     onChange={(e) => setRequestFormData({ ...requestFormData, office: e.target.value })}
                   >
-                    {ISO_OFFICES_16.map((off) => (
-                      <option key={off} value={off}>{off}</option>
-                    ))}
+                    <optgroup label="Academic Colleges & Departments">
+                      {CAMPUS_COLLEGES.map((col) => (
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Administrative & ISO Offices">
+                      {ISO_OFFICES_16.map((off) => (
+                        <option key={off} value={off}>{off}</option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
               </div>
@@ -1115,8 +1141,8 @@ export function PaperTrail() {
                   type="email"
                   placeholder="e.g. faculty.member@ctu.edu.ph"
                   className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
-                  value={requestFormData.recipient_email}
-                  onChange={(e) => setRequestFormData({ ...requestFormData, recipient_email: e.target.value })}
+                  value={requestFormData.target_person_email}
+                  onChange={(e) => setRequestFormData({ ...requestFormData, target_person_email: e.target.value })}
                 />
               </div>
 

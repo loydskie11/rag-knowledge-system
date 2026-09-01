@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Database, MessageSquare, Award, FileText,
   Clock, Users, Settings, Search, Bell, ChevronLeft, ChevronRight,
-  GraduationCap, LogOut, Shield, BookOpen, Radio, ClipboardCheck, Sparkles, X, FileCheck, Menu
+  GraduationCap, LogOut, Shield, BookOpen, Radio, ClipboardCheck, Sparkles, X, FileCheck, Menu,
+  HeartHandshake, ExternalLink
 } from "lucide-react";
 import { useRole } from "../contexts/RoleContext";
 import { hasPermission } from "../utils/rolePermissions";
@@ -63,6 +64,7 @@ export function DashboardLayout() {
     { path: "/app/broadcast-announcement", label: "Broadcast Announcement", icon: Radio,            permission: "canAccessBroadcastAnnouncement"  },
     { path: "/app/document-generator",     label: "Document Generator",     icon: FileText,         permission: "canAccessDocumentGenerator"      },
     { path: "/app/grade-evaluation",       label: "Grade Evaluation",       icon: ClipboardCheck,   permission: "canAccessGradeEvaluation"        },
+    { path: "https://ctu-client-satisfaction-survey-dash.vercel.app/", label: "Service Satisfaction", icon: HeartHandshake, permission: "canAccessServiceSatisfaction", isExternal: true },
     { path: "/app/settings",               label: "Settings",               icon: Settings,         permission: "canAccessSettings"              },
   ];
 
@@ -71,10 +73,21 @@ export function DashboardLayout() {
   );
 
   const getRoleBadge = () => {
+    const designation = sessionStorage.getItem("userDesignation");
+    const dept = sessionStorage.getItem("userDepartment");
     switch (userProfile.role) {
-      case "ADMIN":   return { icon: Shield,        color: "bg-[#FF9501]", label: "Administrator" };
-      case "FACULTY": return { icon: BookOpen,      color: "bg-[#FF9501]", label: "Faculty"       };
-      default:        return { icon: GraduationCap, color: "bg-[#FF9501]", label: "Student"       };
+      case "ADMIN":   
+        return { icon: Shield, color: "bg-[#FF9501]", label: "Administrator" };
+      case "FACULTY": 
+        if (designation === "College Dean") {
+          return { icon: BookOpen, color: "bg-purple-600", label: `Dean • ${dept || 'College'}` };
+        }
+        if (designation === "Program Chair") {
+          return { icon: BookOpen, color: "bg-blue-600", label: `Chair • ${dept || 'Program'}` };
+        }
+        return { icon: BookOpen, color: "bg-[#FF9501]", label: "Faculty" };
+      default:        
+        return { icon: GraduationCap, color: "bg-[#FF9501]", label: "Student" };
     }
   };
 
@@ -220,9 +233,33 @@ export function DashboardLayout() {
 
             <div className="flex flex-col h-full overflow-hidden">
               <div className="flex-1 overflow-y-auto py-3 px-2.5 custom-scrollbar">
-                {menuItems.map((item) => {
+                {menuItems.map((item: any) => {
                   const isActive = location.pathname === item.path;
                   const Icon = item.icon;
+
+                  if (item.isExternal) {
+                    return (
+                      <a
+                        key={item.label}
+                        href={item.path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center justify-between gap-3 px-3 py-2 mb-1 rounded-lg transition-all cursor-pointer text-gray-600 hover:bg-orange-50 hover:text-[#D97E00] font-medium group"
+                        title={sidebarCollapsed ? item.label : undefined}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className="h-4.5 w-4.5 shrink-0" />
+                          <span className={`text-xs truncate ${sidebarCollapsed ? "md:hidden" : ""}`}>
+                            {item.label}
+                          </span>
+                        </div>
+                        {!sidebarCollapsed && (
+                          <ExternalLink className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 shrink-0 md:block hidden text-gray-400 group-hover:text-[#D97E00]" />
+                        )}
+                      </a>
+                    );
+                  }
 
                   return (
                     <Link
