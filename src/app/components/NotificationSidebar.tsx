@@ -65,19 +65,19 @@ function Pill({
     <button
       onClick={onClick}
       className={`
-        relative px-4 py-1.5 rounded-full text-xs font-semibold
-        transition-all duration-200 select-none cursor-pointer flex items-center gap-1.5
+        flex-1 relative py-1.5 px-3 rounded-md text-xs font-medium
+        transition-all select-none cursor-pointer flex items-center justify-center gap-1.5
         ${active
-          ? "bg-white text-[#D97E00] shadow-sm font-bold"
-          : "bg-white/15 text-white/80 hover:bg-white/25 hover:text-white"}
+          ? "bg-white text-gray-900 shadow-2xs font-semibold"
+          : "text-gray-500 hover:text-gray-800"}
       `}
     >
       <span>{label}</span>
-      {count !== undefined && count > 0 && (
+      {count !== undefined && (
         <span className={`
           inline-flex items-center justify-center
-          min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-bold
-          ${active ? "bg-[#FF9501] text-white" : "bg-white/25 text-white"}
+          min-w-[18px] h-4 px-1.5 rounded-full text-[10px] font-semibold
+          ${active ? "bg-[#FF9501] text-white" : "bg-gray-200/80 text-gray-600"}
         `}>
           {count}
         </span>
@@ -112,87 +112,67 @@ function NotifRow({
   return (
     <div
       onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(); } }}
       className={`
-        group relative flex gap-3.5 px-4 py-3.5
-        border-b border-[#E5E7EB]/60
+        group relative flex gap-3 px-4 py-3.5
+        border-b border-gray-100
         cursor-pointer select-none
-        transition-all duration-200
+        transition-colors
+        focus:outline-none focus:bg-gray-50
         ${notif.is_read
-          ? "bg-white hover:bg-[#F9FAFB]"
-          : "bg-[#FFF4E5]/40 hover:bg-[#FFF4E5]/80"}
+          ? "bg-white hover:bg-gray-50/70"
+          : "bg-orange-50/25 hover:bg-orange-50/50"}
       `}
     >
-      {/* Left colour accent bar */}
-      <div className={`
-        absolute left-0 top-0 bottom-0 w-[3px] rounded-r-full
-        transition-all duration-200
-        ${notif.is_read ? "bg-gray-200 opacity-60" : colors.bar}
-      `} />
+      {/* Left subtle unread accent line */}
+      {!notif.is_read && (
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FF9501]" />
+      )}
 
       {/* Icon bubble */}
       <div className={`
-        flex-shrink-0 mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center
-        transition-all duration-200
+        shrink-0 mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center transition-colors
         ${notif.is_read
-          ? "bg-gray-100/80 text-gray-400 group-hover:bg-gray-200/80"
-          : "bg-white shadow-sm border border-[#E5E7EB] group-hover:shadow-md group-hover:scale-105"}
+          ? "bg-gray-100 text-gray-400"
+          : "bg-white border border-gray-200 shadow-2xs text-gray-700"}
       `}>
         <NotifIcon type={notif.type} read={notif.is_read} />
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        {/* Type badge + unread pulse dot */}
-        <div className="flex items-center gap-1.5 mb-1">
-          <span className={`
-            text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border
-            ${notif.is_read ? "bg-gray-100 text-gray-400 border-gray-200/60" : colors.badge}
-          `}>
-            {typeLabel[notif.type] || notif.type}
-          </span>
-          {!notif.is_read && (
-            <span className={`w-1.5 h-1.5 rounded-full ${colors.dot} animate-pulse`} />
-          )}
+        {/* Type badge + time */}
+        <div className="flex items-center justify-between gap-1.5 mb-1">
+          <div className="flex items-center gap-1.5">
+            <span className={`
+              text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded border
+              ${notif.is_read ? "bg-gray-100 text-gray-400 border-gray-200/60" : colors.badge}
+            `}>
+              {typeLabel[notif.type] || notif.type}
+            </span>
+            {!notif.is_read && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF9501]" title="Unread" />
+            )}
+          </div>
+          <time className="text-[10px] text-gray-400 font-normal shrink-0">
+            {timeAgo(notif.created_at)}
+          </time>
         </div>
 
         {/* Title */}
         <p className={`
           text-xs leading-snug
-          ${notif.is_read ? "text-[#4B5563] font-normal" : "text-[#1F2937] font-semibold"}
+          ${notif.is_read ? "text-gray-700 font-medium" : "text-gray-900 font-semibold"}
         `}>
           {notif.title}
         </p>
 
         {/* Message */}
-        <p className="text-xs text-[#6B7280] mt-0.5 leading-relaxed line-clamp-2">
+        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">
           {notif.message}
         </p>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between mt-2">
-          <time className="text-[11px] text-[#9CA3AF] font-medium">
-            {timeAgo(notif.created_at)}
-          </time>
-
-          {/* Action hint */}
-          {targetRoute ? (
-            <span className="
-              flex items-center gap-1
-              text-[11px] font-semibold text-[#D97E00]
-              opacity-0 group-hover:opacity-100 transition-opacity duration-150
-            ">
-              <ExternalLink className="h-3 w-3" />
-              View Details
-            </span>
-          ) : !notif.is_read ? (
-            <span className="
-              text-[10px] font-medium text-[#FF9501]
-              opacity-0 group-hover:opacity-100 transition-opacity duration-150
-            ">
-              tap to mark read
-            </span>
-          ) : null}
-        </div>
       </div>
     </div>
   );
@@ -230,7 +210,7 @@ export function NotificationSidebar({
     <>
       {/* ── Backdrop ── */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity animate-in fade-in"
+        className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 transition-opacity animate-in fade-in"
         onClick={onClose}
         aria-hidden
       />
@@ -240,35 +220,29 @@ export function NotificationSidebar({
         ref={panelRef}
         role="dialog"
         aria-label="Notifications panel"
-        className="fixed right-0 top-0 bottom-0 w-[400px] max-w-[90vw] z-50 flex flex-col bg-white shadow-2xl border-l border-[#E5E7EB]"
-        style={{ animation: "notifSlideIn 240ms cubic-bezier(0.22,1,0.36,1) both" }}
+        className="fixed right-0 top-0 bottom-0 w-[380px] max-w-[92vw] z-50 flex flex-col bg-white shadow-xl border-l border-gray-200"
+        style={{ animation: "notifSlideIn 200ms cubic-bezier(0.22,1,0.36,1) both" }}
       >
 
-        {/* ══ Header (CTU Warm Amber Brand Gradient) ════════════════════ */}
-        <div className="flex-shrink-0 bg-gradient-to-br from-[#FF9501] to-[#D97E00] px-5 pt-5 pb-4 shadow-md">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              {/* Bell with indicator */}
-              <div className="relative">
-                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-sm">
-                  <Bell className="h-5 w-5 text-white" />
-                </div>
+        {/* ══ Header ════════════════════════════════════════════════════ */}
+        <div className="flex-shrink-0 bg-white px-4 pt-4 pb-3 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="relative w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700">
+                <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-sm">
-                    <span className="w-2.5 h-2.5 bg-[#CE0000] rounded-full animate-ping absolute" />
-                    <span className="w-2   h-2   bg-[#CE0000] rounded-full relative" />
-                  </span>
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#FF9501] rounded-full" />
                 )}
               </div>
 
               <div>
-                <h2 className="text-base font-bold text-white leading-none tracking-tight">
+                <h2 className="text-sm font-bold text-gray-900 leading-none">
                   Notifications
                 </h2>
-                <p className="text-xs text-white/80 mt-1 font-medium">
+                <p className="text-[11px] text-gray-400 mt-1">
                   {unreadCount > 0
-                    ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
-                    : "You're all caught up ✨"}
+                    ? `${unreadCount} unread update${unreadCount !== 1 ? "s" : ""}`
+                    : "You're all caught up"}
                 </p>
               </div>
             </div>
@@ -277,26 +251,27 @@ export function NotificationSidebar({
               <button
                 onClick={refresh}
                 disabled={isLoading}
-                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white/80 hover:text-white"
-                title="Refresh Notifications"
+                className="p-1.5 hover:bg-gray-100 rounded-md transition-colors cursor-pointer text-gray-400 hover:text-gray-700"
+                title="Refresh notifications"
               >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-[#FF9501]" : ""}`} />
               </button>
               <button
                 onClick={onClose}
-                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white/80 hover:text-white"
-                aria-label="Close"
+                className="p-1.5 hover:bg-gray-100 rounded-md transition-colors cursor-pointer text-gray-400 hover:text-gray-700"
+                aria-label="Close panel"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           </div>
 
-          {/* Filter pills */}
-          <div className="flex gap-2">
+          {/* Filter Segmented Control with live counts */}
+          <div className="flex bg-gray-100/80 p-0.5 rounded-lg border border-gray-200/80 gap-0.5">
             <Pill
               label="All"
               active={filter === "all"}
+              count={totalAll}
               onClick={() => setFilter("all" as FilterType)}
             />
             <Pill
@@ -308,23 +283,22 @@ export function NotificationSidebar({
           </div>
         </div>
 
-        {/* ══ Action bar ══════════════════════════════════════════ */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+        {/* ══ Action Toolbar ══════════════════════════════════════════ */}
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50/50 text-xs">
           <div className="flex items-center gap-2">
             <button
               onClick={markAllRead}
               disabled={unreadCount === 0}
               className="
-                flex items-center gap-1.5 px-3 py-1.5 rounded-lg
-                text-xs font-semibold
-                border border-[#FF9501]/30 bg-white text-[#D97E00]
-                hover:bg-[#FF9501] hover:text-white hover:border-[#FF9501] hover:shadow-sm
+                flex items-center gap-1 px-2.5 py-1 rounded-md
+                text-[11px] font-medium
+                border border-gray-300 bg-white text-gray-700
+                hover:bg-gray-50 hover:text-gray-900
                 disabled:opacity-40 disabled:cursor-not-allowed
-                disabled:hover:bg-white disabled:hover:text-[#D97E00] disabled:hover:shadow-none
-                transition-all duration-150 cursor-pointer
+                transition-colors cursor-pointer shadow-2xs
               "
             >
-              <CheckCheck className="h-3.5 w-3.5" />
+              <CheckCheck className="h-3 w-3 text-gray-500" />
               Mark all read
             </button>
 
@@ -332,75 +306,85 @@ export function NotificationSidebar({
               onClick={deleteAllRead}
               disabled={readCount === 0}
               className="
-                flex items-center gap-1.5 px-3 py-1.5 rounded-lg
-                text-xs font-semibold
-                border border-[#E5E7EB] bg-white text-[#6B7280]
-                hover:bg-red-50 hover:text-red-600 hover:border-red-200 hover:shadow-sm
+                flex items-center gap-1 px-2.5 py-1 rounded-md
+                text-[11px] font-medium
+                border border-gray-300 bg-white text-gray-700
+                hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200
                 disabled:opacity-40 disabled:cursor-not-allowed
-                disabled:hover:bg-white disabled:hover:text-[#6B7280] disabled:hover:shadow-none
-                transition-all duration-150 cursor-pointer
+                transition-colors cursor-pointer shadow-2xs
               "
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-3 w-3 text-gray-500" />
               Clear read
             </button>
           </div>
 
           {isLoading && (
-            <Loader2 className="h-4 w-4 text-[#FF9501] animate-spin" />
+            <span className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
+              <Loader2 className="h-3 w-3 text-[#FF9501] animate-spin" />
+              Syncing...
+            </span>
           )}
         </div>
 
-        {/* ══ List ════════════════════════════════════════════════ */}
-        <div className="flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
+        {/* ══ Notification List ════════════════════════════════════ */}
+        <div className="flex-1 overflow-y-auto overscroll-contain">
 
           {/* Error */}
           {error && (
-            <div className="m-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-center">
-              <p className="text-xs font-semibold text-red-700">{error}</p>
+            <div className="m-4 px-3.5 py-2.5 rounded-lg bg-rose-50 border border-rose-200 text-center">
+              <p className="text-xs font-medium text-rose-700">{error}</p>
               <button
                 onClick={refresh}
-                className="mt-1 text-xs text-red-600 underline font-medium hover:text-red-800"
+                className="mt-1 text-xs text-rose-600 underline font-medium hover:text-rose-800 cursor-pointer"
               >
                 Try again
               </button>
             </div>
           )}
 
-          {/* Empty */}
+          {/* Empty State */}
           {!isLoading && !error && notifications.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-[#FFF4E5] border border-[#FF9501]/20 flex items-center justify-center mb-3 shadow-sm">
-                <Bell className="h-7 w-7 text-[#FF9501]" />
+            <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+              <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center mb-3 text-gray-400">
+                <Bell className="h-5 w-5" />
               </div>
-              <p className="text-sm font-bold text-[#1F2937]">
+              <p className="text-xs font-semibold text-gray-800">
                 {filter === "unread" ? "No unread notifications" : "No notifications yet"}
               </p>
-              <p className="text-xs text-[#6B7280] mt-1 leading-relaxed max-w-xs">
+              <p className="text-[11px] text-gray-400 mt-1 max-w-[220px]">
                 {filter === "unread"
-                  ? 'Switch to "All" to view your notification history.'
-                  : "We'll alert you here when important updates occur."}
+                  ? "You have reviewed all incoming notifications."
+                  : "We'll notify you when important system activities occur."}
               </p>
+              {filter === "unread" && totalAll > 0 && (
+                <button
+                  onClick={() => setFilter("all")}
+                  className="mt-3 px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                >
+                  View All Notifications
+                </button>
+              )}
             </div>
           )}
 
-          {/* Skeleton */}
+          {/* Loading Skeletons */}
           {isLoading && notifications.length === 0 && (
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-3">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex gap-3 animate-pulse">
-                  <div className="w-9 h-9 rounded-xl bg-gray-100 flex-shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 bg-gray-100 rounded-md w-1/3" />
-                    <div className="h-2.5 bg-gray-100 rounded-md w-4/5" />
-                    <div className="h-2 bg-gray-100 rounded-md w-2/5" />
+                <div key={i} className="flex gap-2.5 animate-pulse">
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-2.5 bg-gray-100 rounded w-1/3" />
+                    <div className="h-2 bg-gray-100 rounded w-4/5" />
+                    <div className="h-2 bg-gray-100 rounded w-2/5" />
                   </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Rows */}
+          {/* Notification Item Rows */}
           {notifications.map((notif: Notification) => (
             <NotifRow
               key={notif.id}
@@ -409,21 +393,6 @@ export function NotificationSidebar({
               onNavigate={handleNavigate}
             />
           ))}
-        </div>
-
-        {/* ══ Footer ══════════════════════════════════════════════ */}
-        <div className="flex-shrink-0 px-4 py-3 border-t border-[#E5E7EB] bg-[#F9FAFB]">
-          <p className="text-center text-[11px] text-[#6B7280] font-medium">
-            {totalAll} notification{totalAll !== 1 ? "s" : ""}
-            {filter === "unread" ? " · unread only" : ""}
-            {" · "}
-            <button
-              onClick={refresh}
-              className="text-[#D97E00] font-semibold hover:underline transition-colors cursor-pointer"
-            >
-              refresh
-            </button>
-          </p>
         </div>
       </div>
 
