@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Database, MessageSquare, Award, FileText,
   Clock, Users, Settings, Search, Bell, ChevronLeft, ChevronRight,
-  GraduationCap, LogOut, Shield, BookOpen, Radio, ClipboardCheck, Sparkles, X, FileCheck
+  GraduationCap, LogOut, Shield, BookOpen, Radio, ClipboardCheck, Sparkles, X, FileCheck, Menu
 } from "lucide-react";
 import { useRole } from "../contexts/RoleContext";
 import { hasPermission } from "../utils/rolePermissions";
@@ -11,6 +11,7 @@ import { RoleSwitcher } from "../components/RoleSwitcher";
 import { NotificationSidebar } from "../components/NotificationSidebar";
 import { useNotifications } from "../utils/useNotifications";
 import { AskPolicy } from "../pages/AskPolicy"; 
+import axios from "axios";
 
 export function DashboardLayout() {
   const location = useLocation();
@@ -21,6 +22,7 @@ export function DashboardLayout() {
   const isAskPolicy = location.pathname === '/app/ask-policy';
 
   const [sidebarCollapsed,  setSidebarCollapsed]  = useState(false);
+  const [mobileMenuOpen,    setMobileMenuOpen]     = useState(false);
   const [showUserMenu,      setShowUserMenu]       = useState(false);
   const [showNotifications, setShowNotifications]  = useState(false);
   const [isAIChatOpen,      setIsAIChatOpen]       = useState(false); 
@@ -47,6 +49,7 @@ export function DashboardLayout() {
 
   useEffect(() => {
     setShowUserMenu(false);
+    setMobileMenuOpen(false);
   }, [location.pathname]);
 
   const allMenuItems = [
@@ -93,33 +96,38 @@ export function DashboardLayout() {
     <div className="min-h-screen bg-[#F5F7FA]">
 
       {/* Top Navigation */}
-      <nav className="bg-white border-b border-[#E5E7EB] fixed top-0 left-0 right-0 z-30 shadow-sm">
-        <div className="px-6 py-4 flex items-center justify-between">
+      <nav className="bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-30 shadow-2xs">
+        <div className="px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#FF9501] rounded-lg flex items-center justify-center">
-              <GraduationCap className="h-6 w-6 text-white" />
+            {/* Mobile Menu Hamburger Toggle */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-1.5 -ml-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg md:hidden transition-colors cursor-pointer"
+              aria-label="Toggle navigation menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+
+            <div className="w-9 h-9 bg-[#FF9501] rounded-lg flex items-center justify-center shrink-0">
+              <GraduationCap className="h-5 w-5 text-white" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-[#1F2937]">CTU Argao Campus</div>
-              <div className="text-xs text-[#6B7280]">Knowledge Management System</div>
+              <div className="text-xs sm:text-sm font-bold text-gray-900 leading-tight">CTU Argao Campus</div>
+              <div className="text-[10px] sm:text-xs text-gray-500">Knowledge Management System</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-1 max-w-xl mx-8">
-            
-          </div>
-
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <RoleSwitcher />
 
             <button
               onClick={() => setShowNotifications(true)}
-              className="relative p-2 hover:bg-[#F5F7FA] rounded-lg transition-colors cursor-pointer"
+              className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-600 hover:text-gray-900"
               aria-label={`Notifications${notifs.unreadCount > 0 ? ` — ${notifs.unreadCount} unread` : ""}`}
             >
-              <Bell className="h-5 w-5 text-[#6B7280]" />
+              <Bell className="h-4.5 w-4.5" />
               {notifs.unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-[#CE0000] text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white shadow-sm animate-[badgePop_300ms_ease-out]">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white shadow-2xs animate-[badgePop_300ms_ease-out]">
                   {notifs.unreadCount > 99 ? "99+" : notifs.unreadCount}
                 </span>
               )}
@@ -128,38 +136,38 @@ export function DashboardLayout() {
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-2 px-3 py-2 hover:bg-[#F5F7FA] rounded-lg transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
               >
-                <div className={`w-8 h-8 ${badge.color} rounded-lg flex items-center justify-center`}>
-                  {badge.icon === Shield        && <Shield        className="h-4 w-4 text-white" />}
-                  {badge.icon === BookOpen      && <BookOpen      className="h-4 w-4 text-white" />}
-                  {badge.icon === GraduationCap && <GraduationCap className="h-4 w-4 text-white" />}
+                <div className={`w-7 h-7 ${badge.color} rounded-lg flex items-center justify-center text-white`}>
+                  {badge.icon === Shield        && <Shield        className="h-3.5 w-3.5" />}
+                  {badge.icon === BookOpen      && <BookOpen      className="h-3.5 w-3.5" />}
+                  {badge.icon === GraduationCap && <GraduationCap className="h-3.5 w-3.5" />}
                 </div>
                 <div className="text-left hidden lg:block">
-                  <div className="text-sm font-medium text-[#1F2937]">{userProfile.name}</div>
-                  <div className="text-xs text-[#6B7280]">{badge.label}</div>
+                  <div className="text-xs font-semibold text-gray-900 leading-tight">{userProfile.name}</div>
+                  <div className="text-[10px] text-gray-500">{badge.label}</div>
                 </div>
               </button>
 
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-[#E5E7EB] py-2 z-50">
-                  <div className="px-4 py-3 border-b border-[#E5E7EB]">
-                    <p className="text-sm font-medium text-[#1F2937]">{userProfile.name}</p>
-                    <p className="text-xs text-[#6B7280]">{userProfile.email}</p>
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-4 py-2.5 border-b border-gray-100">
+                    <p className="text-xs font-bold text-gray-900 truncate">{userProfile.name}</p>
+                    <p className="text-[11px] text-gray-500 truncate">{userProfile.email}</p>
                   </div>
                   <Link 
                     to="/app/profile-settings" 
-                    className="w-full px-4 py-2 text-left text-sm text-[#1F2937] hover:bg-[#F5F7FA] flex items-center gap-2 transition-colors cursor-pointer"
+                    className="w-full px-4 py-2 text-left text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors cursor-pointer font-medium"
                   >
-                    <Settings className="h-4 w-4 text-[#6B7280]" />
+                    <Settings className="h-3.5 w-3.5 text-gray-400" />
                     <span>Settings</span>
                   </Link>
-                  <div className="border-t border-[#E5E7EB] my-1"></div>
+                  <div className="border-t border-gray-100 my-1"></div>
                   <button
                     onClick={handleLogout}
-                    className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-red-50 flex items-center gap-2 transition-colors cursor-pointer"
+                    className="w-full px-4 py-2 text-left text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer font-medium"
                   >
-                    <LogOut className="h-4 w-4" /> Sign Out
+                    <LogOut className="h-3.5 w-3.5" /> Sign Out
                   </button>
                 </div>
               )}
@@ -168,62 +176,103 @@ export function DashboardLayout() {
         </div>
       </nav>
 
+      {/* Sidebar Navigation */}
       {!isProfileSettings && (
-        <aside
-          className={`fixed left-0 top-20 bottom-0 bg-white border-r border-[#E5E7EB] transition-all duration-300 z-20 ${
-            sidebarCollapsed ? "w-16" : "w-64"
-          }`}
-        >
-          <div className="flex flex-col h-full">
-            <div className="top-20 flex-1 overflow-y-auto py-4 px-3">
-              {menuItems.map((item) => {
-                const isActive = location.pathname === item.path;
-                const Icon = item.icon;
+        <>
+          {/* Mobile Overlay Backdrop */}
+          {mobileMenuOpen && (
+            <div 
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 md:hidden transition-opacity duration-300 animate-in fade-in"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-hidden="true"
+            />
+          )}
 
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2.5 mb-1 rounded-lg transition-all cursor-pointer ${
-                      isActive
-                        ? "bg-[#FF9501] text-white"
-                        : "text-[#6B7280] hover:bg-[#FFF4E5] hover:text-[#D97E00]"
-                    }`}
-                    title={sidebarCollapsed ? item.label : undefined}
-                  >
-                    <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? "text-white" : ""}`} />
-                    {!sidebarCollapsed && <span className="text-sm font-medium">{item.label}</span>}
-                  </Link>
-                );
-              })}
-            </div>
-
-            <div className="border-t border-[#E5E7EB] p-3">
+          {/* Sidebar Drawer */}
+          <aside
+            className={`fixed left-0 top-0 md:top-[61px] bottom-0 bg-white border-r border-gray-200 transition-all duration-300 z-50 md:z-20 flex flex-col ${
+              /* Mobile slide overlay logic */
+              mobileMenuOpen ? "translate-x-0 w-64 shadow-2xl" : "-translate-x-full md:translate-x-0"
+            } ${
+              /* Desktop collapse logic */
+              sidebarCollapsed ? "md:w-16" : "md:w-64"
+            }`}
+          >
+            {/* Mobile Header with Close Button */}
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between md:hidden bg-gray-50/60 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-[#FF9501] rounded-lg flex items-center justify-center">
+                  <GraduationCap className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-gray-900 leading-tight">CTU Argao Campus</div>
+                  <div className="text-[10px] text-gray-500">Navigation Menu</div>
+                </div>
+              </div>
               <button
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="w-full flex items-center justify-center p-2 hover:bg-[#F5F7FA] rounded-lg transition-colors cursor-pointer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
+                aria-label="Close navigation menu"
               >
-                {sidebarCollapsed ? (
-                  <ChevronRight className="h-5 w-5 text-[#6B7280]" />
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-[#6B7280]">
-                    <ChevronLeft className="h-5 w-5" />
-                    <span>Collapse</span>
-                  </div>
-                )}
+                <X className="h-4 w-4" />
               </button>
             </div>
-          </div>
-        </aside>
+
+            <div className="flex flex-col h-full overflow-hidden">
+              <div className="flex-1 overflow-y-auto py-3 px-2.5 custom-scrollbar">
+                {menuItems.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 mb-1 rounded-lg transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-[#FF9501] text-white font-semibold shadow-2xs"
+                          : "text-gray-600 hover:bg-orange-50 hover:text-[#D97E00] font-medium"
+                      }`}
+                      title={sidebarCollapsed ? item.label : undefined}
+                    >
+                      <Icon className={`h-4.5 w-4.5 shrink-0 ${isActive ? "text-white" : ""}`} />
+                      <span className={`text-xs ${sidebarCollapsed ? "md:hidden" : ""}`}>
+                        {item.label}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Collapse Button */}
+              <div className="border-t border-gray-200 p-2.5 hidden md:block">
+                <button
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className="w-full flex items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500 hover:text-gray-800"
+                >
+                  {sidebarCollapsed ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs font-medium">
+                      <ChevronLeft className="h-4 w-4" />
+                      <span>Collapse</span>
+                    </div>
+                  )}
+                </button>
+              </div>
+            </div>
+          </aside>
+        </>
       )}
 
-      {/* Main Layout Body */}
+      {/* Main Layout Body: full width on mobile, offset on desktop */}
       <main
-        className={`transition-all duration-300 pt-[73px] min-h-screen ${
-          isProfileSettings ? "ml-0" : (sidebarCollapsed ? "ml-16" : "ml-64")
+        className={`transition-all duration-300 pt-[61px] min-h-screen ml-0 ${
+          isProfileSettings ? "md:ml-0" : (sidebarCollapsed ? "md:ml-16" : "md:ml-64")
         }`}
       >
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           <Outlet />
         </div>
       </main>
