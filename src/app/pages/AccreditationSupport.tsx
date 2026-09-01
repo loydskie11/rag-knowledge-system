@@ -3,6 +3,20 @@ import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
 import { ISO_OFFICES_16 } from "./UsersRoles";
+
+export const MASTER_AACCUP_AREAS = [
+  { code: "Area I", title: "Vision, Mission, Goals and Objectives" },
+  { code: "Area II", title: "Faculty" },
+  { code: "Area III", title: "Curriculum and Instruction" },
+  { code: "Area IV", title: "Support to Students" },
+  { code: "Area V", title: "Research" },
+  { code: "Area VI", title: "Extension and Community Involvement" },
+  { code: "Area VII", title: "Library" },
+  { code: "Area VIII", title: "Physical Plant and Facilities" },
+  { code: "Area IX", title: "Laboratories" },
+  { code: "Area X", title: "Administration" },
+];
+
 // ==========================================
 // SUB-COMPONENTS FOR TAB CONTENTS
 // ==========================================
@@ -5212,11 +5226,11 @@ export function AccreditationSupport() {
       {/* --- EDIT CURRENT PROGRAM STANDING MODAL (Onboarding / Calibration) --- */}
       {showEditStandingModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-[#1D6FA3]">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-gray-200">
             <div className="p-6 border-b border-gray-100 bg-[#F5F7FA] flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <Edit className="w-5 h-5 text-[#1D6FA3]" /> Edit Current Program Standing
+                  <Edit className="w-5 h-5 text-[#FF9501]" /> Edit Current Program Standing
                 </h2>
                 <p className="text-xs text-gray-600 mt-1">
                   Directly calibrate the baseline accreditation level for <strong>{selectedProgram}</strong> without recording an audit hop
@@ -5235,7 +5249,7 @@ export function AccreditationSupport() {
                 <select
                   value={editStandingForm.new_level}
                   onChange={(e) => setEditStandingForm({ ...editStandingForm, new_level: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                 >
                   <option value="Candidate Status">Candidate Status</option>
                   <option value="Level I Candidate">Level I Candidate</option>
@@ -5258,7 +5272,7 @@ export function AccreditationSupport() {
                   type="date"
                   value={editStandingForm.valid_until_date}
                   onChange={(e) => setEditStandingForm({ ...editStandingForm, valid_until_date: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1D6FA3]"
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                 />
               </div>
 
@@ -5274,7 +5288,7 @@ export function AccreditationSupport() {
                 <button
                   type="submit"
                   disabled={isSavingStanding || !editStandingForm.new_level}
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#1D6FA3] hover:bg-[#15527B] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer"
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#FF9501] hover:bg-[#D97E00] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer"
                 >
                   {isSavingStanding ? <><Loader2 className="h-4 w-4 animate-spin"/> Saving...</> : "Save Standing"}
                 </button>
@@ -5345,11 +5359,11 @@ export function AccreditationSupport() {
       {/* --- CONFIGURE AACCUP ACTIVE EVALUATION AREAS MODAL --- */}
       {showAreaConfigModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#1D6FA3]">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden ">
             <div className="p-6 border-b border-gray-100 bg-[#F5F7FA] flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <SlidersHorizontal className="w-5 h-5 text-[#1D6FA3]" /> Configure Active Evaluation Areas
+                  <SlidersHorizontal className="w-5 h-5 text-[#FF9501]" /> Configure Active Evaluation Areas
                 </h2>
                 <p className="text-xs text-gray-600 mt-1">
                   Scope the AACCUP criteria for <strong>{selectedProgram}</strong> (e.g., 4 mandatory areas for Level III / IV re-accreditation).
@@ -5370,15 +5384,15 @@ export function AccreditationSupport() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setActiveAreas((currentData.areas || []).map((a: any) => a.code))}
-                    className="text-[11px] font-bold text-[#1D6FA3] hover:underline bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded cursor-pointer transition-colors"
+                    onClick={() => setActiveAreas(MASTER_AACCUP_AREAS.map(a => a.code))}
+                    className="text-[11px] font-bold text-[#D97E00] hover:underline bg-orange-50 hover:bg-orange-100 px-2 py-1 rounded cursor-pointer transition-colors"
                   >
-                    Select All Areas ({currentData.areas?.length || 0})
+                    Select All Areas ({MASTER_AACCUP_AREAS.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveAreas(["Area I", "Area II", "Area III", "Area V"])}
-                    className="text-[11px] font-bold text-[#FF9501] hover:underline bg-orange-50 hover:bg-orange-100 px-2 py-1 rounded cursor-pointer transition-colors"
+                    className="text-[11px] font-bold text-[#D97E00] hover:underline bg-orange-50 hover:bg-orange-100 px-2 py-1 rounded cursor-pointer transition-colors"
                   >
                     Level III/IV Core (4 Areas)
                   </button>
@@ -5386,14 +5400,14 @@ export function AccreditationSupport() {
               </div>
 
               {/* Area Checklist */}
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {(currentData.areas || []).map((area: any) => {
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                {MASTER_AACCUP_AREAS.map((area: any) => {
                   const isChecked = activeAreas.includes(area.code);
                   return (
                     <label
                       key={area.code}
                       className={`flex items-start gap-3 p-2.5 rounded-xl border transition-all cursor-pointer ${
-                        isChecked ? "bg-blue-50/60 border-[#1D6FA3]/30" : "bg-gray-50 border-gray-200 opacity-70"
+                        isChecked ? "bg-orange-50/60 border-[#FF9501]/30" : "bg-gray-50 border-gray-200 opacity-70"
                       }`}
                     >
                       <input
@@ -5406,12 +5420,12 @@ export function AccreditationSupport() {
                             setActiveAreas(activeAreas.filter(c => c !== area.code));
                           }
                         }}
-                        className="mt-1 rounded border-gray-300 text-[#1D6FA3] focus:ring-[#1D6FA3] h-4 w-4 cursor-pointer"
+                        className="mt-1 rounded border-gray-300 text-[#FF9501] focus:ring-[#FF9501] h-4 w-4 cursor-pointer"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-gray-900">{area.code}</span>
-                          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded ${isChecked ? "bg-blue-100 text-[#1D6FA3]" : "bg-gray-200 text-gray-600"}`}>
+                          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded ${isChecked ? "bg-orange-100 text-[#D97E00]" : "bg-gray-200 text-gray-600"}`}>
                             {isChecked ? "Active" : "Excluded"}
                           </span>
                         </div>
@@ -5424,7 +5438,7 @@ export function AccreditationSupport() {
 
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-500">
-                  {activeAreas.length} of {currentData.areas?.length || 0} Areas Selected
+                  {activeAreas.length} of {MASTER_AACCUP_AREAS.length} Areas Selected
                 </span>
                 <div className="flex gap-2">
                   <button
@@ -5438,7 +5452,7 @@ export function AccreditationSupport() {
                   <button
                     type="submit"
                     disabled={isSavingAreaConfig || activeAreas.length === 0}
-                    className="px-5 py-2 text-xs font-bold text-white bg-[#1D6FA3] hover:bg-[#15527B] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer"
+                    className="px-5 py-2 text-xs font-bold text-white bg-[#FF9501] hover:bg-[#D97E00] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer"
                   >
                     {isSavingAreaConfig ? <><Loader2 className="h-4 w-4 animate-spin"/> Saving...</> : "Save Configuration"}
                   </button>
