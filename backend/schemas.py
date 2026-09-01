@@ -369,3 +369,18 @@ class UpgradeAccreditationRequest(BaseModel):
     valid_until_date: Optional[str] = None # YYYY-MM-DD
     certificate_url: Optional[str] = None
     remarks: Optional[str] = None
+
+class AaccupRequirementCreate(BaseModel):
+    area_code: str
+    area_title: str
+    description: str
+
+class AaccupRequirementResponse(BaseModel):
+    id: uuid.UUID
+    area_code: str
+    area_title: str
+    description: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

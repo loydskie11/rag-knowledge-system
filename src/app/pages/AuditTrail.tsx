@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Filter, Download, Loader2, MessageSquare, Clock, ShieldAlert, FileText, History, X, Calendar, FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react";
+import { Search, Download, Loader2, X, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import axios from "axios";
 
 type TabType = "queries" | "access" | "versions" | "system";
@@ -119,108 +119,117 @@ export function AuditTrail() {
 
       {/* --- TOAST NOTIFICATION --- */}
       {toast && (
-        <div className={`fixed bottom-8 right-8 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 text-sm font-bold z-[100] transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in ${
+        <div className={`fixed bottom-6 right-6 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-medium z-50 transition-all duration-300 animate-in slide-in-from-bottom-3 fade-in ${
           toast.type === 'success' 
-            ? 'bg-[#FFF4E5] text-[#D97E00] border-2 border-[#FF9501]/20' 
-            : 'bg-red-50 text-red-700 border-2 border-red-200'
+            ? 'bg-[#FFF4E5] text-[#D97E00] border border-[#FF9501]/30' 
+            : 'bg-rose-50 text-rose-800 border border-rose-200'
         }`}>
-          {toast.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+          {toast.type === 'success' ? <CheckCircle2 className="h-4 w-4 text-[#FF9501]" /> : <AlertCircle className="h-4 w-4 text-rose-500" />}
           {toast.message}
         </div>
       )}
 
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl text-gray-900 mb-2 font-semibold">System Audit Trail</h1>
-          <p className="text-gray-600">Monitor system usage, document access, and AI interactions</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">System Audit Trail</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Track and audit system activities, user queries, document access, and security events.</p>
         </div>
         <button 
           onClick={() => setShowExportModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white font-medium rounded-lg hover:bg-[#D97E00] transition-colors shadow-sm cursor-pointer active:scale-95"
+          className="flex items-center gap-2 px-3.5 py-2 bg-[#FF9501] text-white text-xs font-semibold rounded-lg hover:bg-[#D97E00] transition-colors shadow-2xs cursor-pointer active:scale-95 shrink-0"
         >
-          <FileSpreadsheet className="h-4 w-4" />
+          <Download className="h-3.5 w-3.5" />
           Export Report
         </button>
       </div>
 
-      {/* Statistics - Monochromatic Amber Scaling */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-sm p-6 border-t-4 border-[#FF9501]">
-          <h3 className="text-3xl font-bold text-[#FF9501] mb-2">{queryLogs.length}</h3>
-          <p className="text-gray-700 font-medium">Total AI Queries</p>
-          <p className="text-sm text-gray-500 mt-1">Recorded interactions</p>
+      {/* Statistics Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+          <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">AI Queries</p>
+          <div className="flex items-baseline justify-between mt-1">
+            <h3 className="text-2xl font-bold text-gray-900">{queryLogs.length}</h3>
+            <span className="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded font-medium">Interactions</span>
+          </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-6 border-t-4 border-[#D97E00]">
-          <h3 className="text-3xl font-bold text-[#D97E00] mb-2">{accessLogs.length}</h3>
-          <p className="text-gray-700 font-medium">Document Accesses</p>
-          <p className="text-sm text-gray-500 mt-1">Tracked views & downloads</p>
+        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+          <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Document Access</p>
+          <div className="flex items-baseline justify-between mt-1">
+            <h3 className="text-2xl font-bold text-gray-900">{accessLogs.length}</h3>
+            <span className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded font-medium">Views & DL</span>
+          </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-6 border-t-4 border-[#995900]">
-          <h3 className="text-3xl font-bold text-[#995900] mb-2">{versionLogs.length}</h3>
-          <p className="text-gray-700 font-medium">Version Updates</p>
-          <p className="text-sm text-gray-500 mt-1">Tracked file modifications</p>
+        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+          <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Version Updates</p>
+          <div className="flex items-baseline justify-between mt-1">
+            <h3 className="text-2xl font-bold text-gray-900">{versionLogs.length}</h3>
+            <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium">Changes</span>
+          </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-6 border-t-4 border-[#CE0000]">
-          <h3 className="text-3xl font-bold text-[#CE0000] mb-2">{systemLogs.length}</h3>
-          <p className="text-gray-700 font-medium">Security Events</p>
-          <p className="text-sm text-gray-500 mt-1">Logins and account creations</p>
+        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+          <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Security Events</p>
+          <div className="flex items-baseline justify-between mt-1">
+            <h3 className="text-2xl font-bold text-gray-900">{systemLogs.length}</h3>
+            <span className="text-[11px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded font-medium">Auth & Logs</span>
+          </div>
         </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         
         {/* Header and Controls */}
-        <div className="p-6 border-b border-gray-100 bg-[#F9FAFB]">
-          <div className="flex flex-col md:flex-row gap-4 justify-between mb-6">
-            <div className="flex gap-2 bg-gray-100 p-1 rounded-lg w-full md:w-auto overflow-x-auto">
+        <div className="p-4 sm:p-5 border-b border-gray-200 bg-gray-50/50">
+          <div className="flex flex-col md:flex-row gap-3 justify-between">
+            <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 w-full md:w-auto overflow-x-auto gap-1">
               <button
                 onClick={() => setActiveTab("queries")}
-                className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
-                  activeTab === "queries" ? "bg-white text-[#D97E00] shadow-sm" : "text-gray-600 hover:text-gray-900"
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                  activeTab === "queries" ? "bg-white text-gray-900 shadow-xs" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                AI Query Logs
+                AI Query Logs ({queryLogs.length})
               </button>
               <button
                 onClick={() => setActiveTab("access")}
-                className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
-                  activeTab === "access" ? "bg-white text-[#D97E00] shadow-sm" : "text-gray-600 hover:text-gray-900"
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                  activeTab === "access" ? "bg-white text-gray-900 shadow-xs" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                Document Access
+                Document Access ({accessLogs.length})
               </button>
               <button
                 onClick={() => setActiveTab("versions")}
-                className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
-                  activeTab === "versions" ? "bg-white text-[#D97E00] shadow-sm" : "text-gray-600 hover:text-gray-900"
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                  activeTab === "versions" ? "bg-white text-gray-900 shadow-xs" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                Version History
+                Version History ({versionLogs.length})
               </button>
               <button
                 onClick={() => setActiveTab("system")}
-                className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
-                  activeTab === "system" ? "bg-white text-[#D97E00] shadow-sm" : "text-gray-600 hover:text-gray-900"
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                  activeTab === "system" ? "bg-white text-gray-900 shadow-xs" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                System Events
+                System Events ({systemLogs.length})
               </button>
             </div>
             
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <div className="relative flex-1 md:w-64">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                 <input 
                   type="text" 
                   placeholder="Search logs..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-10 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-colors" 
+                  className="w-full pl-9 pr-9 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-colors" 
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full transition-all cursor-pointer"
+                    className="absolute right-2.5 top-1/2 transform -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-700 rounded-full transition-all cursor-pointer"
                     title="Clear search"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -232,46 +241,43 @@ export function AuditTrail() {
         </div>
 
         {/* Dynamic Content Area */}
-        <div className="overflow-x-auto min-h-[400px]">
+        <div className="overflow-x-auto min-h-[360px]">
           {isLoading ? (
-             <div className="flex justify-center items-center h-[400px]">
-                <Loader2 className="h-8 w-8 animate-spin text-[#FF9501]" />
+             <div className="flex justify-center items-center h-[360px]">
+                <Loader2 className="h-6 w-6 animate-spin text-[#FF9501]" />
              </div>
           ) : activeTab === "queries" ? (
-            <table className="w-full text-left whitespace-nowrap table-fixed min-w-[900px]">
-              <thead className="bg-[#F5F7FA] border-b border-gray-200">
+            <table className="w-full text-left whitespace-nowrap table-fixed min-w-[800px]">
+              <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <tr>
-                  <th className="w-[25%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">User</th>
-                  <th className="w-[45%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Query Sent to AI</th>
-                  <th className="w-[20%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Timestamp</th>
-                  <th className="w-[10%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="w-[25%] px-4 py-3">User</th>
+                  <th className="w-[45%] px-4 py-3">Query Sent to AI</th>
+                  <th className="w-[20%] px-4 py-3">Timestamp</th>
+                  <th className="w-[10%] px-4 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={4} className="px-4 py-12 text-center text-gray-400">
                       No query logs found matching your search.
                     </td>
                   </tr>
                 ) : (
                   filteredData.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 truncate">
-                        <div className="font-semibold text-gray-900 truncate" title={log.user}>{log.user}</div>
-                        <div className="text-xs font-medium text-gray-500 mt-0.5 truncate">{log.role || "STUDENT"}</div>
+                    <tr key={log.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-4 py-3 truncate">
+                        <div className="font-medium text-gray-900 truncate" title={log.user}>{log.user}</div>
+                        <div className="text-[11px] text-gray-400 mt-0.5 truncate">{log.role || "STUDENT"}</div>
                       </td>
-                      <td className="px-6 py-4 truncate">
-                        <div className="flex items-center gap-2 truncate">
-                          <MessageSquare className="h-4 w-4 text-[#FF9501] flex-shrink-0" />
-                          <span className="text-sm text-gray-700 truncate" title={log.query}>
-                            {log.query}
-                          </span>
-                        </div>
+                      <td className="px-4 py-3 truncate">
+                        <span className="text-gray-700 truncate block" title={log.query}>
+                          {log.query}
+                        </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 truncate">{log.timestamp}</td>
-                      <td className="px-6 py-4">
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-700 border border-green-200">
+                      <td className="px-4 py-3 text-gray-500 truncate">{log.timestamp}</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                           {log.status || "Answered"}
                         </span>
                       </td>
@@ -281,92 +287,86 @@ export function AuditTrail() {
               </tbody>
             </table>
           ) : activeTab === "access" ? (
-            <table className="w-full text-left whitespace-nowrap table-fixed min-w-[900px]">
-              <thead className="bg-[#F5F7FA] border-b border-gray-200">
+            <table className="w-full text-left whitespace-nowrap table-fixed min-w-[800px]">
+              <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <tr>
-                  <th className="w-[25%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">User</th>
-                  <th className="w-[45%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Document Accessed</th>
-                  <th className="w-[10%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
-                  <th className="w-[20%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Timestamp</th>
+                  <th className="w-[25%] px-4 py-3">User</th>
+                  <th className="w-[45%] px-4 py-3">Document Accessed</th>
+                  <th className="w-[10%] px-4 py-3">Action</th>
+                  <th className="w-[20%] px-4 py-3">Timestamp</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={4} className="px-4 py-12 text-center text-gray-400">
                       No access logs found matching your search.
                     </td>
                   </tr>
                 ) : (
                   filteredData.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 truncate">
-                        <div className="font-semibold text-gray-900 truncate" title={log.user}>{log.user}</div>
-                        <div className="text-xs font-medium text-gray-500 mt-0.5 truncate">{log.role}</div>
+                    <tr key={log.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-4 py-3 truncate">
+                        <div className="font-medium text-gray-900 truncate" title={log.user}>{log.user}</div>
+                        <div className="text-[11px] text-gray-400 mt-0.5 truncate">{log.role}</div>
                       </td>
-                      <td className="px-6 py-4 truncate">
-                        <div className="font-medium text-[#D97E00] truncate" title={log.document}>
+                      <td className="px-4 py-3 truncate">
+                        <span className="font-medium text-gray-800 truncate block" title={log.document}>
                           {log.document}
-                        </div>
+                        </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${
                           log.action === 'Download' 
-                            ? 'bg-[#FFF4E5] text-[#D97E00] border-[#FF9501]/20' 
-                            : 'bg-orange-50 text-[#FF9501] border-[#FF9501]/10'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200/60' 
+                            : 'bg-blue-50 text-blue-700 border-blue-200/60'
                         }`}>
                           {log.action}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 truncate">{log.timestamp}</td>
+                      <td className="px-4 py-3 text-gray-500 truncate">{log.timestamp}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           ) : activeTab === "versions" ? (
-            <table className="w-full text-left whitespace-nowrap table-fixed min-w-[900px]">
-              <thead className="bg-[#F5F7FA] border-b border-gray-200">
+            <table className="w-full text-left whitespace-nowrap table-fixed min-w-[800px]">
+              <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <tr>
-                  <th className="w-[35%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Document Name</th>
-                  <th className="w-[10%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Version</th>
-                  <th className="w-[20%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Updated By</th>
-                  <th className="w-[20%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Timestamp</th>
-                  <th className="w-[15%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="w-[35%] px-4 py-3">Document Name</th>
+                  <th className="w-[10%] px-4 py-3">Version</th>
+                  <th className="w-[20%] px-4 py-3">Updated By</th>
+                  <th className="w-[20%] px-4 py-3">Timestamp</th>
+                  <th className="w-[15%] px-4 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
                       No version history found matching your search.
                     </td>
                   </tr>
                 ) : (
                   filteredData.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 truncate">
-                        <div className="flex items-center gap-2 truncate">
-                          <FileText className="h-4 w-4 text-[#FF9501] flex-shrink-0" />
-                          <span className="font-semibold text-gray-900 truncate" title={log.document}>
-                            {log.document}
-                          </span>
-                        </div>
+                    <tr key={log.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-4 py-3 truncate">
+                        <span className="font-medium text-gray-900 truncate block" title={log.document}>
+                          {log.document}
+                        </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 font-bold text-gray-700">
-                          <History className="h-4 w-4 text-gray-400" />
-                          v{log.version}
-                        </div>
+                      <td className="px-4 py-3 font-semibold text-gray-700">
+                        v{log.version}
                       </td>
-                      <td className="px-6 py-4 truncate">
-                        <span className="text-sm font-medium text-gray-700 truncate" title={log.user}>{log.user}</span>
+                      <td className="px-4 py-3 truncate">
+                        <span className="text-gray-700 truncate block" title={log.user}>{log.user}</span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 truncate">{log.timestamp}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
+                      <td className="px-4 py-3 text-gray-500 truncate">{log.timestamp}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${
                           log.status === 'Active' 
-                            ? 'bg-orange-50 text-[#D97E00] border-[#FF9501]/20' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' 
                             : 'bg-gray-100 text-gray-500 border-gray-200'
                         }`}>
                           {log.status}
@@ -378,41 +378,41 @@ export function AuditTrail() {
               </tbody>
             </table>
           ) : activeTab === "system" ? (
-            <table className="w-full text-left whitespace-nowrap table-fixed min-w-[900px]">
-              <thead className="bg-[#F5F7FA] border-b border-gray-200">
+            <table className="w-full text-left whitespace-nowrap table-fixed min-w-[800px]">
+              <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <tr>
-                  <th className="w-[25%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">User Account</th>
-                  <th className="w-[20%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Event Type</th>
-                  <th className="w-[35%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                  <th className="w-[20%] px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Timestamp</th>
+                  <th className="w-[25%] px-4 py-3">User Account</th>
+                  <th className="w-[20%] px-4 py-3">Event Type</th>
+                  <th className="w-[35%] px-4 py-3">Description</th>
+                  <th className="w-[20%] px-4 py-3">Timestamp</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={4} className="px-4 py-12 text-center text-gray-400">
                       No system events found matching your search.
                     </td>
                   </tr>
                 ) : (
                   filteredData.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 truncate">
-                        <span className="font-semibold text-gray-900 truncate" title={log.user}>{log.user}</span>
+                    <tr key={log.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-4 py-3 truncate">
+                        <span className="font-medium text-gray-900 truncate block" title={log.user}>{log.user}</span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${
                           log.type === 'Authentication' 
-                            ? 'bg-orange-50 text-[#D97E00] border-[#FF9501]/20' 
-                            : 'bg-red-50 text-red-700 border-red-200'
+                            ? 'bg-gray-100 text-gray-800 border-gray-200' 
+                            : 'bg-rose-50 text-rose-700 border-rose-200/60'
                         }`}>
                           {log.type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 truncate">
-                        <span className="text-sm text-gray-700 truncate" title={log.description}>{log.description}</span>
+                      <td className="px-4 py-3 truncate">
+                        <span className="text-gray-700 truncate block" title={log.description}>{log.description}</span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 truncate">{log.timestamp}</td>
+                      <td className="px-4 py-3 text-gray-500 truncate">{log.timestamp}</td>
                     </tr>
                   ))
                 )}
@@ -424,25 +424,22 @@ export function AuditTrail() {
 
       {/* --- EXPORT MODAL --- */}
       {showExportModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F5F7FA]">
-              <div className="flex items-center gap-2">
-                <Download className="h-5 w-5 text-[#FF9501]" />
-                <h2 className="text-xl font-bold text-[#1F2937]">Export Audit Report</h2>
-              </div>
-              <button onClick={() => setShowExportModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5 text-gray-500" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl overflow-hidden border border-gray-200">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-sm font-semibold text-gray-900">Export Audit Report</h2>
+              <button onClick={() => setShowExportModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
+                <X className="h-4 w-4" />
               </button>
             </div>
             
-            <div className="p-6 space-y-5">
+            <div className="p-5 space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Select Log Type</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Select Log Type</label>
                 <select 
                   value={exportType}
                   onChange={(e) => setExportType(e.target.value as TabType)}
-                  className="w-full px-4 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                  className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
                 >
                   <option value="queries">AI Query Logs</option>
                   <option value="access">Document Access Logs</option>
@@ -451,47 +448,47 @@ export function AuditTrail() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Start Date</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Start Date</label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Calendar className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                     <input 
                       type="date" 
                       value={exportDates.start}
                       onChange={(e) => setExportDates({...exportDates, start: e.target.value})}
-                      className="w-full pl-9 pr-3 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-sm cursor-pointer"
+                      className="w-full pl-8 pr-2 py-2 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-xs cursor-pointer"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">End Date</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">End Date</label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Calendar className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                     <input 
                       type="date" 
                       value={exportDates.end}
                       onChange={(e) => setExportDates({...exportDates, end: e.target.value})}
-                      className="w-full pl-9 pr-3 py-3 bg-[#F5F7FA] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-sm cursor-pointer"
+                      className="w-full pl-8 pr-2 py-2 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-xs cursor-pointer"
                     />
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-gray-500 italic font-medium">Leave dates blank to export all history for this log type.</p>
+              <p className="text-[11px] text-gray-400 italic">Leave dates blank to export all history for this log type.</p>
             </div>
 
-            <div className="p-6 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-3">
+            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
               <button 
                 onClick={() => setShowExportModal(false)} 
-                className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleExport} 
-                className="px-6 py-2.5 text-sm font-bold text-white rounded-xl bg-[#FF9501] hover:bg-[#D97E00] transition-colors flex items-center gap-2 cursor-pointer active:scale-95 shadow-sm"
+                className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-[#FF9501] hover:bg-[#D97E00] transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
               >
-                <FileSpreadsheet className="h-4 w-4" />
+                <Download className="h-3.5 w-3.5" />
                 Download CSV
               </button>
             </div>

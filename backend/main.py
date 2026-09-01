@@ -238,10 +238,15 @@ def _notify_non_admin(db: Session, n_type: str, title: str, message: str) -> Non
 # PYDANTIC SCHEMAS (request / response models)
 # ─────────────────────────────────────────────────────────────────────────────
 
+class ChatHistoryItem(BaseModel):
+    role: str # "user" or "assistant" / "ai"
+    content: str
+
 class QuestionRequest(BaseModel):
     question:   str
-    user_email: str
-    user_role:  str
+    user_email: Optional[str] = "guest@ctu.edu.ph"
+    user_role:  Optional[str] = "STUDENT"
+    history:    Optional[List[ChatHistoryItem]] = []
 
 class FeedbackRequest(BaseModel):
     question:   str
@@ -368,9 +373,52 @@ try:
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_date VARCHAR(50);"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_notes TEXT;"))
         conn.execute(text("ALTER TABLE program_accreditations ADD COLUMN IF NOT EXISTS active_areas TEXT DEFAULT 'Area I,Area II,Area III,Area IV,Area V,Area VI,Area VII,Area VIII,Area IX,Area X';"))
-        conn.commit()
+        
+        # Check if aaccup_requirements is empty, then seed
+        res_aaccup = conn.execute(text("SELECT COUNT(*) FROM aaccup_requirements")).scalar()
+        if res_aaccup == 0:
+            seed_data = [
+                ("Area I", "Vision, Mission, Goals and Objectives", "Approved Board Resolution of VMGO"),
+                ("Area I", "Vision, Mission, Goals and Objectives", "Dissemination Evidence (Photos, Memos)"),
+                ("Area I", "Vision, Mission, Goals and Objectives", "Stakeholder Awareness Survey Rating"),
+                ("Area II", "Faculty", "Faculty Manual"),
+                ("Area II", "Faculty", "201 Files / Credentials of Faculty"),
+                ("Area II", "Faculty", "Faculty Development Plan"),
+                ("Area II", "Faculty", "Summary of Faculty Workload and Loading"),
+                ("Area III", "Curriculum and Instruction", "CMO / Syllabi for all subjects"),
+                ("Area III", "Curriculum and Instruction", "Curriculum Map"),
+                ("Area III", "Curriculum and Instruction", "Sample Exams and Rubrics"),
+                ("Area IV", "Support to Students", "Student Handbook"),
+                ("Area IV", "Support to Students", "Guidance and Counseling Reports"),
+                ("Area IV", "Support to Students", "Student Organization Activities"),
+                ("Area V", "Research", "Institutional Research Agenda"),
+                ("Area V", "Research", "Published Research Papers"),
+                ("Area V", "Research", "Research Incentives Memo"),
+                ("Area VI", "Extension and Community Involvement", "Extension Program Plan"),
+                ("Area VI", "Extension and Community Involvement", "MOA/MOU with Partner Communities"),
+                ("Area VI", "Extension and Community Involvement", "Impact Assessment Report"),
+                ("Area VII", "Library", "Library Manual"),
+                ("Area VII", "Library", "Inventory of Books and Journals"),
+                ("Area VII", "Library", "Library Utilization Reports"),
+                ("Area VIII", "Physical Plant and Facilities", "Campus Development Plan"),
+                ("Area VIII", "Physical Plant and Facilities", "Building Permits and Fire Safety Certs"),
+                ("Area VIII", "Physical Plant and Facilities", "Maintenance Logs"),
+                ("Area IX", "Laboratories", "Laboratory Manuals"),
+                ("Area IX", "Laboratories", "Inventory of Equipment"),
+                ("Area IX", "Laboratories", "Safety and Hazard Protocols"),
+                ("Area X", "Administration", "Organizational Chart"),
+                ("Area X", "Administration", "Strategic Plan"),
+                ("Area X", "Administration", "Financial Audit Reports"),
+            ]
+            for code, title, desc in seed_data:
+                conn.execute(text("INSERT INTO aaccup_requirements (id, area_code, area_title, description, created_at) VALUES (gen_random_uuid(), :code, :title, :desc, now())"), {"code": code, "title": title, "desc": desc})
+            conn.commit()
+            import time
+            time.sleep(0.2)  # Allow DB transaction to finalize before math routes run
+        else:
+            conn.commit()
 except Exception as _mig_err:
-    pass
+    print(f"Startup Migration Error: {_mig_err}")
 
 app = FastAPI(
     title="CTU Institutional Knowledge System API",
@@ -1419,10 +1467,27 @@ def ask_policy(
     except Exception as e:
         print(f"Failed to log query: {e}")
 
+    history = request.history or []
+    recent_history = [h for h in history if h.content and h.content.strip()][-6:]
+
     # ==========================================
-    # 4. QUERY EXPANSION & SPELL CHECK
+    # 4. CONVERSATIONAL QUERY EXPANSION & SPELL CHECK
     # ==========================================
-    rewrite_prompt = f"""You are a search query optimizer. The user asked: "{question}"
+    if recent_history:
+        history_summary = "\n".join([f"{'User' if h.role == 'user' else 'Assistant'}: {h.content}" for h in recent_history[-4:]])
+        rewrite_prompt = f"""You are a search query optimizer for an institutional knowledge retrieval system.
+Given the recent conversation history and a follow-up question, rephrase the follow-up question into a single, standalone, grammatically correct search query for a vector database.
+Resolve any ambiguous pronouns or references (e.g. "it", "that", "the requirements", "the deadline", "how about that?") to the specific topic discussed.
+Fix all typos.
+Do NOT answer the question. ONLY output the optimized standalone search string.
+
+Conversation History:
+{history_summary}
+
+Follow-up Question: "{question}"
+Standalone Search Query:"""
+    else:
+        rewrite_prompt = f"""You are a search query optimizer. The user asked: "{question}"
 Rewrite this into a clean, professional, grammatically correct search query optimized for a vector database. 
 Fix all typos. Do not answer the question, ONLY output the optimized search string."""
     
@@ -1448,7 +1513,7 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
     # Early exit: student is asking about a restricted topic.
     # Check this BEFORE the generic 'not found' so they get a clear reason.
     if user_role == "STUDENT" and excluded_categories:
-        q_lower_check = question.strip().lower()
+        q_lower_check = (question + " " + optimized_query).strip().lower()
         is_restricted_query = any(kw in q_lower_check for kw in RESTRICTED_TOPIC_KEYWORDS)
         if is_restricted_query:
             return {
@@ -1476,7 +1541,7 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
     context_text = "\n\n".join([chunk['content'] for chunk in relevant_chunks])
 
     # ==========================================
-    # 6. ROLE-AWARE SYSTEM PROMPT
+    # 6. ROLE-AWARE SYSTEM PROMPT (CONVERSATIONAL & STRICTLY GROUNDED)
     # ==========================================
     role_context = {
         "STUDENT": (
@@ -1496,24 +1561,27 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
 
     system_prompt = f"""{base_prompt}
     
-    You are the official CTU Argao Campus AI Policy Assistant. Your task is to answer user queries strictly and exclusively using the provided text snippets from the verified institutional knowledge repository.
+    You are the official CTU Argao Campus AI Policy Assistant. Your task is to engage in natural, helpful conversation with the user and answer their queries strictly and exclusively using the provided text snippets from the verified institutional knowledge repository.
 
     USER CONTEXT:
     {role_context}
 
-    YOUR PERSONALITY:
-    - You are warm, welcoming, and helpful.
+    YOUR PERSONALITY & CONVERSATIONAL STYLE:
+    - You are warm, welcoming, professional, and helpful.
+    - You maintain natural conversational continuity. When the user asks follow-up questions, seamlessly acknowledge previous context (e.g. "Regarding the admission process we discussed earlier...").
     - You represent the CTU Argao brand.
     
-    CRITICAL DIRECTIVES FOR SYSTEM VALIDITY:
-    1. GROUNDING MANDATE: You must rely entirely on the provided facts within the context block. Do not extrapolate, assume, or combine outside world knowledge.
-    2. ABSOLUTE REFUSAL RULE: If the provided context does not contain the exact factual answer to the user's question, or if the relevant document has not been uploaded to the database, you must state exactly this word-for-word: "I am sorry, but the specific document or policy regarding this matter is currently not available in our institutional knowledge repository."
-    3. NO HALLUCINATIONS: Never make up dates, names, room numbers, or requirements under any circumstances. If the context is ambiguous, execute the Absolute Refusal Rule.
-    4. CITATION REQUIREMENT: When answering from the context, always ground your sentences clearly based on the provided document names.
-    5. MULTI-SOURCE SYNTHESIS: If the context contains information from multiple different documents (e.g., the Student Handbook and a Board Resolution), you MUST synthesize them. Compare or combine the information logically so the user gets a comprehensive answer.
+    CRITICAL DIRECTIVES FOR FACTUAL ACCURACY & GROUNDING:
+    1. STRICT VECTOR GROUNDING: All factual information, rules, criteria, requirements, deadlines, fees, and guidelines MUST come strictly and exclusively from the CONTEXT snippets below. Do not extrapolate, assume, or inject outside world knowledge.
+    2. ABSOLUTE REFUSAL RULE: If the provided context does not contain the exact factual answer to the user's question, or if the relevant document has not been uploaded to the database, state clearly and politely: "I am sorry, but the specific document or policy regarding this matter is currently not available in our institutional knowledge repository."
+    3. NO HALLUCINATIONS: Never invent dates, names, room numbers, or requirements under any circumstances.
+    4. CITATION REQUIREMENT: When answering from the context, clearly ground your explanation on the provided document names.
+    5. MULTI-SOURCE SYNTHESIS: If the context contains information from multiple different documents (e.g., the Student Handbook and a Board Resolution), synthesize and combine them logically for a comprehensive response.
     
     FORMATTING RULE:
-    You must separate your main answer from the follow-up questions using exactly this string: |FOLLOWUPS|
+    You must separate your main answer from suggested follow-up questions using exactly this string: |FOLLOWUPS|
+    Everything after |FOLLOWUPS| must be written from the STUDENT'S or USER'S point of view (e.g. "What is the deadline for adding subjects?").
+    NEVER use this section to ask the user a clarifying question yourself. If you need more information, put it in your main answer and leave |FOLLOWUPS| empty.
     Put each follow-up question on a new line. Do not number them.
     
     CONTEXT FROM HANDBOOKS:
@@ -1521,14 +1589,21 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
     """
 
     # ==========================================
-    # 7. AI CALL WITH DYNAMIC SETTINGS
+    # 7. AI CALL WITH MULTI-TURN CONVERSATION PAYLOAD
     # ==========================================
+    messages_payload = [{'role': 'system', 'content': system_prompt}]
+    
+    # Append recent conversation history so the LLM understands conversation context
+    for msg in recent_history:
+        msg_role = 'user' if msg.role == 'user' else 'assistant'
+        messages_payload.append({'role': msg_role, 'content': msg.content})
+        
+    # Append latest user question
+    messages_payload.append({'role': 'user', 'content': question})
+
     try:
         response = groq_client.chat.completions.create(
-            messages=[
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': question}
-            ],
+            messages=messages_payload,
             model=ai_model,       # Dynamic Model!
             temperature=ai_temp   # Dynamic Temperature!
         )
@@ -1958,7 +2033,7 @@ def review_accreditation(req: AccreditationReviewRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to process review")
 
-# 2. THE UPDATED STATUS ROUTE (Only counts Approved docs and respect Active Areas!)
+# 2. THE UPDATED STATUS ROUTE (Database-driven AACCUP requirements)
 @app.get("/accreditation-status/{program}")
 def get_accreditation_status(program: str, db: Session = Depends(get_db)):
     try:
@@ -1968,7 +2043,6 @@ def get_accreditation_status(program: str, db: Session = Depends(get_db)):
         if prog_acc and prog_acc.active_areas:
             active_areas_set = set(a.strip() for a in prog_acc.active_areas.split(",") if a.strip())
 
-        # NOTICE: We changed "Active" to "Approved" so Pending docs don't artificially inflate the score!
         res = supabase.table("document_sections").select("metadata").eq("metadata->>category", "Accreditation Evidence").eq("metadata->>program", program).eq("metadata->>status", "Approved").execute()
         
         fulfilled_reqs = {}
@@ -1983,40 +2057,27 @@ def get_accreditation_status(program: str, db: Session = Depends(get_db)):
                         fulfilled_reqs[area] = set()
                     fulfilled_reqs[area].add(req_target)
 
-        AREA_TEMPLATES = {
-            "Area I":    ["Approved Board Resolution of VMGO", "Dissemination Evidence (Photos, Memos)", "Stakeholder Awareness Survey Rating"],
-            "Area II":   ["Faculty Manual", "201 Files / Credentials of Faculty", "Faculty Development Plan", "Summary of Faculty Workload and Loading"],
-            "Area III":  ["CMO / Syllabi for all subjects", "Curriculum Map", "Sample Exams and Rubrics"],
-            "Area IV":   ["Student Handbook", "Guidance and Counseling Reports", "Student Organization Activities"],
-            "Area V":    ["Institutional Research Agenda", "Published Research Papers", "Research Incentives Memo"],
-            "Area VI":   ["Extension Program Plan", "MOA/MOU with Partner Communities", "Impact Assessment Report"],
-            "Area VII":  ["Library Manual", "Inventory of Books and Journals", "Library Utilization Reports"],
-            "Area VIII": ["Campus Development Plan", "Building Permits and Fire Safety Certs", "Maintenance Logs"],
-            "Area IX":   ["Laboratory Manuals", "Inventory of Equipment", "Safety and Hazard Protocols"],
-            "Area X":    ["Organizational Chart", "Strategic Plan", "Financial Audit Reports"],
-        }
+        # Query database requirements
+        db_reqs = db.query(models.AaccupRequirement).all()
+        area_groups = {}
+        for r in db_reqs:
+            if r.area_code not in area_groups:
+                area_groups[r.area_code] = {"title": r.area_title, "reqs": []}
+            area_groups[r.area_code]["reqs"].append(r.description)
 
-        AREA_TITLES = {
-            "Area I":    "Vision, Mission, Goals and Objectives",
-            "Area II":   "Faculty",
-            "Area III":  "Curriculum and Instruction",
-            "Area IV":   "Support to Students",
-            "Area V":    "Research",
-            "Area VI":   "Extension and Community Involvement",
-            "Area VII":  "Library",
-            "Area VIII": "Physical Plant and Facilities",
-            "Area IX":   "Laboratories",
-            "Area X":    "Administration",
-        }
+        # Order areas logically Areas I to X
+        sorted_codes = sorted(area_groups.keys())
 
         areas_list = []
         total_req  = 0
         total_ev   = 0
 
-        for code, reqs in AREA_TEMPLATES.items():
+        for code in sorted_codes:
             if active_areas_set is not None and code not in active_areas_set:
                 continue
 
+            reqs = area_groups[code]["reqs"]
+            title = area_groups[code]["title"]
             required_count = len(reqs)
             ev_count       = len(fulfilled_reqs.get(code, set()))
             capped_ev      = min(ev_count, required_count)
@@ -2027,7 +2088,7 @@ def get_accreditation_status(program: str, db: Session = Depends(get_db)):
             areas_list.append({
                 "id":            code.replace(" ", ""),
                 "code":          code,
-                "title":         AREA_TITLES.get(code, "General Area"),
+                "title":         title,
                 "compliance":    comp,
                 "required":      required_count,
                 "evidenceCount": ev_count,
@@ -2048,7 +2109,7 @@ def get_accreditation_status(program: str, db: Session = Depends(get_db)):
 
 
 @app.get("/accreditation-details/{program}/{area_code}")
-def get_accreditation_details(program: str, area_code: str):
+def get_accreditation_details(program: str, area_code: str, db: Session = Depends(get_db)):
     try:
         response = supabase.table("document_sections")\
             .select("metadata")\
@@ -2069,7 +2130,6 @@ def get_accreditation_details(program: str, area_code: str):
                 req_target = meta.get('requirement_target') 
                 doc_status = meta.get('status', 'Pending')
                 
-                # ONLY mark as fulfilled if it is Approved!
                 if req_target and doc_status == "Approved":
                     fulfilled_targets.add(req_target) 
                 
@@ -2079,32 +2139,20 @@ def get_accreditation_details(program: str, area_code: str):
                         "date": meta.get('upload_date', '').split('T')[0] if 'upload_date' in meta else 'Recently',
                         "url": meta.get('file_url') or meta.get('source', '#'),
                         "target": req_target or "Uncategorized",
-                        "status": doc_status, # <--- Pass the status to the React UI
+                        "status": doc_status,
                         "feedback": meta.get('admin_feedback', '')
                     }
 
         uploaded_files = list(unique_docs.values())
 
-        AREA_TEMPLATES = {
-            "Area I":    ["Approved Board Resolution of VMGO", "Dissemination Evidence (Photos, Memos)", "Stakeholder Awareness Survey Rating"],
-            "Area II":   ["Faculty Manual", "201 Files / Credentials of Faculty", "Faculty Development Plan", "Summary of Faculty Workload and Loading"],
-            "Area III":  ["CMO / Syllabi for all subjects", "Curriculum Map", "Sample Exams and Rubrics"],
-            "Area IV":   ["Student Handbook", "Guidance and Counseling Reports", "Student Organization Activities"],
-            "Area V":    ["Institutional Research Agenda", "Published Research Papers", "Research Incentives Memo"],
-            "Area VI":   ["Extension Program Plan", "MOA/MOU with Partner Communities", "Impact Assessment Report"],
-            "Area VII":  ["Library Manual", "Inventory of Books and Journals", "Library Utilization Reports"],
-            "Area VIII": ["Campus Development Plan", "Building Permits and Fire Safety Certs", "Maintenance Logs"],
-            "Area IX":   ["Laboratory Manuals", "Inventory of Equipment", "Safety and Hazard Protocols"],
-            "Area X":    ["Organizational Chart", "Strategic Plan", "Financial Audit Reports"],
-        }
-
-        template_reqs = AREA_TEMPLATES.get(area_code, [])
+        db_reqs = db.query(models.AaccupRequirement).filter(models.AaccupRequirement.area_code == area_code).all()
         requirements  = []
-        for index, req_text in enumerate(template_reqs):
+        for req in db_reqs:
             requirements.append({
-                "id":     index + 1,
-                "text":   req_text,
-                "is_met": req_text in fulfilled_targets,
+                "id":     str(req.id),
+                "text":   req.description,
+                "area_title": req.area_title,
+                "is_met": req.description in fulfilled_targets,
             })
 
         return {
@@ -2113,6 +2161,48 @@ def get_accreditation_details(program: str, area_code: str):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to fetch details")
+
+
+# --- AACCUP REQUIREMENTS CRUD ENDPOINTS ---
+@app.get("/aaccup/requirements", response_model=List[schemas.AaccupRequirementResponse])
+def get_aaccup_requirements(area_code: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(models.AaccupRequirement)
+    if area_code:
+        query = query.filter(models.AaccupRequirement.area_code == area_code)
+    return query.order_by(models.AaccupRequirement.area_code.asc(), models.AaccupRequirement.created_at.asc()).all()
+
+@app.post("/aaccup/requirements", response_model=schemas.AaccupRequirementResponse)
+def create_aaccup_requirement(req: schemas.AaccupRequirementCreate, db: Session = Depends(get_db)):
+    new_req = models.AaccupRequirement(
+        area_code=req.area_code,
+        area_title=req.area_title,
+        description=req.description
+    )
+    db.add(new_req)
+    db.commit()
+    db.refresh(new_req)
+    return new_req
+
+@app.put("/aaccup/requirements/{req_id}", response_model=schemas.AaccupRequirementResponse)
+def update_aaccup_requirement(req_id: str, req: schemas.AaccupRequirementCreate, db: Session = Depends(get_db)):
+    db_req = db.query(models.AaccupRequirement).filter(models.AaccupRequirement.id == req_id).first()
+    if not db_req:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    db_req.area_code = req.area_code
+    db_req.area_title = req.area_title
+    db_req.description = req.description
+    db.commit()
+    db.refresh(db_req)
+    return db_req
+
+@app.delete("/aaccup/requirements/{req_id}")
+def delete_aaccup_requirement(req_id: str, db: Session = Depends(get_db)):
+    db_req = db.query(models.AaccupRequirement).filter(models.AaccupRequirement.id == req_id).first()
+    if not db_req:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    db.delete(db_req)
+    db.commit()
+    return {"message": "Requirement deleted successfully"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

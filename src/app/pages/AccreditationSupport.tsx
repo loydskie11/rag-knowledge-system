@@ -18,6 +18,7 @@ export const AaccupTabContent = ({
   pendingDocs,
   expandedArea,
   setExpandedArea,
+  handleViewDetails,
   areaDetails,
   isLoadingDetails,
   setShowAreaConfigModal,
@@ -33,7 +34,13 @@ export const AaccupTabContent = ({
   setUpgradeForm,
   setShowUpgradeModal,
   searchQuery,
-  setSearchQuery
+  setSearchQuery,
+  setShowAddAaccupReqModal,
+  setNewAaccupReq,
+  setEditingAaccupReq,
+  setShowEditAaccupReqModal,
+  setAaccupReqToDelete,
+  setShowDeleteAaccupReqModal
 }: any) => {
   return (
     <>
@@ -75,30 +82,42 @@ export const AaccupTabContent = ({
 
       {!expandedArea ? (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#006837]">
-              <h3 className="text-3xl sm:text-4xl font-bold text-[#006837] mb-1 sm:mb-2">{currentData.overall}%</h3>
-              <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Overall Compliance</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Overall Compliance</p>
+              <div className="flex items-baseline justify-between mt-1">
+                <h3 className="text-2xl font-bold text-gray-900">{currentData.overall}%</h3>
+                <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Verified</span>
+              </div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-red-500">
-              <h3 className="text-3xl sm:text-4xl font-bold text-red-500 mb-1 sm:mb-2">{currentData.gaps}</h3>
-              <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Total Gaps</p>
+            <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Total Gaps</p>
+              <div className="flex items-baseline justify-between mt-1">
+                <h3 className="text-2xl font-bold text-gray-900">{currentData.gaps}</h3>
+                <span className="text-[11px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded font-medium">Missing</span>
+              </div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#FF9501]">
-              <h3 className="text-3xl sm:text-4xl font-bold text-[#FF9501] mb-1 sm:mb-2">{currentData.evidence}</h3>
-              <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Approved Docs</p>
+            <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Approved Docs</p>
+              <div className="flex items-baseline justify-between mt-1">
+                <h3 className="text-2xl font-bold text-gray-900">{currentData.evidence}</h3>
+                <span className="text-[11px] text-gray-500">Uploaded</span>
+              </div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border-t-4 border-[#995900]">
-              <h3 className="text-3xl sm:text-4xl font-bold text-[#995900] mb-1 sm:mb-2">{currentData.areas.length}</h3>
-              <p className="text-gray-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Active Areas</p>
+            <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
+              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Active Areas</p>
+              <div className="flex items-baseline justify-between mt-1">
+                <h3 className="text-2xl font-bold text-gray-900">{currentData.areas.length}</h3>
+                <span className="text-[11px] text-gray-500">Scope</span>
+              </div>
             </div>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
               <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold text-[#1F2937]">AACCUP Area Compliance</h2>
-                <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                <h2 className="text-lg font-semibold text-gray-900">AACCUP Area Compliance</h2>
+                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded-full">
                   {currentData.areas.length} {currentData.areas.length === 10 ? "Areas (All 10)" : "Areas (Scoped)"}
                 </span>
               </div>
@@ -106,21 +125,21 @@ export const AaccupTabContent = ({
                 {userRole === "ADMIN" && (
                   <button
                     onClick={() => setShowAreaConfigModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-all cursor-pointer border border-gray-300 shadow-2xs shrink-0"
+                    className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#D97E00] rounded-lg text-xs font-medium transition-all cursor-pointer border border-gray-300 hover:border-[#FF9501]/40 shadow-2xs shrink-0"
                     title="Configure Active Areas for Level III / IV Accreditation"
                   >
-                    <SlidersHorizontal className="h-4 w-4 text-[#FF9501]" />
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-[#FF9501]" />
                     Area Configuration
                   </button>
                 )}
                 <div className="relative flex-1 md:w-64">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
                   <input
                     type="text"
                     placeholder="Search AACCUP areas..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                    className="w-full pl-9 pr-4 py-2 bg-gray-50/60 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                   />
                 </div>
               </div>
@@ -128,18 +147,17 @@ export const AaccupTabContent = ({
 
             {/* Admin Verification Queue Panel */}
             {userRole === "ADMIN" && pendingDocs.length > 0 && (
-              <div className="mb-6 bg-orange-50/60 border border-[#FF9501]/30 rounded-2xl overflow-hidden shadow-sm">
+              <div className="mb-6 bg-gray-50/80 border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
                 <div 
                   onClick={() => setIsAdminQueueOpen(!isAdminQueueOpen)}
-                  className="p-4 bg-gradient-to-r from-orange-100/80 to-amber-50/50 flex items-center justify-between cursor-pointer hover:bg-orange-100/90 transition-colors"
+                  className="p-3.5 bg-gray-100/60 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-[#FF9501] text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                  <div className="flex items-center gap-2.5">
+                    <span className="px-2 py-0.5 bg-gray-900 text-white rounded-md font-semibold text-xs">
                       {pendingDocs.length}
-                    </div>
+                    </span>
                     <div>
-                      <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                        <MessageSquareWarning className="h-4 w-4 text-[#D97E00]" />
+                      <h3 className="text-xs font-semibold text-gray-900 flex items-center gap-1.5">
                         Pending Faculty Evidence Submissions ({selectedProgram})
                       </h3>
                       <p className="text-xs text-gray-500">Review and verify evidence files submitted by faculty before counting towards compliance.</p>
@@ -251,7 +269,7 @@ export const AaccupTabContent = ({
                       </div>
                     </div>
                     <button
-                      onClick={() => setExpandedArea(area)}
+                      onClick={() => handleViewDetails ? handleViewDetails(area) : setExpandedArea(area)}
                       className="w-full py-2.5 px-4 bg-[#F5F7FA] hover:bg-[#FFF4E5] text-gray-700 hover:text-[#D97E00] font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FF9501]/40 cursor-pointer"
                     >
                       View Requirements & Evidence Details <ChevronDown className="h-4 w-4" />
@@ -301,26 +319,79 @@ export const AaccupTabContent = ({
           ) : (
             <div className="space-y-6">
               <div>
-                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">Required Documents Checklist</h3>
-                <div className="space-y-2">
-                  {areaDetails.requirements.map((req: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="p-3.5 rounded-xl border border-gray-200 bg-[#F9FAFB] flex items-center justify-between gap-3 text-xs"
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Required Documents Checklist</h3>
+                  {userRole === "ADMIN" && (
+                    <button
+                      onClick={() => {
+                        setNewAaccupReq({ area_code: expandedArea.code, area_title: expandedArea.title, description: "" });
+                        setShowAddAaccupReqModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-[#FF9501] hover:bg-[#D97E00] text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
                     >
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className={`h-4 w-4 shrink-0 ${req.isUploaded ? "text-emerald-600" : "text-gray-300"}`} />
-                        <span className="font-semibold text-gray-800">{req.title}</span>
-                      </div>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                          req.isUploaded ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {req.isUploaded ? "Uploaded" : "Missing Evidence"}
-                      </span>
+                      <Plus className="h-3.5 w-3.5" /> Add Area Requirement
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {!areaDetails?.requirements || areaDetails.requirements.length === 0 ? (
+                    <div className="py-8 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs">
+                      No requirements defined for this area yet.
                     </div>
-                  ))}
+                  ) : (
+                    areaDetails.requirements.map((req: any, idx: number) => (
+                      <div
+                        key={req.id || idx}
+                        className="p-3.5 rounded-xl border border-gray-200 bg-[#F9FAFB] flex items-center justify-between gap-3 text-xs group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <CheckCircle2 className={`h-4 w-4 shrink-0 ${req.is_met || req.isUploaded ? "text-emerald-600" : "text-gray-300"}`} />
+                          <span className="font-semibold text-gray-800 truncate">{req.text || req.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
+                              req.is_met || req.isUploaded ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {req.is_met || req.isUploaded ? "Uploaded" : "Missing Evidence"}
+                          </span>
+                          {userRole === "ADMIN" && (
+                            <div className="flex items-center gap-1 ml-1">
+                              <button
+                                onClick={() => {
+                                  setEditingAaccupReq({
+                                    id: req.id,
+                                    area_code: expandedArea.code,
+                                    area_title: expandedArea.title,
+                                    description: req.text || req.title
+                                  });
+                                  setShowEditAaccupReqModal(true);
+                                }}
+                                className="p-1 text-gray-400 hover:text-[#FF9501] transition-colors rounded cursor-pointer"
+                                title="Edit Requirement"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setAaccupReqToDelete({
+                                    id: req.id,
+                                    description: req.text || req.title
+                                  });
+                                  setShowDeleteAaccupReqModal(true);
+                                }}
+                                className="p-1 text-gray-400 hover:text-red-600 transition-colors rounded cursor-pointer"
+                                title="Delete Requirement"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -364,6 +435,27 @@ export const AaccupTabContent = ({
                           >
                             {doc.status || "Pending Verification"}
                           </span>
+
+                          {(doc.url || doc.file_url) && (
+                            <a
+                              href={doc.url || doc.file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                axios.post("http://localhost:8000/audit/access", {
+                                  document_name: doc.name,
+                                  action_type: "View",
+                                  user_email: sessionStorage.getItem('userEmail'),
+                                  user_role: userRole
+                                }).catch(() => {});
+                              }}
+                              className="p-1.5 text-gray-500 hover:text-[#D97E00] hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+                              title="View Evidence File"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </a>
+                          )}
 
                           {userRole === "ADMIN" && (
                             <button
@@ -410,26 +502,25 @@ export const ChedTabContent = ({
   isReviewing
 }: any) => {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-      <div className="border-b border-gray-100 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="border-b border-gray-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
         <div>
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <FileCheck className="w-5 h-5 text-[#FF9501]" />
+          <h2 className="text-base font-semibold text-gray-900">
             CHED Program Compliance
           </h2>
-          <p className="text-sm text-gray-500 mt-1">Monitoring of CMO requirements and mandatory submissions for {selectedProgram}.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Monitoring of CMO requirements and mandatory submissions for {selectedProgram}.</p>
         </div>
         {userRole === "ADMIN" && (
           <button
             onClick={() => setShowAddChedReqModal(true)}
-            className="px-4 py-2.5 bg-[#FF9501] hover:bg-[#D97E00] text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0"
+            className="px-3.5 py-2 bg-[#FF9501] hover:bg-[#D97E00] text-white font-medium text-xs rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
           >
-            <Plus className="w-4 h-4" /> Add CHED Requirement
+            <Plus className="w-3.5 h-3.5" /> Add Requirement
           </button>
         )}
       </div>
 
-      <div className="p-6">
+      <div className="p-5">
         {isLoadingChed ? (
           <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
             <Loader2 className="h-5 w-5 animate-spin text-[#FF9501]" />
@@ -473,6 +564,17 @@ export const ChedTabContent = ({
                                 }`}>
                                   {ev.status}
                                 </span>
+                                {(ev.file_url || ev.url) && (
+                                  <a
+                                    href={ev.file_url || ev.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1 text-gray-500 hover:text-[#D97E00] hover:bg-orange-50 rounded cursor-pointer"
+                                    title="View Evidence Document"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
                                 {userRole === "ADMIN" && ev.status === "Pending Verification" && (
                                   <button
                                     onClick={() => handleReviewChedEvidence(ev.id, "Approved")}
@@ -660,19 +762,19 @@ export const IsoTabContent = ({
           )}
 
           {/* ISO 9001:2015 Summary Header */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 border-t-4 border-t-[#FF9501] overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-5 border-b border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
               <div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="px-2.5 py-1 bg-amber-50 text-[#D97E00] border border-[#FF9501]/20 font-bold text-xs rounded-md flex items-center gap-1.5">
-                    <Award className="h-3.5 w-3.5" /> ISO 9001:2015 QMS
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <span className="px-2.5 py-0.5 bg-gray-100 text-gray-700 border border-gray-200 font-medium text-xs rounded-md flex items-center gap-1.5">
+                    ISO 9001:2015 QMS
                   </span>
                   <div className="relative">
                     <button
                       onClick={() => setShowIsoYearFilter(!showIsoYearFilter)}
-                      className="px-3 py-1 bg-white hover:bg-gray-100 border border-gray-300 text-gray-800 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                      className="px-3 py-1 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-xs font-medium rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
                     >
-                      <Calendar className="h-3.5 w-3.5 text-[#FF9501]" />
+                      <Calendar className="h-3.5 w-3.5 text-gray-500" />
                       <span>{selectedIsoCycleYear}</span>
                       <ChevronDown className="h-3 w-3 text-gray-400" />
                     </button>
@@ -683,22 +785,22 @@ export const IsoTabContent = ({
                           <button
                             key={yr}
                             onClick={() => { setSelectedIsoCycleYear(yr); setShowIsoYearFilter(false); }}
-                            className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-orange-50 hover:text-[#D97E00] cursor-pointer ${yr === selectedIsoCycleYear ? "font-bold text-[#FF9501] bg-orange-50/50" : "text-gray-700"}`}
+                            className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-gray-50 cursor-pointer ${yr === selectedIsoCycleYear ? "font-semibold text-gray-900 bg-gray-100/60" : "text-gray-700"}`}
                           >
                             <span>{yr}</span>
-                            {yr === selectedIsoCycleYear && <Check className="h-3.5 w-3.5" />}
+                            {yr === selectedIsoCycleYear && <Check className="h-3.5 w-3.5 text-gray-900" />}
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
                   {isOfficeRestricted && (
-                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 font-bold text-xs rounded-md flex items-center gap-1">
+                    <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 font-medium text-xs rounded-md flex items-center gap-1">
                       <Lock className="h-3 w-3" /> Scoped to: {userAdminOffice}
                     </span>
                   )}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mt-2">Quality Management System & IQA Audit Schedule</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mt-2">Quality Management System & IQA Audit Schedule</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Unified campus-wide surveillance & internal audit monitoring for <strong>{selectedIsoCycleYear}</strong>.</p>
               </div>
 
@@ -707,15 +809,15 @@ export const IsoTabContent = ({
                   <>
                     <button
                       onClick={() => setShowAddIsoCycleModal(true)}
-                      className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-all border border-gray-300 shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                      className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#D97E00] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#FF9501]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Plus className="h-3.5 w-3.5 text-[#FF9501]" /> New Audit Cycle
+                      <Plus className="h-3.5 w-3.5" /> New Audit Cycle
                     </button>
                     <button
                       onClick={() => setShowAddIsoReqModal(true)}
-                      className="px-4 py-2 bg-[#FF9501] hover:bg-[#D97E00] text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                      className="px-3.5 py-2 bg-[#FF9501] hover:bg-[#D97E00] text-white font-medium text-xs rounded-lg shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
                     >
-                      <Plus className="h-4 w-4" /> Add Clause Requirement
+                      <Plus className="h-3.5 w-3.5" /> Add Requirement
                     </button>
                   </>
                 )}
@@ -723,48 +825,57 @@ export const IsoTabContent = ({
             </div>
 
             {/* Sub-Tabs: ISO Clause Requirements vs QMS Action Plans */}
-            <div className="px-6 pt-4 border-b border-gray-100 bg-[#F9FAFB] flex items-center gap-4">
+            <div className="px-5 pt-3 border-b border-gray-200 bg-gray-50/40 flex items-center gap-3">
               <button
                 onClick={() => setIsoSubTab("clauses")}
-                className={`pb-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                className={`pb-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
                   isoSubTab === "clauses"
-                    ? "border-[#FF9501] text-[#FF9501]"
+                    ? "border-[#FF9501] text-gray-900 font-bold"
                     : "border-transparent text-gray-500 hover:text-gray-800"
                 }`}
               >
-                <Layers className="h-4 w-4" /> ISO Clause Requirements ({isoCompliantCount}/{isoTotalCount})
+                Clause Requirements ({isoCompliantCount}/{isoTotalCount})
               </button>
               <button
                 onClick={() => setIsoSubTab("qms")}
-                className={`pb-3.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                className={`pb-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
                   isoSubTab === "qms"
-                    ? "border-[#FF9501] text-[#FF9501]"
+                    ? "border-[#FF9501] text-gray-900 font-bold"
                     : "border-transparent text-gray-500 hover:text-gray-800"
                 }`}
               >
-                <FileCheck className="h-4 w-4" /> QMS Action Plans (MRC Form 6) ({qmsStats.total})
+                QMS Action Plans ({qmsStats.total})
               </button>
             </div>
 
             {isoSubTab === "clauses" ? (
               /* --- CLAUSES TAB CONTENT --- */
-              <div className="p-6 space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    <div className="text-2xl font-extrabold text-gray-900">{isoTotalCount}</div>
-                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">Total Clause Requirements</div>
+              <div className="p-5 space-y-5">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+                  <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-2xs">
+                    <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Total Clauses</p>
+                    <h3 className="text-2xl font-bold text-gray-900 mt-1">{isoTotalCount}</h3>
                   </div>
-                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-                    <div className="text-2xl font-extrabold text-emerald-700">{isoCompliantCount}</div>
-                    <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">Compliant Clauses</div>
+                  <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-2xs">
+                    <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Compliant</p>
+                    <div className="flex items-baseline justify-between mt-1">
+                      <h3 className="text-2xl font-bold text-gray-900">{isoCompliantCount}</h3>
+                      <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Passed</span>
+                    </div>
                   </div>
-                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                    <div className="text-2xl font-extrabold text-red-600">{isoTotalCount - isoCompliantCount}</div>
-                    <div className="text-[10px] font-bold text-red-500 uppercase tracking-wider mt-0.5">Clause Gaps</div>
+                  <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-2xs">
+                    <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Clause Gaps</p>
+                    <div className="flex items-baseline justify-between mt-1">
+                      <h3 className="text-2xl font-bold text-gray-900">{isoTotalCount - isoCompliantCount}</h3>
+                      <span className="text-[11px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded font-medium">Pending</span>
+                    </div>
                   </div>
-                  <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-                    <div className="text-2xl font-extrabold text-[#D97E00]">{isoCompliancePercent}%</div>
-                    <div className="text-[10px] font-bold text-[#D97E00] uppercase tracking-wider mt-0.5">Overall ISO Rate</div>
+                  <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-2xs">
+                    <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Overall Rate</p>
+                    <div className="flex items-baseline justify-between mt-1">
+                      <h3 className="text-2xl font-bold text-gray-900">{isoCompliancePercent}%</h3>
+                      <span className="text-[11px] text-gray-500">Audit</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1199,6 +1310,17 @@ export const IsoTabContent = ({
                         }`}>
                           {doc.status}
                         </span>
+                        {(doc.file_url || doc.url) && (
+                          <a
+                            href={doc.file_url || doc.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1 text-gray-500 hover:text-[#D97E00] hover:bg-orange-50 rounded cursor-pointer"
+                            title="View Evidence Document"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </a>
+                        )}
                         {userRole === "ADMIN" && doc.status === "Pending Verification" && (
                           <button
                             onClick={() => handleReviewIsoEvidence(doc.id, "Approved")}
@@ -1236,7 +1358,6 @@ export const ResultsTabContent = ({
   programAccreditation,
   setShowEditStandingModal,
   setEditStandingForm,
-  ALL_AACCUP_AREAS,
   setShowUpgradeModal,
   setUpgradeForm,
   accreditationLogs,
@@ -1246,11 +1367,10 @@ export const ResultsTabContent = ({
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Left Column: Timeline & History */}
       <div className="w-full lg:w-2/3 space-y-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="border-b border-gray-100 p-6 bg-[#F9FAFB] flex justify-between items-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="border-b border-gray-200 p-5 bg-gray-50/50 flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <History className="w-5 h-5 text-[#FF9501]" />
+              <h2 className="text-base font-semibold text-gray-900">
                 Accreditation Timeline & Audit History
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">Historical accreditation awards and CHED recognition certificates for {selectedProgram}.</p>
@@ -1264,39 +1384,39 @@ export const ResultsTabContent = ({
                   });
                   setShowEditStandingModal(true);
                 }}
-                className="px-3.5 py-2 bg-[#FF9501] hover:bg-[#D97E00] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-medium transition-all border border-gray-300 shadow-2xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Edit className="w-3.5 h-3.5" /> Update Standing
               </button>
             )}
           </div>
 
-          <div className="p-6">
+          <div className="p-5">
             {accreditationLogs.length === 0 ? (
               <div className="py-12 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs">
                 No historical accreditation logs found for {selectedProgram}.
               </div>
             ) : (
-              <div className="relative border-l-2 border-orange-200 pl-6 space-y-6 my-2 ml-2">
+              <div className="relative border-l-2 border-gray-200 pl-5 space-y-4 my-2 ml-2">
                 {accreditationLogs.map((log: any, idx: number) => (
                   <div key={idx} className="relative group">
-                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-[#FF9501] border-2 border-white shadow-xs"></div>
-                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-[#FF9501]/40 transition-all">
+                    <div className="absolute -left-[27px] top-1.5 w-3.5 h-3.5 rounded-full bg-gray-400 border-2 border-white shadow-2xs"></div>
+                    <div className="bg-gray-50/60 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-all">
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="px-2.5 py-0.5 bg-orange-100 text-[#D97E00] font-bold text-[10px] rounded-md uppercase">
+                        <span className="px-2 py-0.5 bg-gray-200 text-gray-800 font-medium text-[10px] rounded uppercase">
                           {log.accreditation_level}
                         </span>
-                        <span className="text-xs font-semibold text-gray-500">{log.created_at ? log.created_at.split("T")[0] : 'N/A'}</span>
+                        <span className="text-xs text-gray-500">{log.created_at ? log.created_at.split("T")[0] : 'N/A'}</span>
                       </div>
-                      <h4 className="font-bold text-gray-900 text-sm mt-1">{log.remarks || 'Accreditation Status Update'}</h4>
+                      <h4 className="font-semibold text-gray-900 text-xs mt-1">{log.remarks || 'Accreditation Status Update'}</h4>
                       {log.certificate_url && (
                         <a
                           href={log.certificate_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#FF9501] hover:underline"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-700 hover:text-black hover:underline"
                         >
-                          <FileBadge className="w-3.5 h-3.5" /> View Official Certificate <ExternalLink className="w-3 h-3" />
+                          View Official Certificate <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
                     </div>
@@ -1342,13 +1462,12 @@ export const ResultsTabContent = ({
           <div className="pt-2">
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Area Compliance Rate</h4>
             <div className="space-y-2">
-              {ALL_AACCUP_AREAS.map((a: any) => {
-                const found = currentData.areas?.find((ca: any) => ca.code === a.code);
-                const rate = found ? found.compliance : 0;
+              {currentData.areas?.map((a: any) => {
+                const rate = a.compliance || 0;
                 return (
                   <div key={a.code} className="text-xs">
                     <div className="flex justify-between font-semibold text-gray-700 mb-1">
-                      <span>{a.code}: {a.name}</span>
+                      <span>{a.code}: {a.title}</span>
                       <span>{rate}%</span>
                     </div>
                     <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
@@ -1559,19 +1678,7 @@ export function AccreditationSupport() {
     setTimeout(() => setToast(null), duration);
   };
 
-  // 10 AACCUP Standard Areas
-  const ALL_AACCUP_AREAS = [
-    { code: "Area I", name: "Vision, Mission, Goals and Objectives" },
-    { code: "Area II", name: "Faculty" },
-    { code: "Area III", name: "Curriculum and Instruction" },
-    { code: "Area IV", name: "Support to Students" },
-    { code: "Area V", name: "Research" },
-    { code: "Area VI", name: "Extension and Community Involvement" },
-    { code: "Area VII", name: "Library" },
-    { code: "Area VIII", name: "Physical Plant and Facilities" },
-    { code: "Area IX", name: "Laboratories" },
-    { code: "Area X", name: "Administration" },
-  ];
+
 
   // AACCUP Area Configuration State (Level III/IV Scoped Evaluations)
   const [showAreaConfigModal, setShowAreaConfigModal] = useState(false);
@@ -1610,6 +1717,16 @@ export function AccreditationSupport() {
   const [currentData, setCurrentData] = useState<any>({
     level: "Loading...", overall: 0, gaps: 0, evidence: 0, areas: []
   });
+
+  // --- AACCUP REQUIREMENTS CRUD STATES ---
+  const [showAddAaccupReqModal, setShowAddAaccupReqModal] = useState(false);
+  const [newAaccupReq, setNewAaccupReq] = useState({ area_code: "Area I", area_title: "Vision, Mission, Goals and Objectives", description: "" });
+  const [isAddingAaccupReq, setIsAddingAaccupReq] = useState(false);
+  const [showEditAaccupReqModal, setShowEditAaccupReqModal] = useState(false);
+  const [editingAaccupReq, setEditingAaccupReq] = useState<any>(null);
+  const [isEditingAaccupReq, setIsEditingAaccupReq] = useState(false);
+  const [showDeleteAaccupReqModal, setShowDeleteAaccupReqModal] = useState(false);
+  const [aaccupReqToDelete, setAaccupReqToDelete] = useState<any>(null);
 
   const [chedRequirements, setChedRequirements] = useState<any[]>([]);
   const [isLoadingChed, setIsLoadingChed] = useState(false);
@@ -1796,11 +1913,20 @@ export function AccreditationSupport() {
         console.error("Failed to fetch program accreditation", err);
       }
 
+      // Reload details for the currently expanded area (if any),
+      // or eagerly fetch the first area so requirements paint correctly on first load
       if (expandedArea) {
         const detailsRes = await axios.get(`http://localhost:8000/accreditation-details/${selectedProgram}/${expandedArea.code}`);
         setAreaDetails(detailsRes.data);
         const updatedArea = response.data.areas.find((a: any) => a.code === expandedArea.code);
         if (updatedArea) setExpandedArea(updatedArea);
+      } else if (response.data.areas && response.data.areas.length > 0) {
+        // On first load with no area open, pre-fetch the first area's details
+        // so the DB-seeded requirements are ready the moment the user expands any area
+        const firstArea = response.data.areas[0];
+        try {
+          await axios.get(`http://localhost:8000/accreditation-details/${selectedProgram}/${firstArea.code}`);
+        } catch (_) { /* non-critical pre-fetch, ignore errors */ }
       }
       
       if (userRole === "ADMIN") fetchPendingQueue();
@@ -2022,16 +2148,19 @@ export function AccreditationSupport() {
     }
   };
 
-  const fetchAccreditationData = async () => {
-    setIsLoading(true);
-    await refreshData();
-    setIsLoading(false);
-  };
-
   useEffect(() => {
-    fetchAccreditationData();
+    let isMounted = true;
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      await refreshData();
+      if (isMounted) setIsLoading(false);
+    };
+
+    loadInitialData();
     setExpandedArea(null);
     setExpandedIsoClause(null);
+
+    return () => { isMounted = false; };
   }, [selectedProgram]);
 
   useEffect(() => {
@@ -2446,6 +2575,59 @@ export function AccreditationSupport() {
       fetchChedData();
     } catch (error) {
       showToast("Failed to delete requirement.", "error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // --- AACCUP REQUIREMENTS CRUD HANDLERS ---
+  const handleCreateAaccupReq = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAaccupReq.description.trim()) {
+      showToast("Please enter requirement description.", "error"); return;
+    }
+    setIsAddingAaccupReq(true);
+    try {
+      await axios.post("http://localhost:8000/aaccup/requirements", newAaccupReq);
+      showToast("New AACCUP requirement created successfully!", "success");
+      setShowAddAaccupReqModal(false);
+      setNewAaccupReq({ area_code: "Area I", area_title: "Vision, Mission, Goals and Objectives", description: "" });
+      refreshData();
+    } catch (err) {
+      showToast("Failed to create AACCUP requirement.", "error");
+    } finally {
+      setIsAddingAaccupReq(false);
+    }
+  };
+
+  const handleUpdateAaccupReq = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAaccupReq || !editingAaccupReq.description.trim()) return;
+    setIsEditingAaccupReq(true);
+    try {
+      await axios.put(`http://localhost:8000/aaccup/requirements/${editingAaccupReq.id}`, editingAaccupReq);
+      showToast("AACCUP requirement updated successfully!", "success");
+      setShowEditAaccupReqModal(false);
+      setEditingAaccupReq(null);
+      refreshData();
+    } catch (err) {
+      showToast("Failed to update AACCUP requirement.", "error");
+    } finally {
+      setIsEditingAaccupReq(false);
+    }
+  };
+
+  const executeDeleteAaccupReq = async () => {
+    if (!aaccupReqToDelete) return;
+    setIsDeleting(true);
+    try {
+      await axios.delete(`http://localhost:8000/aaccup/requirements/${aaccupReqToDelete.id}`);
+      showToast("AACCUP requirement deleted.", "success");
+      setShowDeleteAaccupReqModal(false);
+      setAaccupReqToDelete(null);
+      refreshData();
+    } catch (err) {
+      showToast("Failed to delete AACCUP requirement.", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -2956,32 +3138,32 @@ export function AccreditationSupport() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="flex w-full overflow-x-auto bg-gray-100 p-1 gap-1 no-scrollbar">
-          <TabsTrigger value="aaccup" className="data-[state=active]:bg-[#FF9501] data-[state=active]:text-white cursor-pointer transition-all text-xs sm:text-sm whitespace-nowrap flex-1">AACCUP</TabsTrigger>
-          <TabsTrigger value="iso" className="data-[state=active]:bg-[#FF9501] data-[state=active]:text-white cursor-pointer transition-all text-xs sm:text-sm whitespace-nowrap flex-1"><span className="hidden sm:inline">ISO </span>Standards</TabsTrigger>
-          <TabsTrigger value="ched" className="data-[state=active]:bg-[#FF9501] data-[state=active]:text-white cursor-pointer transition-all text-xs sm:text-sm whitespace-nowrap flex-1"><span className="hidden sm:inline">CHED </span>Monitoring</TabsTrigger>
-          <TabsTrigger value="results" className="data-[state=active]:bg-[#FF9501] data-[state=active]:text-white cursor-pointer transition-all text-xs sm:text-sm whitespace-nowrap flex-1"><span className="hidden sm:inline">Accreditation </span>Results</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto bg-gray-100/80 p-1 rounded-xl gap-1 no-scrollbar border border-gray-200">
+          <TabsTrigger value="aaccup" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-xs text-gray-600 font-medium cursor-pointer transition-all text-xs sm:text-sm whitespace-nowrap flex-1">AACCUP</TabsTrigger>
+          <TabsTrigger value="iso" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-xs text-gray-600 font-medium cursor-pointer transition-all text-xs sm:text-sm whitespace-nowrap flex-1"><span className="hidden sm:inline">ISO </span>Standards</TabsTrigger>
+          <TabsTrigger value="ched" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-xs text-gray-600 font-medium cursor-pointer transition-all text-xs sm:text-sm whitespace-nowrap flex-1"><span className="hidden sm:inline">CHED </span>Monitoring</TabsTrigger>
+          <TabsTrigger value="results" className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-xs text-gray-600 font-medium cursor-pointer transition-all text-xs sm:text-sm whitespace-nowrap flex-1"><span className="hidden sm:inline">Accreditation </span>Results</TabsTrigger>
         </TabsList>
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6">
+        <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4">
           <div>
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900">
+            <h2 className="text-base font-semibold text-gray-900">
               {activeTab === 'iso' ? 'Institutional QMS' : 'Program Evaluation'}
             </h2>
-            <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
-              {activeTab === 'iso' ? 'Campus-wide ISO 9001:2015 QMS (Applies to the entire CTU Argao Campus).' : 'Tracking compliance templates per degree program.'}
+            <p className="text-xs text-gray-500 hidden sm:block">
+              {activeTab === 'iso' ? 'Campus-wide ISO 9001:2015 QMS (CTU Argao Campus).' : 'Tracking compliance templates per degree program.'}
             </p>
           </div>
           
-          <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
             <div className="relative w-full sm:w-80">
               {activeTab === 'iso' ? (
-                <div className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 flex items-center justify-between shadow-inner cursor-not-allowed opacity-85 select-none" title="Disabled: ISO 9001:2015 is an Institutional Campus-Wide QMS and does not depend on degree programs.">
+                <div className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 flex items-center justify-between cursor-not-allowed opacity-85 select-none" title="Disabled: ISO 9001:2015 is an Institutional Campus-Wide QMS and does not depend on degree programs.">
                   <div className="flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-blue-600 shrink-0" />
+                    <Lock className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                     <span className="truncate">CTU Argao Institutional Campus-Wide</span>
                   </div>
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black uppercase rounded border border-blue-200">Global</span>
+                  <span className="px-2 py-0.5 bg-gray-200 text-gray-700 text-[10px] font-medium uppercase rounded">Global</span>
                 </div>
               ) : (
                 <>
@@ -2989,8 +3171,8 @@ export function AccreditationSupport() {
                     value={selectedProgram}
                     onChange={(e) => setSelectedProgram(e.target.value)}
                     disabled={userRole === 'FACULTY'}
-                    className={`appearance-none w-full px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] pr-10 ${
-                      userRole === 'FACULTY' ? 'bg-gray-100 opacity-80 cursor-not-allowed' : 'bg-[#F5F7FA] cursor-pointer'
+                    className={`appearance-none w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] pr-10 ${
+                      userRole === 'FACULTY' ? 'bg-gray-100 opacity-80 cursor-not-allowed' : 'bg-gray-50/50 cursor-pointer'
                     }`}
                   >
                     <option value="BEED">Bachelor of Elementary Education</option>
@@ -3013,9 +3195,9 @@ export function AccreditationSupport() {
                     <option value="BSTM">BS in Tourism Management</option>
                   </select>
                   {userRole === 'FACULTY' ? (
-                    <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+                    <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                   ) : (
-                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                   )}
                 </>
               )}
@@ -3023,9 +3205,8 @@ export function AccreditationSupport() {
 
             {activeTab !== 'iso' && (
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <div className="flex items-center gap-2 px-3 sm:px-5 py-2.5 sm:py-3 bg-[#FF9501] text-white rounded-lg shadow-md border border-[#FF9501]/50 w-full sm:w-auto justify-center">
-                  <Award className="h-4 w-4 sm:h-5 sm:w-5 drop-shadow-sm" />
-                  <span className="font-bold tracking-wide text-shadow-sm uppercase text-xs">
+                <div className="flex items-center gap-1.5 px-3.5 py-2 bg-[#FF9501] text-white rounded-lg shadow-2xs w-full sm:w-auto justify-center">
+                  <span className="font-semibold uppercase text-xs tracking-wide">
                     {programAccreditation?.current_level || currentData.level || "Candidate Status"}
                   </span>
                 </div>
@@ -3038,10 +3219,10 @@ export function AccreditationSupport() {
                       });
                       setShowEditStandingModal(true);
                     }}
-                    className="p-2.5 sm:p-3 bg-white border border-gray-200 hover:border-[#FF9501] text-gray-600 hover:text-[#FF9501] rounded-lg shadow-sm hover:shadow transition-all cursor-pointer"
+                    className="p-2 bg-white border border-gray-200 hover:bg-orange-50/50 text-gray-600 hover:text-[#D97E00] rounded-lg shadow-2xs hover:border-[#FF9501]/40 transition-all cursor-pointer"
                     title="Edit Current Standing (System Onboarding / Calibration)"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Edit className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
@@ -3061,6 +3242,7 @@ export function AccreditationSupport() {
             pendingDocs={pendingDocs}
             expandedArea={expandedArea}
             setExpandedArea={setExpandedArea}
+            handleViewDetails={handleViewDetails}
             areaDetails={areaDetails}
             isLoadingDetails={isLoadingDetails}
             setShowAreaConfigModal={setShowAreaConfigModal}
@@ -3077,6 +3259,12 @@ export function AccreditationSupport() {
             setShowUpgradeModal={setShowUpgradeModal}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
+            setShowAddAaccupReqModal={setShowAddAaccupReqModal}
+            setNewAaccupReq={setNewAaccupReq}
+            setEditingAaccupReq={setEditingAaccupReq}
+            setShowEditAaccupReqModal={setShowEditAaccupReqModal}
+            setAaccupReqToDelete={setAaccupReqToDelete}
+            setShowDeleteAaccupReqModal={setShowDeleteAaccupReqModal}
           />
         </TabsContent>
 
@@ -3183,7 +3371,6 @@ export function AccreditationSupport() {
             programAccreditation={programAccreditation}
             setShowEditStandingModal={setShowEditStandingModal}
             setEditStandingForm={setEditStandingForm}
-            ALL_AACCUP_AREAS={ALL_AACCUP_AREAS}
             setShowUpgradeModal={setShowUpgradeModal}
             setUpgradeForm={setUpgradeForm}
             accreditationLogs={programAccreditation?.history || []}
@@ -3191,6 +3378,129 @@ export function AccreditationSupport() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* --- ADD AACCUP REQUIREMENT MODAL --- */}
+      {showAddAaccupReqModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Add AACCUP Area Requirement</h2>
+                <p className="text-xs text-[#D97E00] font-semibold mt-0.5">{newAaccupReq.area_code} — {newAaccupReq.area_title}</p>
+              </div>
+              <button onClick={() => setShowAddAaccupReqModal(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateAaccupReq} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">AACCUP Area</label>
+                <select
+                  value={newAaccupReq.area_code}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const titles: any = {
+                      "Area I": "Vision, Mission, Goals and Objectives",
+                      "Area II": "Faculty",
+                      "Area III": "Curriculum and Instruction",
+                      "Area IV": "Support to Students",
+                      "Area V": "Research",
+                      "Area VI": "Extension and Community Involvement",
+                      "Area VII": "Library",
+                      "Area VIII": "Physical Plant and Facilities",
+                      "Area IX": "Laboratories",
+                      "Area X": "Administration"
+                    };
+                    setNewAaccupReq({ ...newAaccupReq, area_code: code, area_title: titles[code] || "General Area" });
+                  }}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                >
+                  <option value="Area I">Area I — Vision, Mission, Goals and Objectives</option>
+                  <option value="Area II">Area II — Faculty</option>
+                  <option value="Area III">Area III — Curriculum and Instruction</option>
+                  <option value="Area IV">Area IV — Support to Students</option>
+                  <option value="Area V">Area V — Research</option>
+                  <option value="Area VI">Area VI — Extension and Community Involvement</option>
+                  <option value="Area VII">Area VII — Library</option>
+                  <option value="Area VIII">Area VIII — Physical Plant and Facilities</option>
+                  <option value="Area IX">Area IX — Laboratories</option>
+                  <option value="Area X">Area X — Administration</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Requirement Title / Description <span className="text-red-500">*</span></label>
+                <textarea
+                  required
+                  rows={3}
+                  value={newAaccupReq.description}
+                  onChange={(e) => setNewAaccupReq({ ...newAaccupReq, description: e.target.value })}
+                  placeholder="e.g., Summary of Faculty Workload and Loading"
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowAddAaccupReqModal(false)} className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isAddingAaccupReq} className="px-5 py-2.5 bg-[#FF9501] hover:bg-[#D97E00] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer">
+                  {isAddingAaccupReq ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Requirement"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT AACCUP REQUIREMENT MODAL --- */}
+      {showEditAaccupReqModal && editingAaccupReq && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Edit AACCUP Requirement</h2>
+                <p className="text-xs text-[#D97E00] font-semibold mt-0.5">{editingAaccupReq.area_code} — {editingAaccupReq.area_title}</p>
+              </div>
+              <button onClick={() => setShowEditAaccupReqModal(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateAaccupReq} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase">Requirement Title / Description <span className="text-red-500">*</span></label>
+                <textarea
+                  required
+                  rows={3}
+                  value={editingAaccupReq.description}
+                  onChange={(e) => setEditingAaccupReq({ ...editingAaccupReq, description: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEditAaccupReqModal(false)} className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isEditingAaccupReq} className="px-5 py-2.5 bg-[#FF9501] hover:bg-[#D97E00] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer">
+                  {isEditingAaccupReq ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Requirement"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- DELETE AACCUP REQUIREMENT CONFIRMATION MODAL --- */}
+      <ReusableConfirmModal
+        isOpen={showDeleteAaccupReqModal && !!aaccupReqToDelete}
+        onClose={() => setShowDeleteAaccupReqModal(false)}
+        onConfirm={executeDeleteAaccupReq}
+        title="Delete AACCUP Requirement"
+        description={`Are you sure you want to delete "${aaccupReqToDelete?.description}"? This action cannot be undone.`}
+        confirmText="Delete Requirement"
+        isProcessing={isDeleting}
+      />
 
       {/* --- AACCUP UPLOAD MODAL --- */}
       {showUploadModal && uploadTargetArea && (
@@ -5060,10 +5370,10 @@ export function AccreditationSupport() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setActiveAreas(ALL_AACCUP_AREAS.map(a => a.code))}
+                    onClick={() => setActiveAreas((currentData.areas || []).map((a: any) => a.code))}
                     className="text-[11px] font-bold text-[#1D6FA3] hover:underline bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded cursor-pointer transition-colors"
                   >
-                    Select All 10 (Levels I & II)
+                    Select All Areas ({currentData.areas?.length || 0})
                   </button>
                   <button
                     type="button"
@@ -5077,7 +5387,7 @@ export function AccreditationSupport() {
 
               {/* Area Checklist */}
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {ALL_AACCUP_AREAS.map((area) => {
+                {(currentData.areas || []).map((area: any) => {
                   const isChecked = activeAreas.includes(area.code);
                   return (
                     <label
@@ -5105,7 +5415,7 @@ export function AccreditationSupport() {
                             {isChecked ? "Active" : "Excluded"}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-600 mt-0.5 truncate">{area.name}</p>
+                        <p className="text-xs text-gray-600 mt-0.5 truncate">{area.title}</p>
                       </div>
                     </label>
                   );
@@ -5114,7 +5424,7 @@ export function AccreditationSupport() {
 
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-500">
-                  {activeAreas.length} of 10 Areas Selected
+                  {activeAreas.length} of {currentData.areas?.length || 0} Areas Selected
                 </span>
                 <div className="flex gap-2">
                   <button

@@ -178,10 +178,20 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
       cancelSourceRef.current = source;
 
       try {
+        // Prepare recent chat history for multi-turn conversational context
+        const chatHistoryPayload = messages
+          .filter((m) => !m.isError && m.id !== "welcome" && m.content)
+          .slice(-6)
+          .map((m) => ({
+            role: m.type === "user" ? "user" : "assistant",
+            content: m.content,
+          }));
+
         const response = await axios.post(
           `${API_BASE}/ask-policy`,
           {
             question: textToSend,
+            history: chatHistoryPayload,
             user_email: userEmail || "guest@ctu.edu.ph",
             user_role: currentRole,
           },

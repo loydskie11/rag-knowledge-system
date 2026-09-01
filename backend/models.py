@@ -251,3 +251,12 @@ class AccreditationHistory(Base):
     remarks = Column(Text, nullable=True)
 
     program = relationship("ProgramAccreditation", back_populates="history")
+
+
+class AaccupRequirement(Base):
+    __tablename__ = "aaccup_requirements"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    area_code = Column(String(50), nullable=False) # e.g., "Area I"
+    area_title = Column(String(255), nullable=False) # e.g., "Vision, Mission, Goals and Objectives"
+    description = Column(Text, nullable=False) # e.g., "Approved Board Resolution of VMGO"
+    created_at = Column(DateTime, default=datetime.utcnow)
