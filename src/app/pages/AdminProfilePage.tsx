@@ -108,39 +108,39 @@ export function AdminProfilePage() {
       </div>
 
       {/* Avatar Card */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 mb-6 flex items-center gap-5">
-        <div className="w-16 h-16 rounded-full bg-[#1D6FA3] flex items-center justify-center text-white text-xl font-semibold flex-shrink-0">
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 flex items-center gap-5 shadow-2xs">
+        <div className="w-16 h-16 rounded-full bg-[#FF9501] flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-2xs">
           AU
         </div>
         <div>
-          <p className="text-lg font-semibold text-[#1F2937]">{profileData.fullName}</p>
-          <p className="text-sm text-[#6B7280]">{profileData.email}</p>
-          <span className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#E3F2FD] text-[#1D6FA3]">
+          <p className="text-lg font-bold text-gray-900">{profileData.fullName}</p>
+          <p className="text-xs text-gray-500">{profileData.email}</p>
+          <span className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-[#D97E00] border border-[#FF9501]/20">
             <Shield className="h-3 w-3" />
             {profileData.role}
           </span>
         </div>
         {existingRecoveryEmail && (
-          <div className="ml-auto flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-            <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+          <div className="ml-auto flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
             <div>
-              <p className="text-xs font-medium text-green-700">Recovery email set</p>
-              <p className="text-xs text-green-600">{existingRecoveryEmail}</p>
+              <p className="text-xs font-semibold text-emerald-800">Recovery email set</p>
+              <p className="text-[11px] text-emerald-600">{existingRecoveryEmail}</p>
             </div>
           </div>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-[#F5F7FA] rounded-lg p-1 mb-6">
+      <div className="flex gap-1.5 bg-gray-100/80 rounded-xl p-1 mb-6 border border-gray-200">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-md text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === key
-                ? "bg-white text-[#1D6FA3] shadow-sm border border-[#E5E7EB]"
-                : "text-[#6B7280] hover:text-[#1F2937]"
+                ? "bg-white text-[#D97E00] shadow-2xs border border-gray-200"
+                : "text-gray-600 hover:text-gray-900"
             }`}
           >
             <Icon className="h-4 w-4" />
@@ -151,79 +151,78 @@ export function AdminProfilePage() {
 
       {/* Tab: Profile */}
       {activeTab === "profile" && (
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6">
-          <h2 className="text-base font-semibold text-[#1F2937] mb-5">Account Information</h2>
-          <form onSubmit={handleProfileSave} className="space-y-5">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs">
+          <h2 className="text-sm font-bold text-gray-900 mb-5">Account Information</h2>
+          <form onSubmit={handleProfileSave} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2 text-[#1F2937]">Full Name</label>
+              <label className="block text-xs font-semibold mb-1.5 text-gray-700">Full Name</label>
               <div className="relative">
-  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
-  <input
-    id="fullName"
-    type="text"
-    value={profileData.fullName}
-    onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
-    placeholder="Full Name"
-    className="w-full pl-9 pr-4 py-3 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#1D6FA3] focus:border-transparent"
-  />
-</div>
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  id="fullName"
+                  type="text"
+                  value={profileData.fullName}
+                  onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
+                  placeholder="Full Name"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                />
+              </div>
             </div>
 
             <div>
-  <label className="block text-sm font-medium mb-2 text-[#1F2937]">CTU Email Address</label>
-  <div className="relative">
-    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
-    <input
-      id="email"
-      type="email"
-      value={profileData.email}
-      disabled
-      placeholder="CTU Email Address"
-      title="CTU Email Address"
-      className="w-full pl-9 pr-4 py-3 bg-[#F0F0F0] border border-[#E5E7EB] rounded-lg text-sm text-[#9CA3AF] cursor-not-allowed"
-    />
-  </div>  {/* closes relative div */}
-</div>    {/* closes outer div */}
-            
+              <label className="block text-xs font-semibold mb-1.5 text-gray-700">CTU Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  id="email"
+                  type="email"
+                  value={profileData.email}
+                  disabled
+                  placeholder="CTU Email Address"
+                  title="CTU Email Address"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-xs text-gray-500 cursor-not-allowed"
+                />
+              </div>
+            </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-[#1F2937]">Department</label>
+              <label className="block text-xs font-semibold mb-1.5 text-gray-700">Department</label>
               <input
-  id="department"
-  type="text"
-  value={profileData.department}
-  onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
-  placeholder="Department"
-  className="w-full px-4 py-3 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#1D6FA3] focus:border-transparent"
-/>
+                id="department"
+                type="text"
+                value={profileData.department}
+                onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
+                placeholder="Department"
+                className="w-full px-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-[#1F2937]">Role</label>
+              <label className="block text-xs font-semibold mb-1.5 text-gray-700">Role</label>
               <div className="relative">
-  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
-  <input
-    id="role"
-    type="text"
-    value={profileData.role}
-    disabled
-    placeholder="Role"
-    title="Role"
-    className="w-full pl-9 pr-4 py-3 bg-[#F0F0F0] border border-[#E5E7EB] rounded-lg text-sm text-[#9CA3AF] cursor-not-allowed"
-  />
-</div>
+                <Shield className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  id="role"
+                  type="text"
+                  value={profileData.role}
+                  disabled
+                  placeholder="Role"
+                  title="Role"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-xs text-gray-500 cursor-not-allowed"
+                />
+              </div>
             </div>
 
             <div className="pt-2 flex items-center gap-3">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#1D6FA3] text-white rounded-lg hover:bg-[#0B3C5D] transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
               >
                 <Save className="h-4 w-4" />
                 Save Changes
               </button>
               {saved && (
-                <div className="flex items-center gap-2 text-green-600 text-sm">
+                <div className="flex items-center gap-2 text-emerald-600 text-xs font-medium">
                   <CheckCircle2 className="h-4 w-4" />
                   Profile saved successfully!
                 </div>
@@ -235,27 +234,27 @@ export function AdminProfilePage() {
 
       {/* Tab: Change Password */}
       {activeTab === "security" && (
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6">
-          <h2 className="text-base font-semibold text-[#1F2937] mb-1">Change Password</h2>
-          <p className="text-sm text-[#6B7280] mb-5">Choose a strong password to keep your account secure.</p>
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs">
+          <h2 className="text-sm font-bold text-gray-900 mb-1">Change Password</h2>
+          <p className="text-xs text-gray-500 mb-5">Choose a strong password to keep your account secure.</p>
 
           {passwordError && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-4">
+            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-3 text-xs mb-4 font-medium">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               {passwordError}
             </div>
           )}
 
-          <form onSubmit={handlePasswordSave} className="space-y-5">
+          <form onSubmit={handlePasswordSave} className="space-y-4">
             {[
               { id: "current", label: "Current Password", key: "currentPassword" as const },
               { id: "new", label: "New Password", key: "newPassword" as const },
               { id: "confirm", label: "Confirm New Password", key: "confirmPassword" as const },
             ].map(({ id, label, key }) => (
               <div key={id}>
-                <label className="block text-sm font-medium mb-2 text-[#1F2937]">{label}</label>
+                <label className="block text-xs font-semibold mb-1.5 text-gray-700">{label}</label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
+                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type={showPasswords[id as keyof typeof showPasswords] ? "text" : "password"}
                     required
@@ -264,7 +263,7 @@ export function AdminProfilePage() {
                       setPasswordError("");
                       setPasswordData({ ...passwordData, [key]: e.target.value });
                     }}
-                    className="w-full pl-9 pr-10 py-3 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#1D6FA3] focus:border-transparent"
+                    className="w-full pl-10 pr-10 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
                     placeholder="••••••••"
                   />
                   <button
@@ -275,7 +274,7 @@ export function AdminProfilePage() {
                         [id]: !showPasswords[id as keyof typeof showPasswords],
                       })
                     }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1F2937]"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 cursor-pointer"
                   >
                     {showPasswords[id as keyof typeof showPasswords]
                       ? <EyeOff className="h-4 w-4" />
@@ -288,13 +287,13 @@ export function AdminProfilePage() {
             <div className="pt-2 flex items-center gap-3">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#1D6FA3] text-white rounded-lg hover:bg-[#0B3C5D] transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
               >
                 <Save className="h-4 w-4" />
                 Update Password
               </button>
               {passwordSaved && (
-                <div className="flex items-center gap-2 text-green-600 text-sm">
+                <div className="flex items-center gap-2 text-emerald-600 text-xs font-medium">
                   <CheckCircle2 className="h-4 w-4" />
                   Password updated successfully!
                 </div>
@@ -306,19 +305,19 @@ export function AdminProfilePage() {
 
       {/* Tab: Recovery Email */}
       {activeTab === "recovery" && (
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6">
-          <h2 className="text-base font-semibold text-[#1F2937] mb-1">Recovery Email</h2>
-          <p className="text-sm text-[#6B7280] mb-2">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs">
+          <h2 className="text-sm font-bold text-gray-900 mb-1">Recovery Email</h2>
+          <p className="text-xs text-gray-500 mb-3">
             Set a personal recovery email (e.g. Gmail) so you can still reset your password
             if you ever get locked out of your CTU account.
           </p>
 
           {/* Info box explaining why this matters */}
-          <div className="flex items-start gap-3 bg-[#E3F2FD] border border-[#1D6FA3]/20 rounded-lg p-4 mb-5">
-            <LifeBuoy className="h-5 w-5 text-[#1D6FA3] flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-[#1D6FA3]">
-              <p className="font-medium mb-1">Why is this important?</p>
-              <p className="text-[#1D6FA3]/80">
+          <div className="flex items-start gap-3 bg-orange-50 border border-[#FF9501]/20 rounded-xl p-4 mb-5">
+            <LifeBuoy className="h-5 w-5 text-[#D97E00] flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-gray-700">
+              <p className="font-semibold text-gray-900 mb-1">Why is this important?</p>
+              <p className="text-gray-600 leading-relaxed">
                 Admin accounts are pre-created by the system. If you forget your password and lose access
                 to your CTU email, your recovery email is the only way to regain entry. 
                 Set it now before it's too late!
@@ -327,15 +326,15 @@ export function AdminProfilePage() {
           </div>
 
           {existingRecoveryEmail && (
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg p-4 mb-5">
-              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 mb-5">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-green-700">Recovery email is set</p>
-                <p className="text-sm text-green-600">{existingRecoveryEmail}</p>
+                <p className="text-xs font-semibold text-emerald-800">Recovery email is set</p>
+                <p className="text-xs text-emerald-600">{existingRecoveryEmail}</p>
               </div>
               <button
                 onClick={() => setExistingRecoveryEmail("")}
-                className="ml-auto text-xs text-green-700 underline hover:text-green-900"
+                className="ml-auto text-xs text-emerald-700 underline hover:text-emerald-900 cursor-pointer"
               >
                 Change
               </button>
@@ -343,43 +342,43 @@ export function AdminProfilePage() {
           )}
 
           {recoveryError && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-4">
+            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-3 text-xs mb-4 font-medium">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               {recoveryError}
             </div>
           )}
 
-          <form onSubmit={handleRecoverySave} className="space-y-5">
+          <form onSubmit={handleRecoverySave} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2 text-[#1F2937]">
+              <label className="block text-xs font-semibold mb-1.5 text-gray-700">
                 Recovery Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="email"
                   required
                   value={recoveryEmail}
                   onChange={(e) => { setRecoveryError(""); setRecoveryEmail(e.target.value); }}
-                  className="w-full pl-9 pr-4 py-3 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#1D6FA3] focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
                   placeholder="yourpersonal@gmail.com"
                 />
               </div>
-              <p className="text-xs text-[#9CA3AF] mt-1">Use a personal email you always have access to, not your CTU email.</p>
+              <p className="text-[11px] text-gray-400 mt-1">Use a personal email you always have access to, not your CTU email.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-[#1F2937]">
+              <label className="block text-xs font-semibold mb-1.5 text-gray-700">
                 Confirm Recovery Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="email"
                   required
                   value={confirmRecoveryEmail}
                   onChange={(e) => { setRecoveryError(""); setConfirmRecoveryEmail(e.target.value); }}
-                  className="w-full pl-9 pr-4 py-3 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#1D6FA3] focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
                   placeholder="yourpersonal@gmail.com"
                 />
               </div>
@@ -388,13 +387,13 @@ export function AdminProfilePage() {
             <div className="pt-2 flex items-center gap-3">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#1D6FA3] text-white rounded-lg hover:bg-[#0B3C5D] transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
               >
                 <Save className="h-4 w-4" />
                 Save Recovery Email
               </button>
               {recoverySaved && (
-                <div className="flex items-center gap-2 text-green-600 text-sm">
+                <div className="flex items-center gap-2 text-emerald-600 text-xs font-medium">
                   <CheckCircle2 className="h-4 w-4" />
                   Recovery email saved!
                 </div>

@@ -57,45 +57,47 @@ A curated list of academic resources, textbooks, and supplementary materials to 
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-8 w-8 text-[#FDB913]" />
-            <h1 className="text-3xl text-gray-900">AI Document Generator</h1>
-          </div>
-          <p className="text-gray-600">Generate academic documents using AI-powered assistance</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Sparkles className="h-6 w-6 text-[#FF9501]" />
+            AI Document Generator
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Generate institutional academic documents and governance templates using AI assistance</p>
         </div>
       </div>
 
       {/* AI Prompt Section */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl mb-4 text-[#CE0000]">Describe Your Document</h2>
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-2xs">
+        <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+          Describe Your Document Requirements
+        </h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm mb-2 text-gray-700">What would you like to generate?</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Prompt & Context</label>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              rows={6}
-              className="w-full px-4 py-3 bg-[#F5F5F5] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FDB913]"
-              placeholder="Describe the document you want to generate. Be as specific as possible - include document type, subject area, target audience, key topics to cover, and any specific requirements..."
+              rows={5}
+              className="w-full p-4 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all placeholder-gray-400"
+              placeholder="Describe the document you want to generate (e.g. syllabus, lesson plan, exam rubric, or departmental memo with objectives and grading criteria)..."
             />
           </div>
 
           <button
             onClick={handleGenerate}
             disabled={isGenerating || !prompt.trim()}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#CE0000] text-white rounded-lg hover:bg-[#b50000] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
               <>
-                <RefreshCw className="h-5 w-5 animate-spin" />
-                Generating with AI...
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Generating Document with AI...
               </>
             ) : (
               <>
-                <Sparkles className="h-5 w-5" />
-                Generate with AI
+                <Sparkles className="h-4 w-4" />
+                Generate Document
               </>
             )}
           </button>
@@ -103,16 +105,16 @@ A curated list of academic resources, textbooks, and supplementary materials to 
       </div>
 
       {/* Quick Prompts */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl mb-4 text-[#CE0000]">Quick Prompts</h2>
-        <div className="space-y-2">
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-2xs">
+        <h2 className="text-sm font-bold text-gray-900 mb-3">Quick Presets</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {quickPrompts.map((quickPrompt, index) => (
             <button
               key={index}
               onClick={() => setPrompt(quickPrompt)}
-              className="w-full text-left p-4 bg-[#F5F5F5] rounded-lg hover:bg-[#FDB913]/10 hover:border-[#FDB913] border-2 border-transparent transition-all"
+              className="text-left p-3.5 bg-gray-50/60 rounded-xl hover:bg-orange-50/50 hover:border-[#FF9501]/40 border border-gray-200 transition-all cursor-pointer group"
             >
-              <p className="text-gray-700 text-sm">{quickPrompt}</p>
+              <p className="text-gray-700 text-xs font-medium group-hover:text-gray-900 transition-colors">{quickPrompt}</p>
             </button>
           ))}
         </div>
@@ -120,39 +122,33 @@ A curated list of academic resources, textbooks, and supplementary materials to 
 
       {/* Generated Content */}
       {generatedContent && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl text-[#CE0000]">Generated Content</h2>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-900">Generated Output</h2>
             <div className="flex gap-2">
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-2 px-4 py-2 text-[#006837] border border-[#006837] rounded-lg hover:bg-[#006837] hover:text-white transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
               >
-                <Copy className="h-4 w-4" />
+                <Copy className="h-3.5 w-3.5" />
                 Copy
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-[#006837] text-white rounded-lg hover:bg-[#005329] transition-colors">
-                <Save className="h-4 w-4" />
-                Save
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-[#FDB913] text-gray-900 rounded-lg hover:bg-[#e5a610] transition-colors">
-                <Download className="h-4 w-4" />
+              <button className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors shadow-2xs cursor-pointer">
+                <Download className="h-3.5 w-3.5" />
                 Export
               </button>
             </div>
           </div>
 
-          <div className="p-6 bg-[#F5F5F5] rounded-lg border border-gray-300">
-            <div className="prose max-w-none">
-              <pre className="whitespace-pre-wrap text-gray-700 font-sans text-sm leading-relaxed">
-                {generatedContent}
-              </pre>
-            </div>
+          <div className="p-5 bg-gray-50/60 rounded-xl border border-gray-200">
+            <pre className="whitespace-pre-wrap text-gray-800 font-sans text-xs leading-relaxed">
+              {generatedContent}
+            </pre>
           </div>
 
-          <div className="mt-4 p-4 bg-[#FDB913]/10 border-l-4 border-[#FDB913] rounded">
-            <p className="text-sm text-gray-700">
-              <strong>Note:</strong> This is AI-generated content. Please review and edit as needed to ensure accuracy and alignment with your specific requirements.
+          <div className="p-3.5 bg-orange-50 border border-[#FF9501]/20 rounded-xl text-xs text-gray-700">
+            <p>
+              <strong className="text-gray-900">Note:</strong> This is AI-generated draft content. Please review and verify alignment with CTU institutional policies before official publication.
             </p>
           </div>
         </div>

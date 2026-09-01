@@ -199,7 +199,7 @@ export function ProfileSettings() {
               onClick={() => setActiveTab("profile")}
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium cursor-pointer ${
                 activeTab === "profile" 
-                ? "bg-[#1D6FA3]/10 text-[#1D6FA3]" 
+                ? "bg-orange-50 text-[#D97E00] border border-[#FF9501]/30 font-semibold" 
                 : "text-gray-600 hover:bg-gray-100"
               }`}
             >
@@ -209,7 +209,7 @@ export function ProfileSettings() {
               onClick={() => setActiveTab("security")}
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium cursor-pointer ${
                 activeTab === "security" 
-                ? "bg-[#1D6FA3]/10 text-[#1D6FA3]" 
+                ? "bg-orange-50 text-[#D97E00] border border-[#FF9501]/30 font-semibold" 
                 : "text-gray-600 hover:bg-gray-100"
               }`}
             >
@@ -220,7 +220,7 @@ export function ProfileSettings() {
           <div className="md:col-span-3 space-y-6">
             
             <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-5">
-              <div className="w-14 h-14 bg-[#1D6FA3] rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-14 h-14 bg-[#FF9501] rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-lg font-semibold text-white">{profileData.fullName.charAt(0) || "U"}</span>
               </div>
               <div>
@@ -230,7 +230,7 @@ export function ProfileSettings() {
                     <Mail className="h-3.5 w-3.5" /> {profileData.email}
                   </span>
                   <span className="text-gray-300">|</span>
-                  <span className="flex items-center gap-1.5 text-[#1D6FA3] font-medium">
+                  <span className="flex items-center gap-1.5 text-[#D97E00] font-medium">
                     <Shield className="h-3.5 w-3.5" /> {userRole}
                   </span>
                 </div>
@@ -260,7 +260,7 @@ export function ProfileSettings() {
                         required
                         value={profileData.fullName}
                         onChange={(e) => setProfileData({...profileData, fullName: e.target.value})}
-                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#1D6FA3] focus:border-[#1D6FA3] transition-colors"
+                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent transition-colors"
                       />
                     </div>
                     
@@ -271,7 +271,7 @@ export function ProfileSettings() {
                         required
                         value={profileData.email}
                         onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#1D6FA3] focus:border-[#1D6FA3] transition-colors"
+                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent transition-colors"
                       />
                     </div>
 
@@ -294,7 +294,7 @@ export function ProfileSettings() {
                           required
                           value={profileData.program}
                           onChange={(e) => setProfileData({...profileData, program: e.target.value})}
-                          className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#1D6FA3] focus:border-[#1D6FA3] transition-colors cursor-pointer"
+                          className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent transition-colors cursor-pointer"
                         >
                           <option value="" disabled>Select your academic program</option>
                           {academicPrograms.map((college, cIdx) => (
@@ -315,7 +315,7 @@ export function ProfileSettings() {
                     <button
                       type="submit"
                       disabled={isUpdatingProfile}
-                      className="px-5 py-2 bg-[#1D6FA3] text-white text-sm rounded-lg hover:bg-[#0B3C5D] transition-colors disabled:opacity-50 font-medium flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                      className="px-5 py-2 bg-[#FF9501] text-white text-sm rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 font-medium flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                     >
                       {isUpdatingProfile ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : "Save Changes"}
                     </button>
@@ -345,7 +345,7 @@ export function ProfileSettings() {
                         required
                         value={passwords.current}
                         onChange={(e) => setPasswords({...passwords, current: e.target.value})}
-                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#1D6FA3] focus:border-[#1D6FA3]"
+                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent"
                       />
                       <button
                         type="button"
@@ -365,7 +365,7 @@ export function ProfileSettings() {
                         required
                         value={passwords.new}
                         onChange={(e) => setPasswords({...passwords, new: e.target.value})}
-                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#1D6FA3] focus:border-[#1D6FA3]"
+                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent"
                       />
                       <button
                         type="button"
@@ -406,7 +406,7 @@ export function ProfileSettings() {
                         required
                         value={passwords.confirm}
                         onChange={(e) => setPasswords({...passwords, confirm: e.target.value})}
-                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#1D6FA3] focus:border-[#1D6FA3]"
+                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent"
                       />
                       <button
                         type="button"
@@ -416,7 +416,6 @@ export function ProfileSettings() {
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    {/* NEW: Passwords do not match inline warning */}
                     {passwords.confirm && passwords.new !== passwords.confirm && (
                       <p className="text-xs text-red-500 mt-1.5">Passwords do not match.</p>
                     )}
@@ -425,9 +424,8 @@ export function ProfileSettings() {
                   <div className="pt-4 flex justify-end">
                     <button
                       type="submit"
-                      /* NEW: Button strict validation blocker */
                       disabled={isUpdatingPassword || !passwords.current || !passwords.new || !passwords.confirm || !isPasswordValid || passwords.new !== passwords.confirm}
-                      className="px-5 py-2 bg-[#006837] text-white text-sm rounded-lg hover:bg-[#00542c] transition-colors disabled:opacity-50 font-medium flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                      className="px-5 py-2 bg-[#FF9501] text-white text-sm rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 font-medium flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                     >
                       {isUpdatingPassword ? <><Loader2 className="h-4 w-4 animate-spin" /> Updating...</> : "Update Password"}
                     </button>
@@ -442,14 +440,14 @@ export function ProfileSettings() {
         {/* --- DYNAMIC SUCCESS MODAL --- */}
         {logoutCountdown !== null && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full text-center animate-in zoom-in-95 duration-300 mx-4">
+            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full text-center animate-in zoom-in-95 duration-300 mx-4 border border-gray-200">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
-                <CheckCircle className="h-8 w-8 text-[#006837]" />
+                <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">{modalContent.title}</h3>
               <p className="text-sm text-gray-500 leading-relaxed mb-6">
                 {modalContent.message} <br/><br/>
-                Redirecting in <strong className="text-[#1D6FA3] text-base">{logoutCountdown}</strong> seconds...
+                Redirecting in <strong className="text-[#D97E00] text-base">{logoutCountdown}</strong> seconds...
               </p>
               <button 
                 onClick={handleForceLogout}

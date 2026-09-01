@@ -253,29 +253,29 @@ export function StudentRecords() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-5">
+        <div className="bg-white rounded-xl shadow-2xs border border-gray-200 p-5">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#0B3C5D] to-[#1D6FA3] rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-[#FF9501] rounded-xl flex items-center justify-center shadow-2xs">
               <GraduationCap className="h-6 w-6 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-[#0B3C5D]">{totalStudents}</p>
-              <p className="text-xs text-[#6B7280]">Total Students</p>
+              <p className="text-2xl font-bold text-gray-900">{totalStudents}</p>
+              <p className="text-xs text-gray-500">Total Students</p>
             </div>
           </div>
         </div>
         {courses.map((course) => (
           <div
             key={course.code}
-            className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-5 hover:shadow-md transition-all"
+            className="bg-white rounded-xl shadow-2xs border border-gray-200 p-5 hover:border-[#FF9501]/40 transition-all"
           >
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-[#1D6FA3]/10 rounded-xl flex items-center justify-center">
-                <Users className="h-6 w-6 text-[#1D6FA3]" />
+              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center border border-[#FF9501]/20">
+                <Users className="h-6 w-6 text-[#D97E00]" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-[#1D6FA3]">{course.students.length}</p>
-                <p className="text-xs text-[#6B7280]">{course.code}</p>
+                <p className="text-2xl font-bold text-[#D97E00]">{course.students.length}</p>
+                <p className="text-xs text-gray-500 font-medium">{course.code}</p>
               </div>
             </div>
           </div>
@@ -283,19 +283,19 @@ export function StudentRecords() {
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] p-6">
+      <div className="bg-white rounded-xl shadow-2xs border border-gray-200 p-4 sm:p-5">
         <div className="flex items-center gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search by student name, ID, or strand..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#1D6FA3] focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
             />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#6B7280] hover:bg-[#F5F7FA] rounded-lg transition-colors border border-[#E5E7EB]">
+          <button className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200 cursor-pointer">
             <Filter className="h-4 w-4" />
             More Filters
           </button>
@@ -305,27 +305,27 @@ export function StudentRecords() {
       {/* Course Categories with Students */}
       <div className="space-y-4">
         {filteredCourses.map((course) => (
-          <div key={course.code} className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] overflow-hidden">
+          <div key={course.code} className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden">
             {/* Course Header */}
             <button
               onClick={() => toggleCourse(course.code)}
-              className="w-full flex items-center justify-between p-6 hover:bg-[#F5F7FA] transition-colors"
+              className="w-full flex items-center justify-between p-5 sm:p-6 hover:bg-gray-50/60 transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-4">
                 {expandedCourse === course.code ? (
-                  <ChevronDown className="h-5 w-5 text-[#1D6FA3]" />
+                  <ChevronDown className="h-5 w-5 text-[#FF9501]" />
                 ) : (
-                  <ChevronRight className="h-5 w-5 text-[#6B7280]" />
+                  <ChevronRight className="h-5 w-5 text-gray-400" />
                 )}
                 <div className="text-left">
-                  <h2 className="text-base font-semibold text-[#1F2937]">{course.name}</h2>
-                  <p className="text-sm text-[#6B7280]">
+                  <h2 className="text-sm sm:text-base font-semibold text-gray-900">{course.name}</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
                     {course.code} • {course.students.length} Students Enrolled
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="px-4 py-2 bg-gradient-to-r from-[#0B3C5D] to-[#1D6FA3] text-white rounded-lg text-sm font-medium">
+                <span className="px-3.5 py-1.5 bg-[#FF9501] text-white rounded-lg text-xs font-semibold shadow-2xs">
                   {course.students.length} Students
                 </span>
               </div>
@@ -333,53 +333,53 @@ export function StudentRecords() {
 
             {/* Student List */}
             {expandedCourse === course.code && (
-              <div className="border-t border-[#E5E7EB]">
+              <div className="border-t border-gray-200">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-[#F5F7FA]">
+                    <thead className="bg-gray-50/80">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6B7280] uppercase tracking-wider">Student ID</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6B7280] uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6B7280] uppercase tracking-wider">Strand</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6B7280] uppercase tracking-wider">Year Level</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6B7280] uppercase tracking-wider">Email</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6B7280] uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6B7280] uppercase tracking-wider">Actions</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Student ID</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Strand</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Year Level</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Email</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E5E7EB]">
+                    <tbody className="divide-y divide-gray-200">
                       {course.students.map((student) => (
-                        <tr key={student.id} className="hover:bg-[#F5F7FA] transition-colors">
-                          <td className="px-6 py-4 text-sm text-[#1F2937] font-medium">{student.studentId}</td>
-                          <td className="px-6 py-4">
+                        <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-3.5 text-xs text-gray-900 font-semibold">{student.studentId}</td>
+                          <td className="px-6 py-3.5">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-gradient-to-br from-[#10B981] to-[#059669] text-white rounded-lg flex items-center justify-center text-xs font-semibold">
+                              <div className="w-7 h-7 bg-orange-100 text-[#D97E00] rounded-md flex items-center justify-center text-[10px] font-bold">
                                 {student.name.split(" ").map(n => n[0]).join("")}
                               </div>
-                              <span className="text-sm text-[#1F2937] font-medium">{student.name}</span>
+                              <span className="text-xs text-gray-900 font-medium">{student.name}</span>
                             </div>
                           </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getStrandColor(student.strand)}`}>
+                          <td className="px-6 py-3.5">
+                            <span className={`px-2.5 py-1 rounded-md text-[11px] font-medium border ${getStrandColor(student.strand)}`}>
                               {student.strand}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-[#1F2937]">Year {student.year}</td>
-                          <td className="px-6 py-4 text-sm text-[#6B7280]">{student.email}</td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-3.5 text-xs text-gray-700">Year {student.year}</td>
+                          <td className="px-6 py-3.5 text-xs text-gray-500">{student.email}</td>
+                          <td className="px-6 py-3.5">
                             <span
-                              className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                              className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium ${
                                 student.status === "Active"
-                                  ? "bg-green-50 text-green-700"
-                                  : "bg-gray-100 text-gray-700"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-gray-100 text-gray-600"
                               }`}
                             >
                               {student.status}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-3.5">
                             <button
-                              className="p-2 text-[#6B7280] hover:text-[#1D6FA3] hover:bg-[#1D6FA3]/10 rounded-lg transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-[#D97E00] hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
                               title="View Details"
                             >
                               <Eye className="h-4 w-4" />
