@@ -118,63 +118,75 @@ export function StudentDashboard() {
       value: totalDocs,
       icon: BookOpen,
       color: "#FF9501", // Base Amber
-      subtitle: "indexed documents"
+      subtitle: "indexed documents",
+      path: "/app/knowledge-repository"
     },
     {
-      label: "My Queries",
+      label: "My AI Queries",
       value: weeklyQueries,
       icon: MessageSquare,
       color: "#D97E00", // Medium Amber
-      subtitle: "this week"
+      subtitle: "interactive sessions",
+      path: "/app/ask-policy"
     },
     {
       label: "Recent Access",
       value: recentViewsCount,
       icon: Clock,
       color: "#995900", // Dark Amber
-      subtitle: "tracked events"
+      subtitle: "tracked events",
+      path: "/app/knowledge-repository"
     }
   ];
 
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
+        <Loader2 className="h-7 w-7 animate-spin text-[#FF9501]" />
+        <p className="text-xs text-gray-500 font-medium italic">Loading Student Portal Telemetry...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 relative pb-10">
+    <div className="space-y-6 animate-in fade-in duration-200 relative pb-10">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-[#1F2937]">Student Dashboard</h1>
-          <p className="text-sm text-[#6B7280] mt-1">Access your learning resources and university information</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Student Dashboard</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Access university policies, AI assistance, campus announcements, and academic resources</p>
         </div>
-        <div className="flex items-center gap-2 bg-[#FF9501] text-white px-4 py-2 rounded-lg shadow-sm">
+        <div className="flex items-center gap-2 bg-[#FF9501] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
           <GraduationCap className="h-4 w-4" />
-          <span className="text-sm font-medium">Student</span>
+          <span className="text-xs font-semibold uppercase tracking-wider">Student Portal</span>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div
               key={stat.label}
-              className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+              onClick={() => stat.path && navigate(stat.path)}
+              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#FF9501] hover:shadow-xs transition-all cursor-pointer group"
+              title={`View ${stat.label}`}
             >
-              <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-10 pointer-events-none" style={{ backgroundColor: stat.color }}></div>
-              
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
                 <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
                   style={{ backgroundColor: `${stat.color}15` }}
                 >
-                  <Icon className="h-6 w-6" style={{ color: stat.color }} />
+                  <Icon className="h-4 w-4" style={{ color: stat.color }} />
                 </div>
               </div>
-              <div>
-                <h3 className="text-4xl font-bold mb-1" style={{ color: stat.color }}>
-                  {isLoading ? "..." : stat.value}
+              <div className="flex items-baseline justify-between mt-1">
+                <h3 className="text-2xl font-bold" style={{ color: stat.color }}>
+                  {stat.value}
                 </h3>
-                <p className="text-sm text-gray-900 font-bold tracking-wide mb-1">{stat.label}</p>
-                <p className="text-xs text-gray-500 font-medium">{stat.subtitle}</p>
+                <span className="text-[11px] text-gray-500 group-hover:text-gray-700">{stat.subtitle}</span>
               </div>
             </div>
           );
@@ -182,74 +194,64 @@ export function StudentDashboard() {
       </div>
 
       {/* Middle Row: Chart & Announcements */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         
         {/* Query Activity Chart */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm lg:col-span-2">
-          <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-[#FF9501]" />
-            My Query Activity (6 Months)
+        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs lg:col-span-2">
+          <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-[#FF9501]" />
+            My AI Query Activity (6 Months)
           </h2>
-          
-          {isLoading ? (
-            <div className="h-[280px] flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip 
-                  cursor={{ fill: '#F9FAFB' }}
-                  contentStyle={{ 
-                    backgroundColor: '#1F2937', 
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    fontSize: '12px'
-                  }}
-                  itemStyle={{ color: '#FF9501' }}
-                />
-                <Bar dataKey="queries" fill="#FF9501" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip 
+                cursor={{ fill: '#F9FAFB' }}
+                contentStyle={{ 
+                  backgroundColor: '#1F2937', 
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '11px'
+                }}
+                itemStyle={{ color: '#FF9501' }}
+              />
+              <Bar dataKey="queries" fill="#FF9501" radius={[3, 3, 0, 0]} barSize={36} name="AI Queries" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Live Announcements */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm flex flex-col h-full">
-          <div className="flex items-center justify-between mb-6">
+        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs flex flex-col h-full">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-[#CE0000]" />
-              <h2 className="text-lg font-bold text-gray-900">Recent Announcements</h2>
+              <Calendar className="h-4 w-4 text-rose-600" />
+              <h2 className="text-xs font-semibold text-gray-900">Recent Broadcasts</h2>
             </div>
             {announcements.length > 0 && (
-              <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">{announcements.length} New</span>
+              <span className="bg-rose-50 border border-rose-200/60 text-rose-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{announcements.length} New</span>
             )}
           </div>
           
-          <div className="space-y-3 flex-1 overflow-y-auto pr-1">
-            {isLoading ? (
-               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-300" /></div>
-            ) : announcements.length === 0 ? (
-               <div className="text-center py-10 text-sm text-gray-500 italic border-2 border-dashed border-gray-100 rounded-xl flex flex-col items-center gap-2">
-                 <Radio className="h-8 w-8 text-gray-300" />
-                 No recent announcements.
+          <div className="space-y-2 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+            {announcements.length === 0 ? (
+               <div className="text-center py-10 text-xs text-gray-400 italic border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1.5 flex-1">
+                 <Radio className="h-6 w-6 text-gray-300" />
+                 <span>No recent broadcasts available.</span>
                </div>
             ) : (
               announcements.map((announcement, index) => (
                 <div
                   key={index}
                   onClick={() => setSelectedAnnouncement(announcement)}
-                  className="flex items-start gap-3 p-3.5 bg-[#F9FAFB] rounded-xl hover:bg-white hover:shadow-md transition-all border border-gray-100 cursor-pointer group"
+                  className="flex items-start gap-2.5 p-2.5 bg-gray-50/60 rounded-lg hover:bg-orange-50/30 hover:border-[#FF9501] transition-all border border-gray-200/70 cursor-pointer group"
                 >
-                  <div className="mt-1.5 w-2 h-2 rounded-full bg-[#FF9501] flex-shrink-0 group-hover:scale-125 transition-transform"></div>
-                  <div>
-                    <p className="text-sm text-gray-900 font-bold leading-snug line-clamp-2 group-hover:text-[#D97E00] transition-colors">{announcement.title}</p>
-                    <p className="text-xs text-gray-500 font-medium mt-1.5">{announcement.date}</p>
+                  <div className="mt-1 w-1.5 h-1.5 rounded-full bg-[#FF9501] shrink-0 group-hover:scale-125 transition-transform"></div>
+                  <div className="overflow-hidden">
+                    <p className="text-xs text-gray-900 font-semibold leading-snug truncate group-hover:text-[#D97E00] transition-colors">{announcement.title}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{announcement.date}</p>
                   </div>
                 </div>
               ))
@@ -259,115 +261,125 @@ export function StudentDashboard() {
       </div>
 
       {/* Bottom Row: Recently Viewed Docs & Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         
-        {/* ADDED flex col and full height to properly contain the scrolling list inside */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm flex flex-col h-full">
-          <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <History className="h-5 w-5 text-[#FF9501]" />
-            Recently Accessed Documents
-          </h2>
+        {/* Recently Viewed Docs */}
+        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs flex flex-col h-full">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold text-gray-900 flex items-center gap-2">
+              <History className="h-4 w-4 text-[#FF9501]" />
+              Recently Accessed Documents
+            </h2>
+            <button
+              onClick={() => navigate('/app/knowledge-repository')}
+              className="text-[11px] text-[#FF9501] hover:text-[#D97E00] font-medium cursor-pointer"
+            >
+              Browse All &rarr;
+            </button>
+          </div>
           
-          {isLoading ? (
-             <div className="flex justify-center py-8 flex-1"><Loader2 className="h-6 w-6 animate-spin text-gray-300" /></div>
-          ) : recentDocs.length === 0 ? (
-             <div className="text-center py-8 text-sm text-gray-500 italic border-2 border-dashed border-gray-100 rounded-xl flex-1">
+          {recentDocs.length === 0 ? (
+             <div className="text-center py-8 text-xs text-gray-400 italic border border-dashed border-gray-200 rounded-lg flex-1 flex items-center justify-center">
                No documents accessed yet.
              </div>
           ) : (
-            // FIXED HEIGHT LIMIT: max-h-[160px] with overflow-y-auto prevents stretching
-            <div className="space-y-3 overflow-y-auto max-h-[160px] pr-2 flex-1">
+            <div className="space-y-2 overflow-y-auto max-h-[160px] pr-1 flex-1 custom-scrollbar">
               {recentDocs.map((doc, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-4 bg-[#F9FAFB] rounded-xl hover:bg-[#F3F4F6] transition-colors border border-gray-100"
+                  onClick={() => navigate('/app/knowledge-repository')}
+                  className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg hover:bg-orange-50/20 hover:border-[#FF9501] transition-all border border-gray-200/70 cursor-pointer group"
+                  title="Open in Knowledge Repository"
                 >
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <FileText className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <div className="p-1.5 rounded-md bg-orange-50 text-[#FF9501] shrink-0">
+                      <FileText className="h-3.5 w-3.5" />
+                    </div>
                     <div className="truncate">
-                      <p className="text-sm text-gray-900 font-bold truncate">{doc.title}</p>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5 uppercase tracking-wider">{doc.category}</p>
+                      <p className="text-xs text-gray-900 font-medium truncate group-hover:text-[#D97E00] transition-colors">{doc.title}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-wider">{doc.category}</p>
                     </div>
                   </div>
-                  <span className="text-xs text-gray-400 font-medium whitespace-nowrap pl-4">{doc.date}</span>
+                  <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap pl-3 shrink-0">{doc.date}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <button 
             onClick={() => navigate('/app/knowledge-repository')} 
-            className="bg-gradient-to-br from-[#FF9501] to-[#D97E00] rounded-xl p-6 text-left hover:shadow-lg transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer"
+            className="bg-gradient-to-br from-[#FF9501] to-[#D97E00] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
           >
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mb-6 shadow-inner">
-              <Search className="h-6 w-6 text-white" />
+            <div className="w-9 h-9 bg-white/20 backdrop-blur-xs rounded-lg flex items-center justify-center mb-4">
+              <Search className="h-5 w-5 text-white" />
             </div>
             <div className="relative z-10">
-              <h3 className="text-lg font-bold text-white mb-1">Browse Repository</h3>
-              <p className="text-sm text-white/90 font-medium">Search policies & manuals</p>
+              <h3 className="text-sm font-bold text-white mb-0.5">Browse Repository</h3>
+              <p className="text-[11px] text-white/90 font-normal">Search student policies & manuals</p>
             </div>
-            <ArrowRight className="absolute bottom-6 right-6 h-5 w-5 text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all" />
+            <ArrowRight className="absolute bottom-4 right-4 h-4 w-4 text-white/60 group-hover:text-white group-hover:translate-x-1 transition-all" />
           </button>
 
           <button 
             onClick={() => navigate('/app/ask-policy')} 
-            className="bg-gradient-to-br from-[#D97E00] to-[#995900] rounded-xl p-6 text-left hover:shadow-lg transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer"
+            className="bg-gradient-to-br from-[#D97E00] to-[#995900] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
           >
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mb-6 shadow-inner">
-              <MessageSquare className="h-6 w-6 text-white" />
+            <div className="w-9 h-9 bg-white/20 backdrop-blur-xs rounded-lg flex items-center justify-center mb-4">
+              <MessageSquare className="h-5 w-5 text-white" />
             </div>
             <div className="relative z-10">
-              <h3 className="text-lg font-bold text-white mb-1">Ask AskPolicy AI</h3>
-              <p className="text-sm text-white/90 font-medium">Get instant policy answers</p>
+              <h3 className="text-sm font-bold text-white mb-0.5">Ask AskPolicy AI</h3>
+              <p className="text-[11px] text-white/90 font-normal">Get instant policy answers</p>
             </div>
-            <ArrowRight className="absolute bottom-6 right-6 h-5 w-5 text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all" />
+            <ArrowRight className="absolute bottom-4 right-4 h-4 w-4 text-white/60 group-hover:text-white group-hover:translate-x-1 transition-all" />
           </button>
         </div>
       </div>
 
       {/* ANNOUNCEMENT VIEW MODAL */}
       {selectedAnnouncement && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-150">
             
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-[#F5F7FA]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200">
-                  <Radio className="h-5 w-5 text-[#CE0000]" />
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center border border-rose-200/60">
+                  <Radio className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Official Broadcast</h3>
-                  <p className="text-xs text-gray-500 font-medium">{selectedAnnouncement.date}</p>
+                  <h3 className="text-xs font-bold text-gray-900">Official Broadcast</h3>
+                  <p className="text-[10px] text-gray-500 font-medium">{selectedAnnouncement.date}</p>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedAnnouncement(null)} 
-                className="text-gray-400 hover:text-gray-900 bg-white hover:bg-gray-50 p-1.5 rounded-full border border-gray-200 transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             
-            <div className="p-6">
-              <h4 className="text-xl font-bold text-[#1F2937] mb-4 leading-tight">{selectedAnnouncement.title}</h4>
-              <div className="p-5 bg-gray-50 rounded-xl border border-gray-100 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto">
+            <div className="p-5">
+              <h4 className="text-sm font-bold text-gray-900 mb-3 leading-tight">{selectedAnnouncement.title}</h4>
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200/70 text-xs text-gray-700 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto custom-scrollbar">
                 {selectedAnnouncement.content}
               </div>
               
-              <div className="mt-4 flex items-center justify-between text-xs text-gray-500 font-medium pt-4 border-t border-gray-100">
-                <span>Sender: <span className="text-gray-900">{selectedAnnouncement.sent_by}</span></span>
+              <div className="mt-4 flex items-center justify-between text-[11px] text-gray-500 font-medium pt-3 border-t border-gray-100">
+                <span>Issued by: <span className="text-gray-900 font-semibold">{selectedAnnouncement.sent_by}</span></span>
                 <span>CTU Argao Campus</span>
               </div>
             </div>
 
-            <div className="p-4 border-t border-gray-100 bg-[#F9FAFB] flex justify-end">
+            <div className="p-3.5 border-t border-gray-100 bg-gray-50/40 flex justify-end">
               <button 
                 onClick={() => setSelectedAnnouncement(null)} 
-                className="px-6 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer shadow-sm active:scale-95"
+                className="px-4 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-2xs"
               >
-                Close Window
+                Close
               </button>
             </div>
           </div>

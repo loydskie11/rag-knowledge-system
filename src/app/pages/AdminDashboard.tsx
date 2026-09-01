@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { FileText, MessageSquare, CheckCircle, Clock, Users, Shield, AlertCircle, TrendingUp, Loader2, AlertTriangle } from "lucide-react";
+import { FileText, MessageSquare, CheckCircle, Clock, Users, Shield, AlertCircle, TrendingUp, Loader2, AlertTriangle, ArrowRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
 import axios from "axios";
+import { useNavigate } from "react-router";
 
 export function AdminDashboard() {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   
   // Dynamic States
@@ -121,39 +123,44 @@ export function AdminDashboard() {
       value: globalStats.documents,
       icon: FileText,
       color: "#FF9501", // Base Amber
-      subtitle: "active in repository"
+      subtitle: "active in repository",
+      path: "/app/knowledge-repository"
     },
     {
       label: "AI Policy Queries",
       value: globalStats.queries,
       icon: MessageSquare,
       color: "#D97E00", // Medium Amber
-      subtitle: "all-time interactions"
+      subtitle: "all-time interactions",
+      path: "/app/audit-trail"
     },
     {
       label: "Campus QMS Compliance",
       value: `${globalStats.isoCompliance}%`,
       icon: CheckCircle,
       color: "#006837", // CTU Green
-      subtitle: "ISO 9001:2015 active cycle"
+      subtitle: "ISO 9001:2015 active cycle",
+      path: "/app/accreditation-support"
     },
     {
       label: "Overdue Action Plans",
       value: globalStats.qmsOverdue,
       icon: AlertTriangle,
       color: "#EF4444", // Red
-      subtitle: "MRC Form 6 past target date"
+      subtitle: "MRC Form 6 past target date",
+      path: "/app/accreditation-support"
     }
   ];
 
   // Dynamic, actionable alerts derived from real system queues
-  const systemAlerts: Array<{ message: string; severity: "warning" | "error" | "success" | "info"; icon: any }> = [];
+  const systemAlerts: Array<{ message: string; severity: "warning" | "error" | "success" | "info"; icon: any; path?: string }> = [];
 
   if (globalStats.aaccupPending > 0) {
     systemAlerts.push({
       message: `${globalStats.aaccupPending} AACCUP/CHED document${globalStats.aaccupPending !== 1 ? 's are' : ' is'} awaiting Admin Review.`,
       severity: "warning",
-      icon: AlertCircle
+      icon: AlertCircle,
+      path: "/app/accreditation-support"
     });
   }
 
@@ -161,7 +168,8 @@ export function AdminDashboard() {
     systemAlerts.push({
       message: `${globalStats.isoPending} ISO 9001 clause${globalStats.isoPending !== 1 ? 's have' : ' has'} pending evidence to verify.`,
       severity: "warning",
-      icon: Clock
+      icon: Clock,
+      path: "/app/accreditation-support"
     });
   }
 
@@ -169,7 +177,8 @@ export function AdminDashboard() {
     systemAlerts.push({
       message: `${globalStats.qmsOverdue} QMS Action Plan${globalStats.qmsOverdue !== 1 ? 's' : ''} (MRC Form 6) ${globalStats.qmsOverdue !== 1 ? 'are' : 'is'} past target completion date.`,
       severity: "error",
-      icon: AlertTriangle
+      icon: AlertTriangle,
+      path: "/app/accreditation-support"
     });
   }
 
@@ -177,57 +186,61 @@ export function AdminDashboard() {
     systemAlerts.push({
       message: "All compliance queues are clear. System health is optimal.",
       severity: "success",
-      icon: CheckCircle
+      icon: CheckCircle,
+      path: "/app/accreditation-support"
     });
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="h-10 w-10 animate-spin text-[#FF9501]" />
-        <p className="text-gray-500 font-medium italic">Compiling Institutional Telemetry...</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
+        <Loader2 className="h-7 w-7 animate-spin text-[#FF9501]" />
+        <p className="text-xs text-gray-500 font-medium italic">Compiling Institutional Telemetry...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+    <div className="space-y-6 animate-in fade-in duration-200 pb-10">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-[#1F2937]">Admin Dashboard</h1>
-          <p className="text-sm text-[#6B7280] mt-1">Complete system overview and management controls</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Complete system telemetry, governance queues, and management controls</p>
         </div>
-        <div className="flex items-center gap-2 bg-[#FF9501] text-white px-4 py-2 rounded-lg shadow-sm">
+        <div className="flex items-center gap-2 bg-[#FF9501] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
           <Shield className="h-4 w-4" />
-          <span className="text-sm font-bold tracking-wider uppercase">System Administrator</span>
+          <span className="text-xs font-semibold uppercase tracking-wider">System Administrator</span>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div
               key={stat.label}
-              className="bg-white rounded-xl border border-[#E5E7EB] p-6 hover:shadow-md transition-shadow relative overflow-hidden"
+              onClick={() => stat.path && navigate(stat.path)}
+              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#FF9501] hover:shadow-xs transition-all cursor-pointer group"
+              title={`View ${stat.label}`}
             >
-              <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10 pointer-events-none" style={{ backgroundColor: stat.color }}></div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
                 <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
                   style={{ backgroundColor: `${stat.color}15` }}
                 >
-                  <Icon className="h-6 w-6" style={{ color: stat.color }} />
+                  <Icon className="h-4 w-4" style={{ color: stat.color }} />
                 </div>
               </div>
-              <div>
-                <h3 className="text-3xl font-bold mb-1" style={{ color: stat.color }}>
+              <div className="flex items-baseline justify-between mt-1">
+                <h3 className="text-2xl font-bold" style={{ color: stat.color }}>
                   {stat.value}
                 </h3>
-                <p className="text-sm text-[#1F2937] font-bold mb-1">{stat.label}</p>
-                <p className="text-xs text-[#6B7280] font-medium">{stat.subtitle}</p>
+                <span className="text-[11px] text-gray-500 flex items-center gap-1 group-hover:text-gray-700">
+                  {stat.subtitle}
+                </span>
               </div>
             </div>
           );
@@ -235,35 +248,45 @@ export function AdminDashboard() {
       </div>
 
       {/* System Alerts */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <AlertCircle className="h-5 w-5 text-[#FF9501]" />
-          <h2 className="text-lg font-bold text-[#1F2937]">System Health & Alerts</h2>
+      <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertCircle className="h-4 w-4 text-[#FF9501]" />
+          <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">System Health & Compliance Alerts</h2>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {systemAlerts.map((alert, index) => {
             const Icon = alert.icon;
             return (
               <div
                 key={index}
-                className={`flex items-center gap-3 p-4 rounded-xl ${
+                onClick={() => alert.path && navigate(alert.path)}
+                className={`flex items-center justify-between p-3 rounded-lg border text-xs font-medium transition-all ${
+                  alert.path ? "cursor-pointer hover:shadow-2xs" : ""
+                } ${
                   alert.severity === "warning"
-                    ? "bg-[#FFC107]/10 border border-[#FFC107]/20 text-yellow-800"
+                    ? "bg-amber-50/60 border-amber-200/60 text-amber-800 hover:bg-amber-50"
+                    : alert.severity === "error"
+                    ? "bg-rose-50/60 border-rose-200/60 text-rose-800 hover:bg-rose-50"
                     : alert.severity === "info"
-                    ? "bg-blue-50 border border-blue-100 text-blue-800"
-                    : "bg-green-50 border border-green-100 text-green-800"
+                    ? "bg-blue-50/60 border-blue-200/60 text-blue-800 hover:bg-blue-50"
+                    : "bg-emerald-50/60 border-emerald-200/60 text-emerald-800 hover:bg-emerald-50"
                 }`}
               >
-                <Icon
-                  className={`h-5 w-5 ${
-                    alert.severity === "warning"
-                      ? "text-[#FF9501]"
-                      : alert.severity === "info"
-                      ? "text-blue-500"
-                      : "text-emerald-600"
-                  }`}
-                />
-                <span className="text-sm font-semibold">{alert.message}</span>
+                <div className="flex items-center gap-2.5">
+                  <Icon
+                    className={`h-4 w-4 shrink-0 ${
+                      alert.severity === "warning"
+                        ? "text-[#D97E00]"
+                        : alert.severity === "error"
+                        ? "text-rose-600"
+                        : alert.severity === "info"
+                        ? "text-blue-600"
+                        : "text-emerald-600"
+                    }`}
+                  />
+                  <span>{alert.message}</span>
+                </div>
+                {alert.path && <ArrowRight className="h-3.5 w-3.5 opacity-60 shrink-0 ml-2" />}
               </div>
             );
           })}
@@ -271,36 +294,36 @@ export function AdminDashboard() {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         
         {/* Activity Trend Chart */}
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm h-[400px] flex flex-col">
-          <h2 className="text-lg font-bold text-[#1F2937] mb-6 flex items-center gap-2 flex-shrink-0">
-            <TrendingUp className="h-5 w-5 text-[#FF9501]" /> Activity Trends (6 Months)
+        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs h-[360px] flex flex-col">
+          <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2 shrink-0">
+            <TrendingUp className="h-4 w-4 text-[#FF9501]" /> Activity Trends (6 Months)
           </h2>
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={activityTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontWeight: 500 }} />
-                <Line type="monotone" dataKey="documents" stroke="#FF9501" strokeWidth={3} dot={{ r: 4 }} name="Documents Uploaded" activeDot={{ r: 6 }} />
-                <Line type="monotone" dataKey="queries" stroke="#D97E00" strokeWidth={3} dot={{ r: 4 }} name="AI Queries" activeDot={{ r: 6 }} />
+                <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px' }} />
+                <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px', fontWeight: 500 }} />
+                <Line type="monotone" dataKey="documents" stroke="#FF9501" strokeWidth={2.5} dot={{ r: 3.5 }} name="Documents Uploaded" activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="queries" stroke="#D97E00" strokeWidth={2.5} dot={{ r: 3.5 }} name="AI Queries" activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Document Taxonomy Chart */}
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm h-[400px] flex flex-col">
-          <h2 className="text-lg font-bold text-[#1F2937] mb-6 flex items-center gap-2 flex-shrink-0">
-            <FileText className="h-5 w-5 text-[#FF9501]" /> Document Taxonomy
+        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs h-[360px] flex flex-col">
+          <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2 shrink-0">
+            <FileText className="h-4 w-4 text-[#FF9501]" /> Document Taxonomy
           </h2>
           <div className="flex-1 min-h-0">
             {documentDistribution.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-gray-400 font-medium italic">No documents uploaded yet.</div>
+              <div className="flex h-full items-center justify-center text-xs text-gray-400 font-medium italic">No documents uploaded yet.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -310,16 +333,16 @@ export function AdminDashboard() {
                     cy="50%"
                     labelLine={false}
                     label={({ name, percent }) => percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}
-                    outerRadius={100}
-                    innerRadius={40}
-                    paddingAngle={5}
+                    outerRadius={90}
+                    innerRadius={36}
+                    paddingAngle={4}
                     dataKey="value"
                   >
                     {documentDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '11px' }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -327,52 +350,42 @@ export function AdminDashboard() {
         </div>
 
         {/* User Distribution */}
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm h-[400px] flex flex-col">
-          <h2 className="text-lg font-bold text-[#1F2937] mb-6 flex items-center gap-2 flex-shrink-0">
-            <Users className="h-5 w-5 text-[#FF9501]" /> Active Demographics
+        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs h-[360px] flex flex-col">
+          <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2 shrink-0">
+            <Users className="h-4 w-4 text-[#FF9501]" /> Active Demographics
           </h2>
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={userDistribution}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                <XAxis dataKey="role" tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip cursor={{ fill: '#F9FAFB' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Bar dataKey="count" fill="#FF9501" radius={[6, 6, 0, 0]} barSize={50} name="Total Users" />
+                <XAxis dataKey="role" tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip cursor={{ fill: '#F9FAFB' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '11px' }} />
+                <Bar dataKey="count" fill="#FF9501" radius={[4, 4, 0, 0]} barSize={44} name="Total Users" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Trending AI Policy Topics */}
-        <div className="bg-white rounded-xl border border-[#E5E7EB] p-6 shadow-sm h-[400px] flex flex-col">
-          <h2 className="text-lg font-bold text-[#1F2937] mb-6 flex items-center gap-2 flex-shrink-0">
-            <MessageSquare className="h-5 w-5 text-[#FF9501]" /> Trending AI Policy Topics
+        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs h-[360px] flex flex-col">
+          <h2 className="text-xs font-semibold text-gray-900 mb-1 flex items-center gap-2 shrink-0">
+            <MessageSquare className="h-4 w-4 text-[#FF9501]" /> Trending AI Policy Topics
           </h2>
-          <div className="flex-1 overflow-y-auto pr-2 min-h-0 custom-scrollbar">
-            <p className="text-xs text-gray-500 mb-4">Most frequent subjects queried by students and faculty via the AI Assistant.</p>
+          <p className="text-[11px] text-gray-500 mb-3">Most frequent subjects queried by students and faculty via the AI Assistant.</p>
+          <div className="flex-1 overflow-y-auto pr-1 min-h-0 custom-scrollbar">
             {popularTopics.length === 0 ? (
-               <div className="flex h-32 items-center justify-center text-sm text-gray-400 font-medium italic">No recent queries.</div>
+               <div className="flex h-32 items-center justify-center text-xs text-gray-400 font-medium italic">No recent queries.</div>
             ) : (
-              <div className="flex flex-wrap gap-2.5">
-                {popularTopics.map((topic, index) => {
-                  // Map the backend color strings to Tailwind classes
-                  const colorMap: Record<string, string> = {
-                    blue: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
-                    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
-                    purple: "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100",
-                  };
-                  const colorClass = colorMap[topic.color] || "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100";
-                  
-                  return (
-                    <div
-                      key={index}
-                      className={`px-4 py-2 border rounded-xl text-sm font-bold shadow-sm transition-colors cursor-default ${colorClass}`}
-                    >
-                      # {topic.label}
-                    </div>
-                  );
-                })}
+              <div className="flex flex-wrap gap-2">
+                {popularTopics.map((topic, index) => (
+                  <div
+                    key={index}
+                    className="px-3 py-1.5 border border-gray-200 bg-gray-50/70 hover:bg-orange-50/30 hover:border-[#FF9501] rounded-lg text-xs font-medium text-gray-700 shadow-2xs transition-colors cursor-default"
+                  >
+                    # {topic.label}
+                  </div>
+                ))}
               </div>
             )}
           </div>
