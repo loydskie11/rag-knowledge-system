@@ -313,7 +313,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
         role="log"
         aria-live="polite"
         aria-label="Conversation with AI Policy Assistant"
-        className={`flex-1 overflow-y-auto ${isWidget ? "p-4 space-y-4" : "p-6 space-y-5"} min-h-0 custom-scrollbar`}
+        className={`flex-1 overflow-y-auto ${isWidget ? "p-3 space-y-3.5" : "p-5 space-y-4"} min-h-0 custom-scrollbar`}
       >
         {!historyLoaded && (
           <div className="flex justify-center py-6" aria-hidden="true">
@@ -326,15 +326,15 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
             key={message.id}
             className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
           >
-            <div className="max-w-[90%] flex flex-col items-start">
+            <div className="max-w-[88%] flex flex-col items-start">
               {message.type === "ai" && (
-                <div className="flex items-center gap-2 mb-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1.5 mb-1.5 shrink-0">
                   <div
-                    className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                    className={`w-5 h-5 rounded-md flex items-center justify-center ${
                       message.isError
-                        ? "bg-[#EF4444]"
+                        ? "bg-rose-500"
                         : message.isRestricted
-                        ? "bg-[#D97E00]"
+                        ? "bg-amber-600"
                         : "bg-[#FF9501]"
                     }`}
                   >
@@ -346,7 +346,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                       <Sparkles className="h-3 w-3 text-white" />
                     )}
                   </div>
-                  <span className="text-xs font-bold text-[#1F2937]">
+                  <span className="text-xs font-semibold text-gray-900">
                     {message.isError
                       ? "Connection Issue"
                       : message.isRestricted
@@ -357,22 +357,22 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
               )}
 
               <div
-                className={`rounded-2xl px-4 py-3 text-sm ${
+                className={`rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
                   message.type === "user"
-                    ? "bg-[#FF9501] text-white rounded-tr-sm shadow-sm self-end"
+                    ? "bg-[#FF9501] text-white rounded-tr-xs shadow-2xs self-end font-normal"
                     : message.isError
-                    ? "bg-[#FEF2F2] text-[#991B1B] border border-[#FCA5A5] rounded-tl-sm shadow-sm"
+                    ? "bg-rose-50 text-rose-800 border border-rose-200 rounded-tl-xs shadow-2xs"
                     : message.isRestricted
-                    ? "bg-[#FFF4E5] text-[#995900] border border-[#FF9501]/30 rounded-tl-sm shadow-sm"
-                    : "bg-[#F9FAFB] text-[#1F2937] border border-[#E5E7EB] rounded-tl-sm shadow-sm"
+                    ? "bg-orange-50 text-amber-900 border border-[#FF9501]/30 rounded-tl-xs shadow-2xs"
+                    : "bg-gray-50/70 text-gray-800 border border-gray-200/80 rounded-tl-xs shadow-2xs"
                 }`}
               >
                 {message.type === "user" ? (
-                  <p className="whitespace-pre-wrap leading-relaxed break-words">
+                  <p className="whitespace-pre-wrap break-words">
                     {message.content}
                   </p>
                 ) : (
-                  <div className="prose prose-sm prose-orange max-w-none break-words text-[#1F2937] leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_li]:my-1.5 [&_li]:leading-normal [&_table]:w-full [&_table]:border-collapse [&_table]:my-2 [&_th]:border [&_th]:border-gray-200 [&_th]:p-2 [&_th]:bg-gray-100 [&_td]:border [&_td]:border-gray-200 [&_td]:p-2 [&_strong]:font-bold [&_strong]:text-[#111827]">
+                  <div className="prose prose-xs max-w-none break-words text-gray-800 leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5 [&_li]:my-1 [&_li]:leading-normal [&_table]:w-full [&_table]:border-collapse [&_table]:my-2 [&_th]:border [&_th]:border-gray-200 [&_th]:p-1.5 [&_th]:bg-gray-100 [&_td]:border [&_td]:border-gray-200 [&_td]:p-1.5 [&_strong]:font-semibold [&_strong]:text-gray-900">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {message.content}
                     </ReactMarkdown>
@@ -384,7 +384,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                 <button
                   onClick={() => handleRetry(message.failedQuestion)}
                   disabled={isLoading}
-                  className="mt-2 flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-[#D97706] border border-[#FCD34D] bg-[#FFFBEB] hover:bg-[#FEF3C7] rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+                  className="mt-1.5 flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-amber-700 border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
                 >
                   <RotateCcw className="h-3 w-3" /> Retry
                 </button>
@@ -392,56 +392,56 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
 
               {/* Sources & Citations */}
               {message.type === "ai" && message.sources && message.sources.length > 0 && (
-                <div className="mt-3 w-full space-y-2 pl-1">
-                  <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">
+                <div className="mt-2.5 w-full space-y-1.5 pl-0.5">
+                  <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
                     Sources & Citations
                   </p>
                   {message.sources.map((source) => (
                     <details
                       key={`${message.id}_${source.name}`}
-                      className="group bg-white border border-[#E5E7EB] rounded-xl overflow-hidden shadow-sm"
+                      className="group bg-white border border-gray-200 rounded-lg overflow-hidden shadow-2xs"
                     >
-                      <summary className="flex items-center justify-between p-3 cursor-pointer hover:bg-[#FFF4E5] transition-colors list-none">
-                        <div className="flex items-center gap-2.5 overflow-hidden pr-2">
-                          <FileText className="h-4 w-4 text-[#FF9501] flex-shrink-0" />
+                      <summary className="flex items-center justify-between p-2.5 cursor-pointer hover:bg-gray-50 transition-colors list-none">
+                        <div className="flex items-center gap-2 overflow-hidden pr-2">
+                          <FileText className="h-3.5 w-3.5 text-[#FF9501] shrink-0" />
                           <span
-                            className={`text-xs font-semibold text-[#374151] truncate ${isWidget ? 'max-w-[180px] sm:max-w-[200px]' : 'flex-1 max-w-[500px]'}`}
+                            className={`text-xs font-medium text-gray-700 truncate ${isWidget ? 'max-w-[180px] sm:max-w-[200px]' : 'flex-1 max-w-[480px]'}`}
                             title={source.name}
                           >
                             {source.name}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="flex items-center gap-2.5 shrink-0">
                           <div className="flex items-center gap-1.5">
-                            <div className="w-24 bg-gray-200 rounded-full h-1.5 overflow-hidden hidden xs:block">
+                            <div className="w-20 bg-gray-100 rounded-full h-1 overflow-hidden hidden xs:block">
                               <div
-                                className={`h-full rounded-full transition-all duration-500 ${
+                                className={`h-full rounded-full transition-all duration-300 ${
                                   source.relevance >= 80
-                                    ? "bg-[#10B981]"
+                                    ? "bg-emerald-500"
                                     : source.relevance >= 60
                                     ? "bg-[#FF9501]"
-                                    : "bg-[#EF4444]"
+                                    : "bg-rose-500"
                                 }`}
                                 style={{ width: `${Math.min(100, Math.max(0, source.relevance))}%` }}
                               />
                             </div>
                             <span
-                              className={`text-[10px] font-bold min-w-[28px] text-right ${
+                              className={`text-[10px] font-semibold min-w-[24px] text-right ${
                                 source.relevance >= 80
-                                  ? "text-[#10B981]"
+                                  ? "text-emerald-600"
                                   : source.relevance >= 60
                                   ? "text-[#D97E00]"
-                                  : "text-[#EF4444]"
+                                  : "text-rose-600"
                               }`}
                             >
                               {source.relevance}%
                             </span>
                           </div>
-                          <ChevronDown className="h-3.5 w-3.5 text-[#6B7280] group-open:rotate-180 transition-transform duration-200" />
+                          <ChevronDown className="h-3 w-3 text-gray-400 group-open:rotate-180 transition-transform duration-200" />
                         </div>
                       </summary>
                       {source.snippet && (
-                        <div className="p-3 bg-[#F9FAFB] border-t border-[#E5E7EB] text-xs text-[#4B5563] leading-relaxed italic">
+                        <div className="p-2.5 bg-gray-50 border-t border-gray-200 text-[11px] text-gray-600 leading-relaxed italic">
                           "{source.snippet}"
                         </div>
                       )}
@@ -452,15 +452,15 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
 
               {/* Feedback Actions */}
               {message.type === "ai" && !message.isError && (
-                <div className="flex items-center gap-3 mt-2 pl-1">
-                  <span className="text-[10px] text-[#9CA3AF] font-medium">{message.timestamp}</span>
+                <div className="flex items-center gap-2.5 mt-1.5 pl-0.5">
+                  <span className="text-[10px] text-gray-400 font-normal">{message.timestamp}</span>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleFeedback(message.id, true)}
                       className={`p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer ${
                         message.feedback === "helpful"
-                          ? "text-[#10B981] bg-green-50 font-bold"
-                          : "text-[#9CA3AF]"
+                          ? "text-emerald-600 bg-emerald-50"
+                          : "text-gray-400 hover:text-gray-700"
                       }`}
                       title="Helpful"
                       aria-label="Mark as helpful"
@@ -471,8 +471,8 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                       onClick={() => handleFeedback(message.id, false)}
                       className={`p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer ${
                         message.feedback === "not-helpful"
-                          ? "text-[#EF4444] bg-red-50 font-bold"
-                          : "text-[#9CA3AF]"
+                          ? "text-rose-600 bg-rose-50"
+                          : "text-gray-400 hover:text-gray-700"
                       }`}
                       title="Not helpful"
                       aria-label="Mark as not helpful"
@@ -485,13 +485,13 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
 
               {/* Follow-up Question Chips */}
               {message.type === "ai" && message.followUps && message.followUps.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5 pl-1">
+                <div className="mt-2.5 flex flex-wrap gap-1.5 pl-0.5">
                   {message.followUps.map((question, idx) => (
                     <button
                       key={idx}
                       onClick={() => handleSendMessage(question)}
                       disabled={isLoading}
-                      className="text-left text-xs bg-white text-[#D97E00] border border-[#FF9501]/40 hover:bg-[#FFF4E5] hover:border-[#FF9501] px-3 py-1.5 rounded-full transition-all shadow-2xs font-semibold disabled:opacity-50 cursor-pointer"
+                      className="text-left text-xs bg-white text-[#D97E00] border border-[#FF9501]/30 hover:bg-orange-50/40 hover:border-[#FF9501] px-3 py-1 rounded-full transition-all shadow-2xs font-medium disabled:opacity-50 cursor-pointer"
                     >
                       {question}
                     </button>
@@ -505,13 +505,13 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
         {/* Floating widget welcome cards */}
         {isWidget && messages.length <= 1 && (
           <div className="pt-2 space-y-2">
-            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Suggested Questions:</p>
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Suggested Topics:</p>
             <div className="grid grid-cols-1 gap-1.5">
               {SUGGESTED_QUESTIONS.slice(0, 3).map((suggestion, idx) => (
                 <button
                   key={idx}
                   onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
-                  className="text-left px-3 py-2 rounded-xl border border-gray-200 bg-[#F9FAFB] hover:border-[#FF9501] hover:bg-orange-50/40 text-xs font-semibold text-gray-700 transition-all cursor-pointer shadow-2xs"
+                  className="text-left px-3 py-2 rounded-lg border border-gray-200 bg-gray-50/60 hover:border-[#FF9501] hover:bg-orange-50/20 text-xs font-medium text-gray-700 transition-colors cursor-pointer shadow-2xs"
                 >
                   💡 {suggestion}
                 </button>
@@ -523,15 +523,15 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
         {isLoading && (
           <div className="flex justify-start animate-in fade-in" aria-hidden="true">
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-6 h-6 bg-[#FF9501] rounded-md flex items-center justify-center">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <div className="w-5 h-5 bg-[#FF9501] rounded-md flex items-center justify-center">
                   <Sparkles className="h-3 w-3 text-white animate-pulse" />
                 </div>
-                <span className="text-xs font-bold text-[#1F2937]">AI Assistant</span>
+                <span className="text-xs font-semibold text-gray-900">AI Assistant</span>
               </div>
-              <div className="rounded-2xl rounded-tl-sm px-4 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] flex items-center gap-2 shadow-sm">
+              <div className="rounded-2xl rounded-tl-xs px-3.5 py-2 bg-gray-50/70 border border-gray-200 flex items-center gap-2 shadow-2xs">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FF9501]" />
-                <p className="text-xs text-[#6B7280] font-medium italic">Searching knowledge base...</p>
+                <p className="text-xs text-gray-500 font-medium">Searching knowledge base...</p>
               </div>
             </div>
           </div>
@@ -542,13 +542,13 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
 
       {/* Suggested Questions Horizontal Chips for Floating Widget */}
       {isWidget && (
-        <div className="shrink-0 px-3 py-2 bg-[#F9FAFB] border-t border-[#E5E7EB] flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
-          <span className="text-[10px] font-bold text-[#FF9501] uppercase tracking-wider shrink-0">💡 Suggestions:</span>
+        <div className="shrink-0 px-3 py-2 bg-gray-50/60 border-t border-gray-200 flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
+          <span className="text-[9px] font-semibold text-[#D97E00] uppercase tracking-wider shrink-0">💡 Suggestions:</span>
           {SUGGESTED_QUESTIONS.map((suggestion, idx) => (
             <button
               key={idx}
               onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
-              className="whitespace-nowrap px-2.5 py-1 text-[11px] font-semibold bg-white border border-[#E5E7EB] hover:border-[#FF9501] hover:text-[#FF9501] text-[#374151] rounded-full shadow-2xs transition-all cursor-pointer shrink-0"
+              className="whitespace-nowrap px-2.5 py-0.5 text-[11px] font-medium bg-white border border-gray-200 hover:border-[#FF9501] hover:text-[#D97E00] text-gray-700 rounded-full shadow-2xs transition-colors cursor-pointer shrink-0"
             >
               {suggestion}
             </button>
@@ -557,7 +557,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
       )}
 
       {/* Input Panel */}
-      <div className={`shrink-0 border-t border-[#E5E7EB] ${isWidget ? "p-3" : "p-4"} bg-white`}>
+      <div className={`shrink-0 border-t border-gray-200 ${isWidget ? "p-2.5" : "p-3.5"} bg-white`}>
         <div className="flex gap-2 items-end">
           <div className="flex-1 flex flex-col">
             <textarea
@@ -573,17 +573,17 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
               aria-label="Ask a policy question"
               aria-invalid={isOverLimit}
               maxLength={MAX_QUESTION_LENGTH + 50}
-              className={`w-full px-3 py-2 bg-[#F5F7FA] border rounded-xl text-sm text-[#1F2937] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:bg-white transition-all resize-none min-h-[38px] max-h-[120px] disabled:opacity-60 disabled:cursor-not-allowed ${
+              className={`w-full px-3 py-2 bg-gray-50/50 border rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:bg-white transition-all resize-none min-h-[36px] max-h-[120px] disabled:opacity-60 disabled:cursor-not-allowed ${
                 isOverLimit
-                  ? "border-[#EF4444] focus:ring-[#EF4444]"
-                  : "border-[#E5E7EB] focus:ring-[#FF9501]"
+                  ? "border-rose-300 focus:ring-rose-500"
+                  : "border-gray-200 focus:ring-[#FF9501]"
               }`}
               rows={1}
             />
             {charCount > MAX_QUESTION_LENGTH * 0.8 && (
               <span
                 className={`text-[10px] mt-1 ml-1 ${
-                  isOverLimit ? "text-[#EF4444] font-semibold" : "text-[#9CA3AF]"
+                  isOverLimit ? "text-rose-600 font-semibold" : "text-gray-400"
                 }`}
               >
                 {charCount}/{MAX_QUESTION_LENGTH}
@@ -594,12 +594,12 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
             onClick={() => handleSendMessage()}
             disabled={isLoading || !query.trim() || isOverLimit}
             aria-label="Send question"
-            className="p-2 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center h-[38px] w-[38px] shrink-0 active:scale-95 shadow-md cursor-pointer"
+            className="p-2 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center h-[36px] w-[36px] shrink-0 active:scale-95 shadow-2xs cursor-pointer"
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
             )}
           </button>
         </div>
@@ -617,42 +617,42 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
 
   return (
     <div className="space-y-6 flex flex-col h-[calc(100vh-6rem)] relative">
-      {/* Header matching Knowledge Repository layout */}
-      <div className="flex-none space-y-6">
-        <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex-none">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-[#1F2937]">AI Policy Assistant</h1>
-            <p className="text-sm text-[#6B7280] mt-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Policy Assistant</h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
               Your intelligent guide to institutional rules, student guidelines, and campus procedures
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-orange-50 text-[#D97E00] border-[#FF9501]/20 shadow-2xs">
-              <Sparkles className="h-4 w-4 text-[#FF9501]" />
-              <span className="text-sm font-medium">Online • RAG Active</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-200/60 shadow-2xs text-xs font-medium">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Online • RAG Active</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Two-Column Card Workspace */}
-      <div className="flex-1 flex flex-row min-h-0 bg-white overflow-hidden rounded-2xl border border-[#E5E7EB] shadow-sm">
+      <div className="flex-1 flex flex-row min-h-0 bg-white overflow-hidden rounded-xl border border-gray-200 shadow-2xs">
         {chatContent}
 
         {/* Right Side: Suggested Topics Sidebar */}
-        <div className="hidden lg:flex flex-col w-80 bg-[#F9FAFB] border-l border-[#E5E7EB] p-5">
-          <h3 className="text-sm font-bold text-[#1F2937] mb-1">
+        <div className="hidden lg:flex flex-col w-80 bg-gray-50/50 border-l border-gray-200 p-4">
+          <h3 className="text-xs font-semibold text-gray-900 mb-0.5">
             Suggested Questions
           </h3>
-          <p className="text-xs text-[#6B7280] mb-4 leading-relaxed">
-            Click on any topic below to automatically load it into your message box.
+          <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">
+            Click on any topic to automatically load and ask the AI assistant.
           </p>
-          <div className="space-y-2.5 flex-1 overflow-y-auto custom-scrollbar pr-1">
+          <div className="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-0.5">
             {SUGGESTED_QUESTIONS.map((suggestion, idx) => (
               <button
                 key={idx}
                 onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
-                className="w-full text-left p-3 rounded-xl border border-[#E5E7EB] bg-white hover:border-[#FF9501] hover:shadow-sm transition-all text-xs font-semibold text-[#374151] cursor-pointer"
+                className="w-full text-left p-2.5 rounded-lg border border-gray-200 bg-white hover:border-[#FF9501] hover:bg-orange-50/20 transition-colors text-xs font-medium text-gray-700 cursor-pointer shadow-2xs"
               >
                 {suggestion}
               </button>

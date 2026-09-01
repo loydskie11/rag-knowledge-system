@@ -465,7 +465,7 @@ export function PaperTrail() {
             onClick={() => setActionBoardTab("inbox")}
             className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
               actionBoardTab === "inbox"
-                ? "border-gray-900 text-gray-900 bg-gray-50/80 rounded-t-lg"
+                ? "border-[#FF9501] text-[#D97E00] bg-white rounded-t-lg"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50"
             }`}
           >
@@ -483,7 +483,7 @@ export function PaperTrail() {
             onClick={() => setActionBoardTab("outbox")}
             className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
               actionBoardTab === "outbox"
-                ? "border-gray-900 text-gray-900 bg-gray-50/80 rounded-t-lg"
+                ? "border-[#FF9501] text-[#D97E00] bg-white rounded-t-lg"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50"
             }`}
           >
@@ -494,7 +494,7 @@ export function PaperTrail() {
             onClick={() => setActionBoardTab("all")}
             className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
               actionBoardTab === "all"
-                ? "border-gray-900 text-gray-900 bg-gray-50/80 rounded-t-lg"
+                ? "border-[#FF9501] text-[#D97E00] bg-white rounded-t-lg"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50"
             }`}
           >
@@ -581,7 +581,7 @@ export function PaperTrail() {
             </p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="mt-4 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-black transition-colors"
+              className="mt-4 px-4 py-2 bg-[#FF9501] text-white text-xs font-semibold rounded-lg hover:bg-[#D97E00] transition-colors cursor-pointer shadow-2xs"
             >
               Release Document
             </button>
@@ -703,7 +703,7 @@ export function PaperTrail() {
                                 setFulfillRemarks("");
                                 setShowFulfillModal(true);
                               }}
-                              className="px-2.5 py-1 text-xs font-medium bg-gray-900 text-white hover:bg-black rounded-md transition-all cursor-pointer shadow-2xs"
+                              className="px-2.5 py-1 text-xs font-medium bg-[#FF9501] text-white hover:bg-[#D97E00] rounded-md transition-all cursor-pointer shadow-2xs"
                               title="Fulfill Request"
                             >
                               Fulfill
@@ -748,13 +748,11 @@ export function PaperTrail() {
       {/* CREATE & RELEASE DOCUMENT MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4">
-          <div className="bg-white rounded-xl max-w-xl w-full shadow-xl overflow-hidden max-h-[90vh] flex flex-col border border-gray-200 animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl overflow-hidden max-h-[90vh] flex flex-col border border-gray-200 animate-in fade-in zoom-in-95">
             <div className="p-4 sm:p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50/50 shrink-0">
               <div>
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900">Release / Submit Document</h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Generate a tracking entry for official receiving & releasing
-                </p>
+                <h2 className="text-base font-semibold text-gray-900">Create & Release Document</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Initialize a new movement record and generate tracking number</p>
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
@@ -764,28 +762,30 @@ export function PaperTrail() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+            <form onSubmit={handleCreateSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Document Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. BSIT Course Syllabus for CS46 - SY 2026-2027"
-                  className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="e.g. 2026 CS Curriculum Syllabus Revision"
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                  value={createFormData.title}
+                  onChange={(e) => setCreateFormData({ ...createFormData, title: e.target.value })}
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Document Type</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Document Type <span className="text-red-500">*</span>
+                  </label>
                   <select
-                    className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 cursor-pointer"
-                    value={formData.document_type}
-                    onChange={(e) => setFormData({ ...formData, document_type: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
+                    value={createFormData.doc_type}
+                    onChange={(e) => setCreateFormData({ ...createFormData, doc_type: e.target.value })}
                   >
                     <option value="Syllabus">Syllabus</option>
                     <option value="Transmittal Sheet">Transmittal Sheet</option>
@@ -799,66 +799,70 @@ export function PaperTrail() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Target Office / Destination</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Originating Office <span className="text-red-500">*</span>
+                  </label>
                   <select
-                    className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 cursor-pointer"
-                    value={formData.office}
-                    onChange={(e) => setFormData({ ...formData, office: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
+                    value={createFormData.office}
+                    onChange={(e) => setCreateFormData({ ...createFormData, office: e.target.value })}
                   >
-                    <option value="Academic Affairs">Academic Affairs</option>
-                    <option value="Student Affairs">Student Affairs</option>
-                    <option value="Dean's Office">Dean's Office</option>
-                    <option value="Registrar Office">Registrar Office</option>
-                    <option value="Research Office">Research Office</option>
-                    <option value="Quality Assurance">Quality Assurance</option>
+                    {ISO_OFFICES_16.map((off) => (
+                      <option key={off} value={off}>{off}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Recipient Name (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Dr. Maria Santos"
-                    className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                    value={formData.recipient_name}
-                    onChange={(e) => setFormData({ ...formData, recipient_name: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Recipient Email (Optional)</label>
-                  <input
-                    type="email"
-                    placeholder="recipient@ctu.edu.ph"
-                    className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                    value={formData.recipient_email}
-                    onChange={(e) => setFormData({ ...formData, recipient_email: e.target.value })}
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Recipient Office / Destination <span className="text-red-500">*</span>
+                </label>
+                <select
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
+                  value={createFormData.recipient_office}
+                  onChange={(e) => setCreateFormData({ ...createFormData, recipient_office: e.target.value })}
+                >
+                  <option value="" disabled>Select destination office</option>
+                  {ISO_OFFICES_16.map((off) => (
+                    <option key={off} value={off}>{off}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Initial Remarks / Notes</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Submitted for Dean's signature and verification."
-                  className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
-                  value={formData.remarks}
-                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Direct Recipient Email (Optional)
+                </label>
+                <input
+                  type="email"
+                  placeholder="e.g. dean.office@ctu.edu.ph"
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                  value={createFormData.recipient_email}
+                  onChange={(e) => setCreateFormData({ ...createFormData, recipient_email: e.target.value })}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Attach Digital Copy (Optional)</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Routing Remarks / Instructions</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. For Dean signature and formal endorsement."
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] resize-none"
+                  value={createFormData.remarks}
+                  onChange={(e) => setCreateFormData({ ...createFormData, remarks: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Attach Digital Copy (Optional)</label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border border-dashed border-gray-300 hover:border-gray-400 bg-gray-50/50 hover:bg-gray-50 rounded-lg p-3.5 text-center cursor-pointer transition-colors"
+                  className="border border-dashed border-gray-300 hover:border-[#FF9501] bg-gray-50/50 hover:bg-orange-50/20 rounded-lg p-4 text-center cursor-pointer transition-colors"
                 >
                   {attachedFile ? (
                     <div className="flex items-center justify-center gap-2 text-xs font-medium text-gray-800">
-                      <FileText className="h-3.5 w-3.5 text-gray-500" />
+                      <FileText className="h-3.5 w-3.5 text-[#FF9501]" />
                       <span>{attachedFile.name}</span>
                     </div>
                   ) : (
@@ -884,7 +888,7 @@ export function PaperTrail() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 text-xs font-medium bg-gray-900 text-white rounded-lg hover:bg-black transition-colors flex justify-center items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                  className="flex-1 px-4 py-2 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors flex justify-center items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
@@ -938,12 +942,12 @@ export function PaperTrail() {
                     onClick={() => setActionType("Acknowledge")}
                     className={`p-2.5 text-left border rounded-lg transition-all cursor-pointer ${
                       actionType === "Acknowledge"
-                        ? "bg-gray-900 text-white border-gray-900"
+                        ? "bg-[#FF9501] text-white border-[#FF9501] shadow-2xs"
                         : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                     }`}
                   >
                     <div className="text-xs font-semibold">Receive</div>
-                    <div className={`text-[10px] mt-0.5 ${actionType === "Acknowledge" ? "text-gray-300" : "text-gray-500"}`}>Acknowledge on desk</div>
+                    <div className={`text-[10px] mt-0.5 ${actionType === "Acknowledge" ? "text-orange-100" : "text-gray-500"}`}>Acknowledge on desk</div>
                   </button>
 
                   <button
@@ -951,12 +955,12 @@ export function PaperTrail() {
                     onClick={() => setActionType("Forward")}
                     className={`p-2.5 text-left border rounded-lg transition-all cursor-pointer ${
                       actionType === "Forward"
-                        ? "bg-gray-900 text-white border-gray-900"
+                        ? "bg-[#FF9501] text-white border-[#FF9501] shadow-2xs"
                         : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                     }`}
                   >
                     <div className="text-xs font-semibold">Forward</div>
-                    <div className={`text-[10px] mt-0.5 ${actionType === "Forward" ? "text-gray-300" : "text-gray-500"}`}>Route to next office</div>
+                    <div className={`text-[10px] mt-0.5 ${actionType === "Forward" ? "text-orange-100" : "text-gray-500"}`}>Route to next office</div>
                   </button>
 
                   <button
@@ -964,12 +968,12 @@ export function PaperTrail() {
                     onClick={() => setActionType("Return")}
                     className={`p-2.5 text-left border rounded-lg transition-all cursor-pointer ${
                       actionType === "Return"
-                        ? "bg-gray-900 text-white border-gray-900"
+                        ? "bg-[#FF9501] text-white border-[#FF9501] shadow-2xs"
                         : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                     }`}
                   >
                     <div className="text-xs font-semibold">Return</div>
-                    <div className={`text-[10px] mt-0.5 ${actionType === "Return" ? "text-gray-300" : "text-gray-500"}`}>Send back for revision</div>
+                    <div className={`text-[10px] mt-0.5 ${actionType === "Return" ? "text-orange-100" : "text-gray-500"}`}>Send back for revision</div>
                   </button>
 
                   <button
@@ -977,12 +981,12 @@ export function PaperTrail() {
                     onClick={() => setActionType("Approve")}
                     className={`p-2.5 text-left border rounded-lg transition-all cursor-pointer ${
                       actionType === "Approve"
-                        ? "bg-gray-900 text-white border-gray-900"
+                        ? "bg-[#FF9501] text-white border-[#FF9501] shadow-2xs"
                         : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                     }`}
                   >
                     <div className="text-xs font-semibold">Approve</div>
-                    <div className={`text-[10px] mt-0.5 ${actionType === "Approve" ? "text-gray-300" : "text-gray-500"}`}>Approve & close trail</div>
+                    <div className={`text-[10px] mt-0.5 ${actionType === "Approve" ? "text-orange-100" : "text-gray-500"}`}>Approve & close trail</div>
                   </button>
                 </div>
               </div>
@@ -994,7 +998,7 @@ export function PaperTrail() {
                     type="text"
                     required
                     placeholder="e.g. Registrar & MIS, Campus Director, Finance"
-                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                     value={targetOffice}
                     onChange={(e) => setTargetOffice(e.target.value)}
                   />
@@ -1007,7 +1011,7 @@ export function PaperTrail() {
                   rows={2}
                   required
                   placeholder="e.g. Acknowledged on desk for review."
-                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] resize-none"
                   value={statusNotes}
                   onChange={(e) => setStatusNotes(e.target.value)}
                 />
@@ -1017,14 +1021,14 @@ export function PaperTrail() {
                 <button
                   type="button"
                   onClick={() => setShowStatusModal(false)}
-                  className="flex-1 px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUpdatingStatus}
-                  className="flex-1 px-4 py-2 text-xs font-medium bg-gray-900 text-white rounded-lg hover:bg-black flex justify-center items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                  className="flex-1 px-4 py-2 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] flex justify-center items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isUpdatingStatus ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Complete Action"}
                 </button>
@@ -1040,86 +1044,88 @@ export function PaperTrail() {
           <div className="bg-white rounded-xl max-w-lg w-full shadow-xl overflow-hidden max-h-[90vh] flex flex-col border border-gray-200 animate-in fade-in zoom-in-95">
             <div className="p-4 sm:p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50/50 shrink-0">
               <div>
-                <h2 className="text-base font-semibold text-gray-900">Issue Document Request</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Request official documents from campus offices or personnel</p>
+                <h2 className="text-base font-semibold text-gray-900">Request Document from Desk</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Issue a formal pull-request for documents required for compliance</p>
               </div>
-              <button onClick={() => setShowRequestModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setShowRequestModal(false)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-400 hover:text-gray-600"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleRequestSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Document Title Requested <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Requested Document Title <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Memorandum on Midterm Clearance, Board Resolution No. 42"
-                  className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  placeholder="e.g. 2025-2026 Faculty Syllabi Submission"
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
                   value={requestFormData.title}
                   onChange={(e) => setRequestFormData({ ...requestFormData, title: e.target.value })}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Document Type</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Document Type <span className="text-red-500">*</span>
+                  </label>
                   <select
-                    className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                    value={requestFormData.document_type}
-                    onChange={(e) => setRequestFormData({ ...requestFormData, document_type: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
+                    value={requestFormData.doc_type}
+                    onChange={(e) => setRequestFormData({ ...requestFormData, doc_type: e.target.value })}
                   >
-                    <option value="Memo">Memorandum (Memo)</option>
-                    <option value="Resolution">Board / Office Resolution</option>
-                    <option value="Curriculum Map">Curriculum Map</option>
                     <option value="Syllabus">Syllabus</option>
+                    <option value="Transmittal Sheet">Transmittal Sheet</option>
                     <option value="Grade Sheet">Grade Sheet</option>
                     <option value="Clearance Form">Clearance Form</option>
                     <option value="Accreditation Document">Accreditation Document</option>
+                    <option value="MOA / MOU">MOA / MOU</option>
                     <option value="Administrative Report">Administrative Report</option>
-                    <option value="Other">Other Document</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Target Office <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Dean's Office, HRMO, Registrar"
-                    className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Target Office to Provide <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-800"
                     value={requestFormData.office}
                     onChange={(e) => setRequestFormData({ ...requestFormData, office: e.target.value })}
-                  />
+                  >
+                    {ISO_OFFICES_16.map((off) => (
+                      <option key={off} value={off}>{off}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Target Contact Person (Optional)</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="Name (e.g. Dr. Jane Smith)"
-                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                    value={requestFormData.target_person_name}
-                    onChange={(e) => setRequestFormData({ ...requestFormData, target_person_name: e.target.value })}
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email (e.g. jane@ctu.edu.ph)"
-                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                    value={requestFormData.target_person_email}
-                    onChange={(e) => setRequestFormData({ ...requestFormData, target_person_email: e.target.value })}
-                  />
-                </div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Specific Recipient Email (Optional)
+                </label>
+                <input
+                  type="email"
+                  placeholder="e.g. faculty.member@ctu.edu.ph"
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                  value={requestFormData.recipient_email}
+                  onChange={(e) => setRequestFormData({ ...requestFormData, recipient_email: e.target.value })}
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Instructions / Specific Note</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Instructions / Submission Purpose</label>
                 <textarea
                   rows={2}
                   placeholder="e.g. Please submit your updated 2026 curriculum map."
-                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] resize-none"
                   value={requestFormData.instructions}
                   onChange={(e) => setRequestFormData({ ...requestFormData, instructions: e.target.value })}
                 />
@@ -1129,14 +1135,14 @@ export function PaperTrail() {
                 <button
                   type="button"
                   onClick={() => setShowRequestModal(false)}
-                  className="flex-1 px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingRequest}
-                  className="flex-1 px-4 py-2 text-xs font-medium bg-gray-900 text-white rounded-lg hover:bg-black flex justify-center items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                  className="flex-1 px-4 py-2 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] flex justify-center items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmittingRequest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Issue Request"}
                 </button>
@@ -1155,7 +1161,7 @@ export function PaperTrail() {
                 <h2 className="text-base font-semibold text-gray-900">Fulfill Document Request</h2>
                 <p className="text-xs font-mono text-gray-500 mt-0.5">{selectedRecordForFulfill.tracking_number}</p>
               </div>
-              <button onClick={() => setShowFulfillModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowFulfillModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1170,11 +1176,11 @@ export function PaperTrail() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">Attach Requested File <span className="text-red-500">*</span></label>
                 <div
                   onClick={() => fulfillFileInputRef.current?.click()}
-                  className="border border-dashed border-gray-300 hover:border-gray-400 bg-gray-50/50 hover:bg-gray-50 rounded-lg p-4 text-center cursor-pointer transition-colors"
+                  className="border border-dashed border-gray-300 hover:border-[#FF9501] bg-gray-50/50 hover:bg-orange-50/20 rounded-lg p-4 text-center cursor-pointer transition-colors"
                 >
                   {fulfillFile ? (
                     <div className="flex items-center justify-center gap-2 text-xs font-medium text-gray-800">
-                      <FileText className="h-3.5 w-3.5 text-gray-500" />
+                      <FileText className="h-3.5 w-3.5 text-[#FF9501]" />
                       <span>{fulfillFile.name}</span>
                     </div>
                   ) : (
@@ -1194,7 +1200,7 @@ export function PaperTrail() {
                 <textarea
                   rows={2}
                   placeholder="e.g. Attached is the requested updated syllabus."
-                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                  className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] resize-none"
                   value={fulfillRemarks}
                   onChange={(e) => setFulfillRemarks(e.target.value)}
                 />
@@ -1204,14 +1210,14 @@ export function PaperTrail() {
                 <button
                   type="button"
                   onClick={() => setShowFulfillModal(false)}
-                  className="flex-1 px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingFulfill}
-                  className="flex-1 px-4 py-2 text-xs font-medium bg-gray-900 text-white rounded-lg hover:bg-black flex justify-center items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                  className="flex-1 px-4 py-2 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] flex justify-center items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmittingFulfill ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Upload & Route"}
                 </button>
