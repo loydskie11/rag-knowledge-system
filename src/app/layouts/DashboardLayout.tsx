@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Database, MessageSquare, Award, FileText,
   Clock, Users, Settings, Search, Bell, ChevronLeft, ChevronRight,
   GraduationCap, LogOut, Shield, BookOpen, Radio, ClipboardCheck, Sparkles, X, FileCheck, Menu,
-  HeartHandshake, ExternalLink
+  HeartHandshake, ExternalLink, MessageSquareHeart
 } from "lucide-react";
 import { useRole } from "../contexts/RoleContext";
 import { hasPermission } from "../utils/rolePermissions";
@@ -54,18 +54,19 @@ export function DashboardLayout() {
   }, [location.pathname]);
 
   const allMenuItems = [
-    { path: "/app",                        label: "Dashboard",              icon: LayoutDashboard,  permission: "canAccessDashboard"             },
-    { path: "/app/ask-policy",             label: "AI Assistant",           icon: Sparkles,         permission: "canAccessAskPolicy"             },
-    { path: "/app/knowledge-repository",   label: "Knowledge Repository",   icon: Database,         permission: "canAccessKnowledgeRepository"    },
-    { path: "/app/paper-trail",            label: "Document Tracking",      icon: FileCheck,        permission: "canAccessPaperTrail"             },
-    { path: "/app/accreditation-support",  label: "Accreditation Support",  icon: Award,            permission: "canAccessAccreditationSupport"   },
-    { path: "/app/audit-trail",            label: "Audit Trail",            icon: Clock,            permission: "canAccessAuditTrail"             },
-    { path: "/app/users-roles",            label: "Users & Roles",          icon: Users,            permission: "canAccessUsersRoles"             },
-    { path: "/app/broadcast-announcement", label: "Broadcast Announcement", icon: Radio,            permission: "canAccessBroadcastAnnouncement"  },
-    { path: "/app/document-generator",     label: "Document Generator",     icon: FileText,         permission: "canAccessDocumentGenerator"      },
-    { path: "/app/grade-evaluation",       label: "Grade Evaluation",       icon: ClipboardCheck,   permission: "canAccessGradeEvaluation"        },
-    { path: "https://ctu-client-satisfaction-survey-dash.vercel.app/", label: "Service Satisfaction", icon: HeartHandshake, permission: "canAccessServiceSatisfaction", isExternal: true },
-    { path: "/app/settings",               label: "Settings",               icon: Settings,         permission: "canAccessSettings"              },
+    { path: "/app",                        label: "Dashboard",                  icon: LayoutDashboard,    permission: "canAccessDashboard"             },
+    { path: "/app/ask-policy",             label: "AI Assistant",               icon: Sparkles,           permission: "canAccessAskPolicy"             },
+    { path: "/app/knowledge-repository",   label: "Knowledge Repository",       icon: Database,           permission: "canAccessKnowledgeRepository"    },
+    { path: "/app/paper-trail",            label: "Document Tracking",          icon: FileCheck,          permission: "canAccessPaperTrail"             },
+    { path: "/app/accreditation-support",  label: "Accreditation Support",      icon: Award,              permission: "canAccessAccreditationSupport"   },
+    { path: "/app/audit-trail",            label: "Audit Trail",                icon: Clock,              permission: "canAccessAuditTrail"             },
+    { path: "/app/users-roles",            label: "Users & Roles",              icon: Users,              permission: "canAccessUsersRoles"             },
+    { path: "/app/broadcast-announcement", label: "Broadcast Announcement",     icon: Radio,              permission: "canAccessBroadcastAnnouncement"  },
+    { path: "/app/document-generator",     label: "Document Generator",         icon: FileText,           permission: "canAccessDocumentGenerator"      },
+    { path: "/app/grade-evaluation",       label: "Grade Evaluation",           icon: ClipboardCheck,     permission: "canAccessGradeEvaluation"        },
+    { path: "https://ctu-client-satisfaction-survey.vercel.app/",      label: "Client Satisfaction Survey", icon: MessageSquareHeart, permission: "canAccessClientSurvey", isExternal: true },
+    { path: "https://ctu-client-satisfaction-survey-dash.vercel.app/", label: "Survey Analytics",          icon: HeartHandshake,     permission: "canAccessServiceSatisfaction", isExternal: true },
+    { path: "/app/settings",               label: "Settings",                   icon: Settings,           permission: "canAccessSettings"              },
   ];
 
   const menuItems = allMenuItems.filter((item) =>

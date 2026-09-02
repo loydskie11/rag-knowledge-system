@@ -1375,34 +1375,57 @@ export const ResultsTabContent = ({
   setShowUpgradeModal,
   setUpgradeForm,
   accreditationLogs,
-  showToast
+  showToast,
+  setTargetHistoryId,
+  setShowCertModal,
+  handleViewDocument
 }: any) => {
   return (
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Left Column: Timeline & History */}
       <div className="w-full lg:w-2/3 space-y-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="border-b border-gray-200 p-5 bg-gray-50/50 flex justify-between items-center">
+          <div className="border-b border-gray-200 p-5 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-gray-900">
-                Accreditation Timeline & Audit History
+                Accreditation Timeline & Promotion History
               </h2>
-              <p className="text-xs text-gray-500 mt-0.5">Historical accreditation awards and CHED recognition certificates for {selectedProgram}.</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Historical promotion levels, survey evaluations, and attached certificates for {selectedProgram}.
+              </p>
             </div>
-            {userRole === "ADMIN" && (
-              <button
-                onClick={() => {
-                  setEditStandingForm({
-                    new_level: programAccreditation?.current_level || "Candidate Status",
-                    valid_until_date: programAccreditation?.valid_until ? programAccreditation.valid_until.split("T")[0] : ""
-                  });
-                  setShowEditStandingModal(true);
-                }}
-                className="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-medium transition-all border border-gray-300 shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              >
-                <Edit className="w-3.5 h-3.5" /> Update Standing
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {userRole === "ADMIN" && (
+                <>
+                  <button
+                    onClick={() => {
+                      setEditStandingForm({
+                        new_level: programAccreditation?.current_level || "Candidate Status",
+                        valid_until_date: programAccreditation?.valid_until ? programAccreditation.valid_until.split("T")[0] : ""
+                      });
+                      setShowEditStandingModal(true);
+                    }}
+                    className="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-semibold transition-all border border-gray-300 shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Edit className="w-3.5 h-3.5" /> Calibrate Level
+                  </button>
+                  <button
+                    onClick={() => {
+                      setUpgradeForm({
+                        new_level: "Level I Accredited",
+                        valid_until_date: "",
+                        certificate_url: "",
+                        remarks: ""
+                      });
+                      setShowUpgradeModal(true);
+                    }}
+                    className="px-3 py-1.5 bg-[#DD7230] hover:bg-[#c66224] text-white rounded-lg text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Award className="w-3.5 h-3.5" /> Log Promotion
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="p-5">
@@ -1411,31 +1434,66 @@ export const ResultsTabContent = ({
                 No historical accreditation logs found for {selectedProgram}.
               </div>
             ) : (
-              <div className="relative border-l-2 border-gray-200 pl-5 space-y-4 my-2 ml-2">
-                {accreditationLogs.map((log: any, idx: number) => (
-                  <div key={idx} className="relative group">
-                    <div className="absolute -left-[27px] top-1.5 w-3.5 h-3.5 rounded-full bg-gray-400 border-2 border-white shadow-2xs"></div>
-                    <div className="bg-gray-50/60 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-all">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="px-2 py-0.5 bg-gray-200 text-gray-800 font-medium text-[10px] rounded uppercase">
-                          {log.accreditation_level}
-                        </span>
-                        <span className="text-xs text-gray-500">{log.created_at ? log.created_at.split("T")[0] : 'N/A'}</span>
+              <div className="relative border-l-2 border-[#DD7230]/30 pl-5 space-y-4 my-2 ml-2">
+                {accreditationLogs.map((log: any, idx: number) => {
+                  const levelName = log.level_achieved || log.accreditation_level || "Accredited Status";
+                  const dateGranted = log.date_granted ? log.date_granted.split("T")[0] : (log.created_at ? log.created_at.split("T")[0] : "N/A");
+                  const validUntil = log.valid_until ? log.valid_until.split("T")[0] : null;
+
+                  return (
+                    <div key={idx} className="relative group">
+                      <div className="absolute -left-[27px] top-2 w-3.5 h-3.5 rounded-full bg-[#DD7230] border-2 border-white shadow-2xs ring-2 ring-[#DD7230]/20"></div>
+                      <div className="bg-gray-50/70 rounded-xl p-4 border border-gray-200 hover:border-[#DD7230]/40 transition-all shadow-2xs space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 bg-[#FFF4E5] text-[#DD7230] border border-[#FFE0B2] font-bold text-xs rounded-md">
+                              {levelName}
+                            </span>
+                            {validUntil && (
+                              <span className="text-[11px] text-gray-500 font-medium">
+                                Valid until: <strong className="text-gray-700">{validUntil}</strong>
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400 font-medium">Granted: {dateGranted}</span>
+                        </div>
+
+                        <p className="text-xs text-gray-700 font-medium leading-relaxed">
+                          {log.remarks || `Program ${selectedProgram} granted official standing: ${levelName}`}
+                        </p>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-gray-200/60">
+                          {log.certificate_url ? (
+                            <button
+                              type="button"
+                              onClick={() => handleViewDocument ? handleViewDocument(log.certificate_url, `${selectedProgram}_Certificate.pdf`) : window.open(log.certificate_url, "_blank")}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#DD7230] hover:text-[#c66224] hover:underline cursor-pointer"
+                            >
+                              <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              View Official Certificate & Evidence <ExternalLink className="w-3 h-3" />
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-gray-400 italic">No certificate or evidence file attached yet.</span>
+                          )}
+
+                          {userRole === "ADMIN" && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTargetHistoryId(log.id);
+                                setShowCertModal(true);
+                              }}
+                              className="px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 text-[11px] font-semibold rounded-lg border border-gray-200 shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <Upload className="w-3 h-3 text-[#DD7230]" />
+                              {log.certificate_url ? "Replace Evidence/Certificate" : "Upload Evidence / Certificate"}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <h4 className="font-semibold text-gray-900 text-xs mt-1">{log.remarks || 'Accreditation Status Update'}</h4>
-                      {log.certificate_url && (
-                        <a
-                          href={log.certificate_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-700 hover:text-black hover:underline"
-                        >
-                          View Official Certificate <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1720,7 +1778,7 @@ export function AccreditationSupport() {
   const [areaDetails, setAreaDetails] = useState({ requirements: [], uploadedFiles: [] });
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
-  const [isAdminQueueOpen, setIsAdminQueueOpen] = useState(true);
+  const [isAdminQueueOpen, setIsAdminQueueOpen] = useState(false);
   const [pendingDocs, setPendingDocs] = useState<any[]>([]); // Handles AACCUP
   const [isReviewing, setIsReviewing] = useState(false);
   
@@ -3389,6 +3447,9 @@ export function AccreditationSupport() {
             setUpgradeForm={setUpgradeForm}
             accreditationLogs={programAccreditation?.history || []}
             showToast={showToast}
+            setTargetHistoryId={setTargetHistoryId}
+            setShowCertModal={setShowCertModal}
+            handleViewDocument={handleViewDocument}
           />
         </TabsContent>
       </Tabs>

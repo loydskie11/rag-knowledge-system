@@ -4137,6 +4137,27 @@ def get_program_accreditation(program_code: str, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(accreditation)
         
+        # Seed initial baseline milestone
+        initial_history = models.AccreditationHistory(
+            program_id=accreditation.id,
+            level_achieved="Candidate Status",
+            remarks="Initial Candidate Status baseline"
+        )
+        db.add(initial_history)
+        db.commit()
+        db.refresh(accreditation)
+    elif not accreditation.history or len(accreditation.history) == 0:
+        # Ensure historical timeline contains at least the current standing
+        initial_history = models.AccreditationHistory(
+            program_id=accreditation.id,
+            level_achieved=accreditation.current_level or "Candidate Status",
+            valid_until=accreditation.valid_until,
+            remarks=f"Official baseline standing: {accreditation.current_level or 'Candidate Status'}"
+        )
+        db.add(initial_history)
+        db.commit()
+        db.refresh(accreditation)
+        
     return accreditation
 
 
@@ -4147,7 +4168,7 @@ def edit_program_accreditation(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin)
 ):
-    """Directly edits the current standing or active evaluation areas without logging a formal upgrade."""
+    """Directly edits the current standing or active evaluation areas and records the milestone in history."""
     accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
     if not accreditation:
         accreditation = models.ProgramAccreditation(
@@ -4156,18 +4177,73 @@ def edit_program_accreditation(
             status="Active"
         )
         db.add(accreditation)
+        db.commit()
+        db.refresh(accreditation)
 
-    if req.new_level:
-        accreditation.current_level = req.new_level
-    if req.active_areas is not None:
-        accreditation.active_areas = req.active_areas
+    parsed_date = None
     if req.valid_until_date:
         try:
-            accreditation.valid_until = datetime.fromisoformat(req.valid_until_date)
+            parsed_date = datetime.fromisoformat(req.valid_until_date)
         except Exception:
             pass
+
+    # When standing level is modified, record a milestone entry into timeline history
+    if req.new_level:
+        accreditation.current_level = req.new_level
+        history_log = models.AccreditationHistory(
+            program_id=accreditation.id,
+            level_achieved=req.new_level,
+            valid_until=parsed_date or accreditation.valid_until,
+            certificate_url=req.certificate_url,
+            remarks=req.remarks or f"Standing calibrated to {req.new_level}"
+        )
+        db.add(history_log)
+
+    if req.active_areas is not None:
+        accreditation.active_areas = req.active_areas
+    if parsed_date:
+        accreditation.valid_until = parsed_date
     accreditation.updated_at = datetime.utcnow()
 
+    db.commit()
+    db.refresh(accreditation)
+    return accreditation
+
+
+@app.post("/accreditation/program/{program_code}/history-milestone", response_model=schemas.ProgramAccreditationResponse)
+def add_accreditation_milestone(
+    program_code: str,
+    req: schemas.UpgradeAccreditationRequest,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
+    """Adds a promotion level milestone to the accreditation timeline with optional certificate."""
+    accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
+    if not accreditation:
+        accreditation = models.ProgramAccreditation(
+            program_code=program_code,
+            current_level=req.new_level or "Candidate Status",
+            status="Active"
+        )
+        db.add(accreditation)
+        db.commit()
+        db.refresh(accreditation)
+
+    parsed_date = None
+    if req.valid_until_date:
+        try:
+            parsed_date = datetime.fromisoformat(req.valid_until_date)
+        except Exception:
+            pass
+
+    history_log = models.AccreditationHistory(
+        program_id=accreditation.id,
+        level_achieved=req.new_level or "Accreditation Update",
+        valid_until=parsed_date,
+        certificate_url=req.certificate_url,
+        remarks=req.remarks or f"Milestone logged for {req.new_level}"
+    )
+    db.add(history_log)
     db.commit()
     db.refresh(accreditation)
     return accreditation
@@ -4205,7 +4281,7 @@ def upgrade_program_accreditation(
         level_achieved=req.new_level,
         valid_until=parsed_date,
         certificate_url=req.certificate_url,
-        remarks=req.remarks
+        remarks=req.remarks or f"Officially promoted to {req.new_level}"
     )
     db.add(history_log)
 
