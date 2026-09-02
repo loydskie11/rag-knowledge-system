@@ -260,3 +260,33 @@ class AaccupRequirement(Base):
     area_title = Column(String(255), nullable=False) # e.g., "Vision, Mission, Goals and Objectives"
     description = Column(Text, nullable=False) # e.g., "Approved Board Resolution of VMGO"
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CssResponse(Base):
+    __tablename__ = "css_responses"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    client_type = Column(String(100), nullable=True)
+    date_of_service = Column(String(50), nullable=True)
+    gender = Column(String(50), nullable=True)
+    age = Column(Integer, nullable=True)
+    region = Column(String(150), nullable=True)
+    service_availed = Column(String(255), nullable=True)
+    campus = Column(String(100), nullable=True)
+    office_visited = Column(String(150), nullable=True)
+    office_other = Column(String(255), nullable=True)
+    cc1 = Column(Text, nullable=True)
+    cc2 = Column(Text, nullable=True)
+    cc3 = Column(Text, nullable=True)
+    sqd0 = Column(String(100), nullable=True)
+    sqd1 = Column(String(100), nullable=True)
+    sqd2 = Column(String(100), nullable=True)
+    sqd3 = Column(String(100), nullable=True)
+    sqd4 = Column(String(100), nullable=True)
+    sqd5 = Column(String(100), nullable=True)
+    sqd6 = Column(String(100), nullable=True)
+    sqd7 = Column(String(100), nullable=True)
+    sqd8 = Column(String(100), nullable=True)
+    suggestions = Column(Text, nullable=True)
+    full_name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)

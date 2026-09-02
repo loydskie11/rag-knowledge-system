@@ -18,6 +18,7 @@ import { DocumentGenerator } from "./pages/DocumentGenerator";
 import { AIDocumentGenerator } from "./pages/AIDocumentGenerator";
 import { GradeEvaluation } from "./pages/GradeEvaluation";
 import { StudentRecords } from "./pages/StudentRecords";
+import { ClientSatisfactionSurvey } from "./pages/ClientSatisfactionSurvey";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { RoleProvider } from "./contexts/RoleContext"; // <-- Import the provider here
 
@@ -161,6 +162,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute permission="canAccessStudentRecords">
                 <StudentRecords />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "client-survey",
+            element: (
+              <ProtectedRoute permission="canAccessClientSurvey">
+                <ClientSatisfactionSurvey />
               </ProtectedRoute>
             ),
           },

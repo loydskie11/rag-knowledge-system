@@ -384,3 +384,62 @@ class AaccupRequirementResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- CLIENT SATISFACTION SURVEY SCHEMAS ---
+class CssResponseCreate(BaseModel):
+    client_type: Optional[str] = None
+    date_of_service: Optional[str] = None
+    gender: Optional[str] = None
+    age: Optional[int] = None
+    region: Optional[str] = None
+    service_availed: Optional[str] = None
+    campus: Optional[str] = None
+    office_visited: Optional[str] = None
+    office_other: Optional[str] = None
+    cc1: Optional[str] = None
+    cc2: Optional[str] = None
+    cc3: Optional[str] = None
+    sqd0: Optional[str] = None
+    sqd1: Optional[str] = None
+    sqd2: Optional[str] = None
+    sqd3: Optional[str] = None
+    sqd4: Optional[str] = None
+    sqd5: Optional[str] = None
+    sqd6: Optional[str] = None
+    sqd7: Optional[str] = None
+    sqd8: Optional[str] = None
+    suggestions: Optional[str] = None
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+
+class CssResponseOut(BaseModel):
+    id: uuid.UUID
+    created_at: datetime
+    client_type: Optional[str] = None
+    date_of_service: Optional[str] = None
+    gender: Optional[str] = None
+    age: Optional[int] = None
+    region: Optional[str] = None
+    service_availed: Optional[str] = None
+    campus: Optional[str] = None
+    office_visited: Optional[str] = None
+    office_other: Optional[str] = None
+    cc1: Optional[str] = None
+    cc2: Optional[str] = None
+    cc3: Optional[str] = None
+    sqd0: Optional[str] = None
+    sqd1: Optional[str] = None
+    sqd2: Optional[str] = None
+    sqd3: Optional[str] = None
+    sqd4: Optional[str] = None
+    sqd5: Optional[str] = None
+    sqd6: Optional[str] = None
+    sqd7: Optional[str] = None
+    sqd8: Optional[str] = None
+    suggestions: Optional[str] = None
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+
+    class Config:
+        from_attributes = True
