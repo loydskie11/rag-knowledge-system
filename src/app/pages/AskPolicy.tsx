@@ -45,37 +45,61 @@ const WELCOME_MESSAGE: Message = {
   timestamp: nowLabel(),
 };
 
-const CATEGORIZED_QUESTIONS = [
+interface CategoryQuestions {
+  category: string;
+  fullTitle: string;
+  questions: string[];
+}
+
+const CATEGORIZED_QUESTIONS: CategoryQuestions[] = [
   {
-    category: "Academic & Grading",
+    category: "Attendance",
+    fullTitle: "Attendance & Absences",
     questions: [
-      "What is the standard university grading and retention policy?",
-      "How do I apply for removal of an Incomplete (INC) grade?",
-      "What are the prerequisites for enrollment and overload credits?",
+      "How many unexcused absences lead to a Dropped with Failure (D/F) grade?",
+      "What documents are required to excuse an absence due to illness?",
+      "What is the university policy on class tardiness and attendance percentage?",
+      "Are students excused for official university and campus activities?",
     ],
   },
   {
-    category: "Enrollment & Clearance",
+    category: "Retention",
+    fullTitle: "Academic Standing & Retention",
     questions: [
-      "What are the requirements for cross-enrollment and shifting?",
-      "How do I request a formal leave of absence (LOA)?",
-      "What is the semester clearance process for graduating students?",
+      "What are the retention requirements and rules on academic probation?",
+      "What happens when a student receives a warning letter or fails subjects?",
+      "What is the difference between Warning, Probation, and Disqualification status?",
+      "Under what conditions can a student's academic load be reduced?",
     ],
   },
   {
-    category: "Scholarships & Services",
+    category: "Grading",
+    fullTitle: "Grading System & Deficiencies",
     questions: [
-      "How do I apply for academic and socio-economic scholarships?",
-      "What are the guidelines for student organizations and events?",
-      "What is the campus dress code and ID policy?",
+      "What is the procedure and deadline for removal of an Incomplete (INC) grade?",
+      "What is the grading scale and passing mark for undergraduate courses?",
+      "How are midterm and computed semester grades calculated after absences?",
+      "Can a student re-enroll in a subject after receiving a failing mark?",
     ],
   },
   {
-    category: "Faculty & Governance",
+    category: "Discipline",
+    fullTitle: "Conduct & Student Life",
     questions: [
-      "What is the syllabus review and submission timeline?",
-      "How does the faculty document routing and approval work?",
-      "What are the ISO 9001:2015 quality objectives for academic units?",
+      "What are the rules regarding campus uniform, dress code, and student ID?",
+      "What offenses are classified as major disciplinary violations in the handbook?",
+      "What is the due process procedure for student grievances and disciplinary actions?",
+      "What are the guidelines for student organizations, elections, and campus events?",
+    ],
+  },
+  {
+    category: "Governance",
+    fullTitle: "Institutional Standards & ISO",
+    questions: [
+      "What are the official vision, mission, and quality objectives of CTU Argao?",
+      "What are the responsibilities and academic code of conduct for faculty?",
+      "What are the guidelines for student research, ethics, and intellectual property?",
+      "What is the institutional policy on campus health and safety protocols?",
     ],
   },
 ];
@@ -656,13 +680,20 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                 onClick={() => setSelectedCategoryTab(idx)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                   selectedCategoryTab === idx
-                    ? "bg-[#DD7230] text-white"
+                    ? "bg-[#DD7230] text-white shadow-2xs"
                     : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
                 }`}
               >
-                {cat.category.split(" ")[0]}
+                {cat.category}
               </button>
             ))}
+          </div>
+
+          {/* Active Category Heading */}
+          <div className="mb-2 px-0.5">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+              {activeCategory.fullTitle}
+            </span>
           </div>
 
           {/* Questions List */}
@@ -671,7 +702,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
               <button
                 key={idx}
                 onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
-                className="w-full text-left p-2.5 rounded-lg border border-gray-200 bg-white hover:border-[#DD7230] transition-colors text-xs text-gray-700 cursor-pointer shadow-2xs leading-snug"
+                className="w-full text-left p-2.5 rounded-lg border border-gray-200 bg-white hover:border-[#DD7230] hover:bg-[#FFF4E5]/30 transition-colors text-xs text-gray-700 cursor-pointer shadow-2xs leading-snug"
               >
                 {suggestion}
               </button>
