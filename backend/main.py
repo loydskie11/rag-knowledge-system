@@ -1310,7 +1310,11 @@ def update_document(request: UpdateDocumentRequest, db: Session = Depends(get_db
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.delete("/documents/{doc_name}")
-def archive_document(doc_name: str, db: Session = Depends(get_db)):
+def archive_document(
+    doc_name: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
+):
     try:
         chunks_res = supabase.table("document_sections").select("id, metadata").eq("metadata->>name", doc_name).execute()
 
