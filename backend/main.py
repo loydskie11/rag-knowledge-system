@@ -1545,14 +1545,54 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
         }
 
     # Final safety net: strip any restricted chunks that slipped through
-    # (should not happen after the retrieval-level filter, but belt-and-suspenders).
     safe_chunks = [
         chunk for chunk in relevant_chunks
         if chunk.get('metadata', {}).get('status') != 'Archived'
         and chunk.get('metadata', {}).get('category') not in excluded_categories
     ]
     relevant_chunks = safe_chunks
-    context_text = "\n\n".join([chunk['content'] for chunk in relevant_chunks])
+
+    def _clean_chunk_text(text: str) -> str:
+        if not text: return ""
+        cleaned = re.sub(r'(?:\n|\r\n?)\s*\d+\s*(?:\n|\r\n?)', ' ', text)
+        cleaned = re.sub(r'^\s*\d+\s*(?:\n|\r\n?)', '', cleaned)
+        cleaned = re.sub(r'[ \t]+', ' ', cleaned)
+        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+        return cleaned.strip()
+
+    def _extract_exact_relevant_snippet(chunk_content: str, q: str, max_chars: int = 280) -> str:
+        cleaned = _clean_chunk_text(chunk_content)
+        sentences = re.split(r'(?<=[.?!])\s+|\n+', cleaned)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 15]
+        if not sentences:
+            return cleaned[:max_chars] + ("..." if len(cleaned) > max_chars else "")
+
+        stop_words = {"what", "when", "where", "which", "who", "whom", "this", "that", "these", "those", "have", "from", "with", "about", "does", "the", "for", "and", "are", "how"}
+        q_words = [w.lower() for w in re.findall(r'[A-Za-z0-9]{3,}', q) if w.lower() not in stop_words]
+
+        scored_sentences = []
+        for s in sentences:
+            s_lower = s.lower()
+            score = sum(1 for w in q_words if w in s_lower)
+            scored_sentences.append((score, s))
+
+        scored_sentences.sort(key=lambda x: x[0], reverse=True)
+        if scored_sentences and scored_sentences[0][0] > 0:
+            best = scored_sentences[0][1]
+            return best[:max_chars] + ("..." if len(best) > max_chars else "")
+        return sentences[0][:max_chars] + ("..." if len(sentences[0]) > max_chars else "")
+
+    # Format numbered snippets with clean text and attribution
+    formatted_snippets = []
+    for idx, chunk in enumerate(relevant_chunks, 1):
+        meta = chunk.get('metadata') or {}
+        doc_name = meta.get('name', 'Institutional Policy Document')
+        doc_office = meta.get('office', 'CTU Argao Office')
+        cleaned_body = _clean_chunk_text(chunk['content'])
+        formatted_snippets.append(
+            f"--- SOURCE DOCUMENT {idx}: {doc_name} ({doc_office}) ---\n{cleaned_body}\n"
+        )
+    context_text = "\n\n".join(formatted_snippets)
 
     # ==========================================
     # 6. ROLE-AWARE SYSTEM PROMPT (STRICTLY GROUNDED & ANTI-HALLUCINATION)
@@ -1573,31 +1613,43 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
         ),
     }.get(user_role, "The user's role is unknown. Answer conservatively using only general public policies.")
 
-    system_prompt = f"""{base_prompt}
-    
-    You are the official CTU Argao Campus AI Policy Assistant. Your paramount duty is to provide 100% accurate, factual, and strictly grounded answers based EXCLUSIVELY on the verified institutional knowledge repository snippets provided below.
+    system_prompt = f"""You are the official AI Policy Assistant for CTU Argao Campus — helpful, warm, and professional.
+Your job is to answer questions using ONLY the SOURCE DOCUMENTS provided below. You have no other knowledge you may use.
 
-    USER CONTEXT:
-    {role_context}
+USER ROLE: {role_context}
 
-    STRICT FACTUAL INTEGRITY & ANTI-HALLUCINATION PROTOCOL:
-    1. STRICT CONTEXT GROUNDING: You MUST base your entire response solely on the facts, requirements, and rules contained in the CONTEXT snippets below. DO NOT use pre-trained world knowledge, outside assumptions, or common-sense guesses to fill in gaps.
-    2. ZERO FABRICATION POLICY: Never invent, extrapolate, or estimate deadlines, prerequisites, grade calculations, disciplinary penalties, fees, requirements, or staff names under any circumstances.
-    3. MANDATORY REFUSAL WHEN UNCERTAIN / ABSENT: If the provided CONTEXT does not explicitly contain the necessary information to answer the user's question accurately, you MUST explicitly state:
-       "I am sorry, but the specific document or policy regarding this matter is currently not available in our institutional knowledge repository."
-       Do NOT attempt to give speculative general advice when the specific document is missing.
-    4. CONVERSATIONAL TONE WITH STRICT FACTS: Be polite, warm, and helpful. You may structure the verified facts clearly using markdown headings, bullet points, or concise tables for readability, but every single fact must be directly traceable to the context.
-    5. CITATION REFERENCE: Ground your answers clearly on the official document names and sections referenced in the context.
+═══════════════════════════════════════════════════════════
+RULES YOU MUST FOLLOW — NO EXCEPTIONS:
+═══════════════════════════════════════════════════════════
 
-    FORMATTING RULE:
-    You must separate your main answer from suggested follow-up questions using exactly this string: |FOLLOWUPS|
-    Everything after |FOLLOWUPS| must be written from the STUDENT'S or USER'S point of view (e.g. "What is the deadline for adding subjects?").
-    NEVER use this section to ask the user a clarifying question yourself. If you need more information, put it in your main answer and leave |FOLLOWUPS| empty.
-    Put each follow-up question on a new line. Do not number them.
-    
-    CONTEXT FROM INSTITUTIONAL KNOWLEDGE REPOSITORY:
-    {context_text}
-    """
+RULE 1 — ONLY USE THE DOCUMENTS BELOW.
+Your entire answer must come exclusively from the SOURCE DOCUMENTS provided. Do not use any outside knowledge, general university conventions, or assumptions. If you were trained on similar content, ignore it — only the documents below matter.
+
+RULE 2 — QUOTE EXACT POLICY DETAILS.
+When stating a rule, number, percentage, deadline, or requirement — state it exactly as written in the source. Do not paraphrase numbers or change terms.
+
+RULE 3 — IF IT IS NOT IN THE DOCUMENTS, SAY SO KINDLY.
+If the SOURCE DOCUMENTS do not contain enough information to answer the question, respond warmly:
+"I'm sorry, I wasn't able to find a specific policy on that in our current document repository. You may want to check with the relevant office directly for the most accurate information."
+Do NOT guess, infer, or fill in gaps with general knowledge.
+
+RULE 4 — BE HELPFUL AND FRIENDLY, NOT ROBOTIC.
+While staying factual, write in a warm, clear tone. Avoid sounding like a legal document. Use plain language where possible.
+
+RULE 5 — STRUCTURE YOUR ANSWER WELL.
+- Start with a direct, 1-2 sentence summary answer.
+- Then use bullet points or numbered lists for details when appropriate.
+- Close with the document name as your reference, e.g., *— Student Handbook 2024*
+
+RULE 6 — FOLLOW-UP QUESTIONS FORMAT.
+After your main answer, add the separator |FOLLOWUPS| on its own line, then list up to 3 related questions a user might want to ask next (one per line, written from the user's perspective). Do not number them.
+
+═══════════════════════════════════════════════════════════
+SOURCE DOCUMENTS:
+═══════════════════════════════════════════════════════════
+{context_text}
+═══════════════════════════════════════════════════════════
+"""
 
     # ==========================================
     # 7. AI CALL WITH MULTI-TURN CONVERSATION PAYLOAD
@@ -1612,8 +1664,8 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
     # Append latest user question
     messages_payload.append({'role': 'user', 'content': question})
 
-    # Grounded temperature: Keep low (max 0.15) to prevent creative hallucination
-    grounded_temp = min(float(ai_temp), 0.15)
+    # Grounded temperature: 0.0 for strictly factual, deterministic answers
+    grounded_temp = 0.0
 
     try:
         response = groq_client.chat.completions.create(
@@ -1640,17 +1692,16 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
         return {"answer": "I'm having a bit of trouble connecting to the network. Please try again in a moment!", "sources": [], "follow_ups": []}
 
     # ==========================================
-    # 7. ORIGINAL SOURCE FORMATTING & MATH
+    # 7. ORIGINAL SOURCE FORMATTING & SNIPPET EXTRACTION
     # ==========================================
     unique_sources = {}
     for chunk in relevant_chunks:
         source_name = f"{chunk['metadata']['name']} (v{chunk.get('metadata', {}).get('version', '1.0')}) - {chunk['metadata']['office']}"
 
         if source_name not in unique_sources:
-            clean_snippet = chunk['content'][:150].strip() + "..."
-            raw_similarity = chunk.get('similarity', 0.85)
-            human_score = raw_similarity * 1.5 
-            relevance_percentage = min(99, int(human_score * 100))
+            clean_snippet = _extract_exact_relevant_snippet(chunk['content'], question)
+            raw_similarity = chunk.get('confidence_score', chunk.get('similarity', 0.85))
+            relevance_percentage = min(99, max(50, int(raw_similarity * 100)))
 
             unique_sources[source_name] = {
                 "name": source_name,
@@ -1659,7 +1710,7 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
             }
 
     sources = list(unique_sources.values())
-    final_sources = sources if "I'm sorry, I don't have" not in answer and len(context_text) > 10 else []
+    final_sources = sources if "I am sorry" not in answer and "I'm sorry" not in answer and len(context_text) > 10 else []
 
     # ==========================================
     # 8. ORIGINAL CHAT HISTORY SAVING

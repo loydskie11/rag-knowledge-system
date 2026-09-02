@@ -6,6 +6,7 @@ import {
 import axios, { type CancelTokenSource } from "axios";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { apiClient } from "../api/client";
 import { useRole } from "../contexts/RoleContext";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -201,15 +202,15 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
             content: m.content,
           }));
 
-        const response = await axios.post(
-          `${API_BASE}/ask-policy`,
+        const response = await apiClient.post(
+          "/ask-policy",
           {
             question: textToSend,
             history: chatHistoryPayload,
             user_email: userEmail || "guest@ctu.edu.ph",
             user_role: currentRole,
           },
-          { cancelToken: source.token, timeout: 30000 }
+          { cancelToken: source.token, timeout: 45000 }
         );
 
         const formattedSources: Source[] = (response.data?.sources || []).map(
@@ -290,7 +291,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
       if (!userMessage) return;
 
       try {
-        await axios.post(`${API_BASE}/feedback`, {
+        await apiClient.post("/feedback", {
           question: userMessage.content,
           answer: aiMessage.content,
           is_helpful: isHelpful,
@@ -407,7 +408,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                 {message.type === "user" ? (
                   <p className="whitespace-pre-wrap break-words">{message.content}</p>
                 ) : (
-                  <div className="prose prose-xs max-w-none break-words text-gray-800 leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5 [&_li]:my-0.5 [&_table]:w-full [&_table]:border-collapse [&_table]:my-2 [&_th]:border [&_th]:border-gray-200 [&_th]:p-1.5 [&_th]:bg-gray-100 [&_td]:border [&_td]:border-gray-200 [&_td]:p-1.5 [&_strong]:font-semibold [&_strong]:text-gray-900">
+                  <div className="prose prose-sm max-w-none break-words text-gray-800 leading-relaxed text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_li]:my-1 [&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_table]:border [&_table]:border-gray-200 [&_table]:rounded-xl [&_table]:overflow-hidden [&_th]:border [&_th]:border-gray-200 [&_th]:p-2.5 [&_th]:bg-[#FFF4E5] [&_th]:text-[#DD7230] [&_th]:font-bold [&_td]:border [&_td]:border-gray-200 [&_td]:p-2.5 [&_strong]:font-bold [&_strong]:text-gray-900 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-gray-900 [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-gray-900 [&_h3]:mt-2.5 [&_h3]:mb-1 [&_blockquote]:border-l-4 [&_blockquote]:border-[#DD7230] [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-2 [&_blockquote]:bg-[#FFF4E5]/40 [&_blockquote]:text-gray-700 [&_code]:bg-gray-100 [&_code]:text-[#DD7230] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {message.content}
                     </ReactMarkdown>

@@ -119,20 +119,21 @@ def search_knowledge(
 ) -> List[Dict[str, Any]]:
     """
     Hybrid Search Strategy:
-    1. Vector Semantic Search using embedding cosine similarity
-    2. Exact Keyword Search for acronyms, codes, and key policy terms
-    3. Merges and deduplicates results to guarantee both semantic and exact precision.
+    1. Vector Semantic Search using embedding cosine similarity (primary, most reliable)
+    2. Keyword fallback ONLY when semantic search returns insufficient results
+    3. Merges and deduplicates results, keeping the highest-confidence ones.
     """
     if supabase is None:
         print("⚠️ search_knowledge called but supabase client is not initialized!")
         return []
 
-    fetch_count = match_count * 3 if excluded_categories else match_count
     combined_results: List[Dict[str, Any]] = []
     seen_ids = set()
 
     # ---------------------------------------------------------
-    # 1. SEMANTIC VECTOR RETRIEVAL
+    # 1. SEMANTIC VECTOR RETRIEVAL (PRIMARY — most reliable)
+    # Lowered threshold to 0.30 to catch more genuine matches.
+    # We rely on ordering by similarity to rank the best ones.
     # ---------------------------------------------------------
     try:
         query_embedding = model.encode(question).tolist()
@@ -140,42 +141,59 @@ def search_knowledge(
             'match_document_sections',
             {
                 'query_embedding': query_embedding,
-                'match_threshold': 0.25,
-                'match_count': fetch_count
+                'match_threshold': 0.30,
+                'match_count': match_count * 2  # Fetch extra, we'll filter below
             }
         ).execute()
 
         for item in (response.data or []):
-            item_id = item.get('id') or item.get('content')
+            item_id = item.get('id') or item.get('content', '')[:50]
             if item_id and item_id not in seen_ids:
                 seen_ids.add(item_id)
                 item['score_source'] = 'vector'
+                item['confidence_score'] = float(item.get('similarity', 0.0))
                 combined_results.append(item)
     except Exception as e:
         print(f"[Vector Search Error]: {e}")
 
     # ---------------------------------------------------------
-    # 2. KEYWORD EXACT TERM RETRIEVAL (HYBRID ENHANCEMENT)
+    # 2. KEYWORD FALLBACK — only used when vector gives few results
+    # Search ALL meaningful keywords (not just words[0]) using OR ilike
     # ---------------------------------------------------------
-    # Extract significant keywords (longer than 3 chars, skipping stop words)
-    stop_words = {"what", "when", "where", "which", "who", "whom", "this", "that", "these", "those", "have", "from", "with", "about"}
-    words = [w for w in re.findall(r'[A-Za-z0-9_-]{3,}', question) if w.lower() not in stop_words]
+    stop_words = {
+        "what", "when", "where", "which", "who", "whom", "this", "that",
+        "these", "those", "have", "from", "with", "about", "does", "tell",
+        "show", "the", "for", "and", "are", "how", "can", "get", "our"
+    }
+    meaningful_words = [
+        w for w in re.findall(r'[A-Za-z]{4,}', question)
+        if w.lower() not in stop_words
+    ]
 
-    if words:
-        keyword_query = " | ".join(words[:4]) # Search top keywords
+    if len(combined_results) < match_count and meaningful_words:
         try:
-            kw_res = supabase.table("document_sections") \
-                .select("id, content, metadata") \
-                .ilike("content", f"%{words[0]}%") \
-                .limit(fetch_count) \
-                .execute()
+            # Search each meaningful keyword and collect unique matching chunks
+            for kw in meaningful_words[:4]:
+                kw_res = supabase.table("document_sections") \
+                    .select("id, content, metadata") \
+                    .ilike("content", f"%{kw}%") \
+                    .limit(match_count * 2) \
+                    .execute()
 
-            for item in (kw_res.data or []):
-                item_id = item.get('id') or item.get('content')
-                if item_id and item_id not in seen_ids:
-                    seen_ids.add(item_id)
-                    item['score_source'] = 'keyword'
-                    combined_results.append(item)
+                for item in (kw_res.data or []):
+                    item_id = item.get('id') or item.get('content', '')[:50]
+                    if item_id and item_id not in seen_ids:
+                        seen_ids.add(item_id)
+                        item['score_source'] = 'keyword'
+                        # Count how many query keywords appear in the chunk
+                        content_lower = item.get('content', '').lower()
+                        keyword_hits = sum(
+                            1 for w in meaningful_words
+                            if w.lower() in content_lower
+                        )
+                        # Keyword confidence is proportional to keyword overlap
+                        item['confidence_score'] = min(0.6, keyword_hits * 0.15)
+                        combined_results.append(item)
         except Exception as kw_err:
             print(f"[Keyword Search Fallback Warning]: {kw_err}")
 
@@ -191,4 +209,8 @@ def search_knowledge(
             continue
         filtered_results.append(r)
 
+    # Sort by confidence score descending so best semantic matches come first
+    filtered_results.sort(key=lambda x: x.get('confidence_score', 0), reverse=True)
+
+    # Return only the top matches
     return filtered_results[:match_count]
