@@ -8,7 +8,7 @@ import {
   Loader2,
   Check
 } from "lucide-react";
-import axios from "axios";
+import { apiClient } from "../api/client";
 
 // ==========================================
 // SURVEY CONFIGURATION & QUESTION REPOSITORY
@@ -340,7 +340,7 @@ export function ClientSatisfactionSurvey() {
         email: formData.email
       };
 
-      await axios.post("http://localhost:8000/api/css-responses", payload);
+      await apiClient.post("/api/css-responses", payload);
       setStep(6);
     } catch (err: any) {
       console.error("Survey submission error:", err);

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { X, Lock, CheckCircle2, AlertCircle } from "lucide-react";
-import axios from "axios";
+import { apiClient } from "../api/client";
 
 interface ResetPasswordModalProps {
   isOpen: boolean;
@@ -33,7 +33,7 @@ export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPass
     setStatus(null);
 
     try {
-      const response = await axios.post("http://localhost:8000/update-password", {
+      const response = await apiClient.post("/update-password", {
         email: email,
         new_password: newPassword
       });

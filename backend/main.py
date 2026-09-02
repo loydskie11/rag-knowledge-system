@@ -459,6 +459,16 @@ async def add_security_headers(request: Request, call_next):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# MODULAR ROUTERS
+# ─────────────────────────────────────────────────────────────────────────────
+from routers import health, survey, announcements
+
+app.include_router(health.router)
+app.include_router(survey.router)
+app.include_router(announcements.router)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # AUTHENTICATION DEPENDENCIES (JWT VALIDATION)
 # ─────────────────────────────────────────────────────────────────────────────
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)

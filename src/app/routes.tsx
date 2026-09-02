@@ -1,63 +1,73 @@
-import { createBrowserRouter, Outlet } from "react-router"; // <-- Note: added Outlet here
-import { LandingPage } from "./pages/LandingPage";
-import { LoginPage } from "./pages/LoginPage";
-import { SignUpPage } from "./pages/SignUpPage";
-import { DashboardLayout } from "./layouts/DashboardLayout";
-import { DashboardRouter } from "./pages/DashboardRouter";
-import { KnowledgeRepository } from "./pages/KnowledgeRepository";
-import { PaperTrail } from "./pages/PaperTrail";
-import { AskPolicy } from "./pages/AskPolicy";
-import { AccreditationSupport } from "./pages/AccreditationSupport";
-import { GovernanceReference } from "./pages/GovernanceReference";
-import { AuditTrail } from "./pages/AuditTrail";
-import { UsersRoles } from "./pages/UsersRoles";
-import { Settings } from "./pages/Settings";
-import { ProfileSettings } from "./pages/ProfileSettings";
-import { BroadcastAnnouncement } from "./pages/BroadcastAnnouncement";
-import { DocumentGenerator } from "./pages/DocumentGenerator";
-import { AIDocumentGenerator } from "./pages/AIDocumentGenerator";
-import { GradeEvaluation } from "./pages/GradeEvaluation";
-import { StudentRecords } from "./pages/StudentRecords";
-import { ClientSatisfactionSurvey } from "./pages/ClientSatisfactionSurvey";
+import React, { lazy, Suspense } from "react";
+import { createBrowserRouter, Outlet } from "react-router";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { RoleProvider } from "./contexts/RoleContext"; // <-- Import the provider here
+import { RoleProvider } from "./contexts/RoleContext";
+import { PageLoader } from "./components/PageLoader";
 
-// Create a root layout that wraps EVERYTHING in the RoleProvider
+// Lazy-loaded layouts & pages for code-splitting and performance
+const DashboardLayout = lazy(() => import("./layouts/DashboardLayout").then(m => ({ default: m.DashboardLayout })));
+const LandingPage = lazy(() => import("./pages/LandingPage").then(m => ({ default: m.LandingPage })));
+const LoginPage = lazy(() => import("./pages/LoginPage").then(m => ({ default: m.LoginPage })));
+const SignUpPage = lazy(() => import("./pages/SignUpPage").then(m => ({ default: m.SignUpPage })));
+const DashboardRouter = lazy(() => import("./pages/DashboardRouter").then(m => ({ default: m.DashboardRouter })));
+const KnowledgeRepository = lazy(() => import("./pages/KnowledgeRepository").then(m => ({ default: m.KnowledgeRepository })));
+const PaperTrail = lazy(() => import("./pages/PaperTrail").then(m => ({ default: m.PaperTrail })));
+const AskPolicy = lazy(() => import("./pages/AskPolicy").then(m => ({ default: m.AskPolicy })));
+const AccreditationSupport = lazy(() => import("./pages/AccreditationSupport").then(m => ({ default: m.AccreditationSupport })));
+const GovernanceReference = lazy(() => import("./pages/GovernanceReference").then(m => ({ default: m.GovernanceReference })));
+const AuditTrail = lazy(() => import("./pages/AuditTrail").then(m => ({ default: m.AuditTrail })));
+const UsersRoles = lazy(() => import("./pages/UsersRoles").then(m => ({ default: m.UsersRoles })));
+const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
+const ProfileSettings = lazy(() => import("./pages/ProfileSettings").then(m => ({ default: m.ProfileSettings })));
+const BroadcastAnnouncement = lazy(() => import("./pages/BroadcastAnnouncement").then(m => ({ default: m.BroadcastAnnouncement })));
+const DocumentGenerator = lazy(() => import("./pages/DocumentGenerator").then(m => ({ default: m.DocumentGenerator })));
+const AIDocumentGenerator = lazy(() => import("./pages/AIDocumentGenerator").then(m => ({ default: m.AIDocumentGenerator })));
+const GradeEvaluation = lazy(() => import("./pages/GradeEvaluation").then(m => ({ default: m.GradeEvaluation })));
+const StudentRecords = lazy(() => import("./pages/StudentRecords").then(m => ({ default: m.StudentRecords })));
+const ClientSatisfactionSurvey = lazy(() => import("./pages/ClientSatisfactionSurvey").then(m => ({ default: m.ClientSatisfactionSurvey })));
+
+// Helper to wrap components in Suspense
+const withSuspense = (Component: React.ComponentType) => (
+  <Suspense fallback={<PageLoader />}>
+    <Component />
+  </Suspense>
+);
+
+// Root layout that wraps everything in RoleProvider
 function RootLayout() {
   return (
     <RoleProvider>
-      <Outlet /> 
+      <Outlet />
     </RoleProvider>
   );
 }
 
 export const router = createBrowserRouter([
   {
-    // The root layout acts as the very top level for all routes
     element: <RootLayout />,
     children: [
       {
         path: "/",
-        element: <LandingPage />,
+        element: withSuspense(LandingPage),
       },
       {
         path: "/login",
-        element: <LoginPage />,
+        element: withSuspense(LoginPage),
       },
       {
         path: "/signup",
-        element: <SignUpPage />,
+        element: withSuspense(SignUpPage),
       },
       {
         path: "/app",
-        element: <DashboardLayout />,
+        element: withSuspense(DashboardLayout),
         children: [
-          { index: true, element: <DashboardRouter /> },
+          { index: true, element: withSuspense(DashboardRouter) },
           {
             path: "knowledge-repository",
             element: (
               <ProtectedRoute permission="canAccessKnowledgeRepository">
-                <KnowledgeRepository />
+                {withSuspense(KnowledgeRepository)}
               </ProtectedRoute>
             ),
           },
@@ -65,7 +75,7 @@ export const router = createBrowserRouter([
             path: "paper-trail",
             element: (
               <ProtectedRoute permission="canAccessPaperTrail">
-                <PaperTrail />
+                {withSuspense(PaperTrail)}
               </ProtectedRoute>
             ),
           },
@@ -73,7 +83,7 @@ export const router = createBrowserRouter([
             path: "ask-policy",
             element: (
               <ProtectedRoute permission="canAccessAskPolicy">
-                <AskPolicy />
+                {withSuspense(AskPolicy)}
               </ProtectedRoute>
             ),
           },
@@ -81,7 +91,7 @@ export const router = createBrowserRouter([
             path: "accreditation-support",
             element: (
               <ProtectedRoute permission="canAccessAccreditationSupport">
-                <AccreditationSupport />
+                {withSuspense(AccreditationSupport)}
               </ProtectedRoute>
             ),
           },
@@ -89,7 +99,7 @@ export const router = createBrowserRouter([
             path: "governance-reference",
             element: (
               <ProtectedRoute permission="canAccessGovernanceReference">
-                <GovernanceReference />
+                {withSuspense(GovernanceReference)}
               </ProtectedRoute>
             ),
           },
@@ -97,7 +107,7 @@ export const router = createBrowserRouter([
             path: "audit-trail",
             element: (
               <ProtectedRoute permission="canAccessAuditTrail">
-                <AuditTrail />
+                {withSuspense(AuditTrail)}
               </ProtectedRoute>
             ),
           },
@@ -105,7 +115,7 @@ export const router = createBrowserRouter([
             path: "users-roles",
             element: (
               <ProtectedRoute permission="canAccessUsersRoles">
-                <UsersRoles />
+                {withSuspense(UsersRoles)}
               </ProtectedRoute>
             ),
           },
@@ -113,7 +123,7 @@ export const router = createBrowserRouter([
             path: "settings",
             element: (
               <ProtectedRoute permission="canAccessSettings">
-                <Settings />
+                {withSuspense(Settings)}
               </ProtectedRoute>
             ),
           },
@@ -121,7 +131,7 @@ export const router = createBrowserRouter([
             path: "profile-settings",
             element: (
               <ProtectedRoute>
-                <ProfileSettings />
+                {withSuspense(ProfileSettings)}
               </ProtectedRoute>
             ),
           },
@@ -129,7 +139,7 @@ export const router = createBrowserRouter([
             path: "broadcast-announcement",
             element: (
               <ProtectedRoute permission="canAccessBroadcastAnnouncement">
-                <BroadcastAnnouncement />
+                {withSuspense(BroadcastAnnouncement)}
               </ProtectedRoute>
             ),
           },
@@ -137,7 +147,7 @@ export const router = createBrowserRouter([
             path: "document-generator",
             element: (
               <ProtectedRoute permission="canAccessDocumentGenerator">
-                <DocumentGenerator />
+                {withSuspense(DocumentGenerator)}
               </ProtectedRoute>
             ),
           },
@@ -145,7 +155,7 @@ export const router = createBrowserRouter([
             path: "ai-document-generator",
             element: (
               <ProtectedRoute permission="canAccessAIDocumentGenerator">
-                <AIDocumentGenerator />
+                {withSuspense(AIDocumentGenerator)}
               </ProtectedRoute>
             ),
           },
@@ -153,7 +163,7 @@ export const router = createBrowserRouter([
             path: "grade-evaluation",
             element: (
               <ProtectedRoute permission="canAccessGradeEvaluation">
-                <GradeEvaluation />
+                {withSuspense(GradeEvaluation)}
               </ProtectedRoute>
             ),
           },
@@ -161,7 +171,7 @@ export const router = createBrowserRouter([
             path: "student-records",
             element: (
               <ProtectedRoute permission="canAccessStudentRecords">
-                <StudentRecords />
+                {withSuspense(StudentRecords)}
               </ProtectedRoute>
             ),
           },
@@ -169,7 +179,7 @@ export const router = createBrowserRouter([
             path: "client-survey",
             element: (
               <ProtectedRoute permission="canAccessClientSurvey">
-                <ClientSatisfactionSurvey />
+                {withSuspense(ClientSatisfactionSurvey)}
               </ProtectedRoute>
             ),
           },

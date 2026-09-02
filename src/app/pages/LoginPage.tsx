@@ -1,7 +1,7 @@
 import { Link, useNavigate, useLocation } from "react-router";
 import { ArrowRight, AlertCircle, Mail, Lock, X, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { apiClient } from "../api/client";
 import { useRole } from "../contexts/RoleContext";
 import ResetPasswordModal from "../components/ResetPasswordModal";
 
@@ -59,9 +59,8 @@ export function LoginPage() {
     formBody.append('password', formData.password);
 
     try {
-      const response = await axios.post("http://localhost:8000/login", formBody, {
+      const response = await apiClient.post("/login", formBody, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        withCredentials: true,
       });
 
       if (rememberMe) {
@@ -92,7 +91,7 @@ export function LoginPage() {
     setResetLoading(true);
     setResetStatus(null);
     try {
-      const response = await axios.post("http://localhost:8000/send-reset-email", { email: resetEmail });
+      const response = await apiClient.post("/send-reset-email", { email: resetEmail });
       setResetStatus({ type: 'success', msg: response.data.message });
     } catch (error: any) {
       setResetStatus({ type: 'error', msg: error.response?.data?.detail || "Failed to send reset email." });

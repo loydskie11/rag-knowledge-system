@@ -14,7 +14,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { apiClient } from "../api/client";
 import { useRole } from "../contexts/RoleContext";
 import type { UserRole } from "../contexts/RoleContext";
 
@@ -155,7 +155,7 @@ export function SignUpPage() {
     setIsSendingOtp(true);
 
     try {
-      await axios.post("http://localhost:8000/auth/send-otp", {
+      await apiClient.post("/auth/send-otp", {
         email: formData.email.trim()
       });
       setOtpSent(true);
@@ -215,13 +215,13 @@ export function SignUpPage() {
 
     try {
       // 1. Verify OTP first
-      await axios.post("http://localhost:8000/auth/verify-otp", {
+      await apiClient.post("/auth/verify-otp", {
         email: formData.email.trim(),
         otp_code: formData.otpCode.trim()
       });
 
       // 2. Proceed with user registration
-      await axios.post("http://localhost:8000/register", {
+      await apiClient.post("/register", {
         email: formData.email.trim(),
         password: formData.password,
         role: formData.role,

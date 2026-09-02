@@ -27,7 +27,7 @@ import {
 } from "docx";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
-import axios from "axios";
+import { apiClient } from "../api/client";
 
 /* ============================================================================
  * QUICK PROMPTS
@@ -215,7 +215,7 @@ export function DocumentGenerator() {
     setErrorMessage(null);
 
     try {
-      const response = await axios.post("http://localhost:8000/api/generate-document", {
+      const response = await apiClient.post("/api/generate-document", {
         prompt: prompt.trim()
       });
       setGeneratedContent(response.data.content);
