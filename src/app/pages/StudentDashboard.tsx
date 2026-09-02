@@ -26,7 +26,7 @@ export function StudentDashboard() {
         const userEmail = sessionStorage.getItem('userEmail') || '';
 
         const [statsRes, historyRes, accessRes, queriesRes, announcementsRes] = await Promise.all([
-          axios.get("http://localhost:8000/system-stats"),
+          axios.get("http://localhost:8000/system-stats?role=STUDENT"),
           axios.get(`http://localhost:8000/chat-history?email=${userEmail}`),
           axios.get("http://localhost:8000/audit/access"),
           axios.get("http://localhost:8000/audit/queries"),
@@ -112,29 +112,38 @@ export function StudentDashboard() {
     fetchDashboardData();
   }, []);
 
+  const handleOpenAnnouncement = (announcement: any) => {
+    setSelectedAnnouncement(announcement);
+    if (announcement?.id) {
+      axios.post(`http://localhost:8000/announcements/${announcement.id}/read`).catch((err) => {
+        console.error("Failed to record announcement read:", err);
+      });
+    }
+  };
+
   const stats = [
     {
-      label: "Available Resources",
+      label: "University Policies & Guides",
       value: totalDocs,
       icon: BookOpen,
       color: "#FF9501", // Base Amber
-      subtitle: "indexed documents",
+      subtitle: "Active in Knowledge Base",
       path: "/app/knowledge-repository"
     },
     {
-      label: "My AI Queries",
+      label: "My AI Inquiries",
       value: weeklyQueries,
       icon: MessageSquare,
       color: "#D97E00", // Medium Amber
-      subtitle: "interactive sessions",
+      subtitle: "Interactive Chat Sessions",
       path: "/app/ask-policy"
     },
     {
-      label: "Recent Access",
+      label: "Recent Document Activity",
       value: recentViewsCount,
       icon: Clock,
       color: "#995900", // Dark Amber
-      subtitle: "tracked events",
+      subtitle: "Policies Accessed & Viewed",
       path: "/app/knowledge-repository"
     }
   ];
@@ -174,7 +183,7 @@ export function StudentDashboard() {
               title={`View ${stat.label}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
                   style={{ backgroundColor: `${stat.color}15` }}
@@ -186,7 +195,7 @@ export function StudentDashboard() {
                 <h3 className="text-2xl font-bold" style={{ color: stat.color }}>
                   {stat.value}
                 </h3>
-                <span className="text-[11px] text-gray-500 group-hover:text-gray-700">{stat.subtitle}</span>
+                <span className="text-[11px] font-medium text-gray-500 group-hover:text-gray-700">{stat.subtitle}</span>
               </div>
             </div>
           );
@@ -245,7 +254,7 @@ export function StudentDashboard() {
               announcements.map((announcement, index) => (
                 <div
                   key={index}
-                  onClick={() => setSelectedAnnouncement(announcement)}
+                  onClick={() => handleOpenAnnouncement(announcement)}
                   className="flex items-start gap-2.5 p-2.5 bg-gray-50/60 rounded-lg hover:bg-orange-50/30 hover:border-[#FF9501] transition-all border border-gray-200/70 cursor-pointer group"
                 >
                   <div className="mt-1 w-1.5 h-1.5 rounded-full bg-[#FF9501] shrink-0 group-hover:scale-125 transition-transform"></div>

@@ -5,16 +5,15 @@ import {
   Mail,
   Lock,
   X,
-  ShieldCheck,
-  ShieldAlert,
-  ArrowLeft,
+  ArrowRight,
   Loader2,
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  KeyRound,
+  CheckCircle2
 } from "lucide-react";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRole } from "../contexts/RoleContext";
 import type { UserRole } from "../contexts/RoleContext";
@@ -38,11 +37,11 @@ const academicPrograms = [
     ]
   },
   {
-    college: "College of Agriculture, Forestry, & Environmental Science (CAFES)",
+    college: "College of Agriculture and Forestry (CAF)",
     programs: [
-      { value: "BSF", label: "Bachelor of Science in Forestry (BSF)" },
-      { value: "BSA", label: "Bachelor of Science in Agriculture (BSA)" },
-      { value: "BSES", label: "Bachelor of Science in Environmental Science (BSES)" }
+      { value: "BSF", label: "BS in Forestry" },
+      { value: "BSA", label: "BS in Agriculture" },
+      { value: "BSES", label: "BS in Environmental Science" }
     ]
   },
   {
@@ -50,18 +49,17 @@ const academicPrograms = [
     programs: [
       { value: "BSIE", label: "BS in Industrial Engineering" },
       { value: "BSIT", label: "BS in Information Technology" },
-      { value: "BIT_AT", label: "BIT major in Automotive Technology (BIT-AT)" },
-      { value: "BIT_CT", label: "BIT major in Computer Technology (BIT-CT)" },
-      { value: "BIT_DT", label: "BIT major in Drafting Technology (BIT-DT)" },
-      { value: "BIT_ET", label: "BIT major in Electronics Technology (BIT-ET)" },
-      { value: "BIT_GT", label: "BIT major in Garments Technology (BIT-GT)" }
+      { value: "BIT_AT", label: "BIT major in Automotive Technology" },
+      { value: "BIT_CT", label: "BIT major in Computer Technology" },
+      { value: "BIT_DT", label: "BIT major in Drafting Technology" },
+      { value: "BIT_ET", label: "BIT major in Electronics Technology" }
     ]
   },
   {
     college: "College of Hospitality and Tourism Management (CHTM)",
     programs: [
-      { value: "BSHM", label: "Bachelor of Science in Hospitality Management (BSHM)" },
-      { value: "BSTM", label: "Bachelor of Science in Tourism Management (BSTM)" }
+      { value: "BSHM", label: "BS in Hospitality Management" },
+      { value: "BSTM", label: "BS in Tourism Management" }
     ]
   }
 ];
@@ -79,10 +77,15 @@ export function SignUpPage() {
   const navigate = useNavigate();
   const { setUserRole } = useRole();
 
-  const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [showTermsModal, setShowTermsModal] = useState(false);
+
+  // OTP Verification States
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -91,14 +94,25 @@ export function SignUpPage() {
     role: "STUDENT" as UserRole,
     fullName: "",
     email: "",
+    otpCode: "",
     password: "",
     confirmPassword: "",
-    otpCode: "",
     selectedCollege: "",
     course: "",
     year: "",
     agreeToTerms: false
   });
+
+  // Countdown timer effect
+  useEffect(() => {
+    let interval: any;
+    if (otpCountdown > 0) {
+      interval = setInterval(() => {
+        setOtpCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpCountdown]);
 
   const currentCollegePrograms =
     academicPrograms.find(
@@ -122,11 +136,58 @@ export function SignUpPage() {
     formData.password === formData.confirmPassword &&
     formData.password.length > 0;
 
-  const handleRequestOTP = async () => {
+  // Send OTP verification code
+  const handleSendCode = async () => {
     setApiError("");
+    setSuccessMsg("");
+
+    if (!formData.email.trim()) {
+      setApiError("Please enter your email address first.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      setApiError("Please enter a valid email address.");
+      return;
+    }
+
+    setIsSendingOtp(true);
+
+    try {
+      await axios.post("http://localhost:8000/auth/send-otp", {
+        email: formData.email.trim()
+      });
+      setOtpSent(true);
+      setOtpCountdown(60);
+      setSuccessMsg("Verification code sent to your email.");
+    } catch (error: any) {
+      setApiError(
+        error.response?.data?.detail ||
+        "Failed to send verification code. Please check your email address."
+      );
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setApiError("");
+    setSuccessMsg("");
+
+    if (!formData.fullName.trim() || !formData.email.trim()) {
+      setApiError("Please enter your name and email address.");
+      return;
+    }
+
+    if (!formData.otpCode.trim()) {
+      setApiError("Please enter the verification code sent to your email.");
+      return;
+    }
 
     if (!isPasswordValid) {
-      setApiError("Password requirements are not met.");
+      setApiError("Password must be 8+ characters with an uppercase letter, a number, and a special character.");
       return;
     }
 
@@ -135,78 +196,47 @@ export function SignUpPage() {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      await axios.post("http://localhost:8000/auth/send-otp", {
-        email: formData.email
-      });
-
-      setStep(2);
-    } catch (error: any) {
-      setApiError(
-        error.response?.data?.detail ||
-          "Failed to send verification email."
-      );
-    } finally {
-      setIsLoading(false);
+    if (!formData.selectedCollege || !formData.course) {
+      setApiError("Please select your college and academic program.");
+      return;
     }
-  };
 
-  const handleVerifyOTP = async () => {
-    setApiError("");
+    if (formData.role === "STUDENT" && !formData.year) {
+      setApiError("Please select your year level.");
+      return;
+    }
+
+    if (!formData.agreeToTerms) {
+      setApiError("Please agree to the Terms and Conditions to proceed.");
+      return;
+    }
 
     setIsLoading(true);
 
     try {
+      // 1. Verify OTP first
       await axios.post("http://localhost:8000/auth/verify-otp", {
-        email: formData.email,
-        otp_code: formData.otpCode
+        email: formData.email.trim(),
+        otp_code: formData.otpCode.trim()
       });
 
-      setStep(3);
-    } catch (error: any) {
-      setApiError(
-        error.response?.data?.detail ||
-          "Invalid or expired OTP."
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFinalSubmit = async () => {
-    setApiError("");
-
-    setIsLoading(true);
-
-    try {
+      // 2. Proceed with user registration
       await axios.post("http://localhost:8000/register", {
-        email: formData.email,
+        email: formData.email.trim(),
         password: formData.password,
         role: formData.role,
-        full_name: formData.fullName,
-        course:
-          formData.role === "STUDENT"
-            ? formData.course
-            : null,
-        year:
-          formData.role === "STUDENT"
-            ? formData.year
-            : null,
-        department:
-          formData.role === "FACULTY"
-            ? formData.course
-            : null
+        full_name: formData.fullName.trim(),
+        course: formData.role === "STUDENT" ? formData.course : null,
+        year: formData.role === "STUDENT" ? formData.year : null,
+        department: formData.role === "FACULTY" ? formData.course : null
       });
 
       setUserRole(formData.role);
-
       navigate("/login");
     } catch (error: any) {
       setApiError(
         error.response?.data?.detail ||
-          "Registration failed."
+        "Registration failed. Please check your verification code."
       );
     } finally {
       setIsLoading(false);
@@ -214,553 +244,428 @@ export function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex overflow-hidden">
-      {/* Left Branding Section */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#FF9501] flex-col items-center justify-center p-12 relative">
-        <div className="absolute inset-0 bg-[#D97E00] opacity-20"></div>
-        <div className="relative z-10 text-center">
-          <div className="flex justify-center mb-8">
-            <div className="w-32 h-32 bg-white rounded-3xl flex items-center justify-center shadow-xl">
+    <div className="min-h-screen bg-[#fff8f0] flex items-center justify-center p-4 sm:p-6 lg:p-0 relative">
+      {/* Back to Home Button */}
+      <Link
+        to="/"
+        aria-label="Back to Home"
+        className="group absolute top-6 left-6 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-2xs hover:shadow-xs hover:border-[#DD7230] transition-all"
+      >
+        <ArrowRight className="h-4 w-4 rotate-180 text-[#DD7230] transition-transform duration-200 group-hover:-translate-x-0.5" />
+      </Link>
+
+      {/* Split View Container */}
+      <div className="w-full min-h-screen flex">
+        
+        {/* Left Branding Panel */}
+        <div className="hidden lg:flex lg:w-1/2 bg-white flex-col items-center justify-center p-12 relative border-r border-gray-200/80">
+          <div className="relative z-10 text-center max-w-md">
+            <div className="flex justify-center mb-6">
               <img 
                 src="/ctu-logo.png" 
                 alt="CTU Logo" 
                 className="h-24 w-24 object-contain" 
               />
             </div>
-          </div>
-          <h1 className="text-5xl font-bold text-white mb-6 leading-tight">
-            CTU-Argao Knowledge System
-          </h1>
-          <p className="text-2xl text-white/90 mb-3 font-medium">Cebu Technological University</p>
-          <p className="text-xl text-white/80">Argao Campus</p>
-          <div className="mt-10 p-5 bg-white/10 rounded-2xl backdrop-blur-md inline-block">
-            <p className="text-white/90 text-base font-medium">
-              RAG-Powered Knowledge Management System
-            </p>
+            <h1 className="text-3xl font-bold text-[#DD7230] mb-2 leading-tight">
+              CTU-Argao Knowledge System
+            </h1>
+            <p className="text-sm text-gray-700 font-medium">Cebu Technological University</p>
+            <p className="text-xs text-gray-500 mt-0.5">Argao Campus</p>
+            
+            <div className="mt-6 p-3.5 bg-[#FFF4E5] border border-[#FFE0B2] rounded-xl inline-block">
+              <p className="text-[#DD7230] text-xs font-semibold">
+                RAG-Powered Knowledge Management System
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-
-      {/* RIGHT SIDE */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center bg-[#F5F7FA] p-8">
-
-        <div className="w-full max-w-xl">
-
-          <div className="bg-white rounded-2xl shadow-lg border border-[#E5E7EB] overflow-hidden">
-
-            {/* PROGRESS */}
-            <div className="h-1 bg-gray-100">
-              <div
-                className="h-full bg-[#F25C1D] transition-all duration-300"
-                style={{
-                  width: `${(step / 3) * 100}%`
-                }}
-              />
+        {/* Right Sign Up Form Panel */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-white overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8 my-auto">
+            
+            {/* Mobile Header */}
+            <div className="lg:hidden text-center mb-4">
+              <div className="flex justify-center mb-2">
+                <img
+                  src="/ctu-logo.png"
+                  alt="CTU Logo"
+                  className="h-12 w-12 object-contain"
+                />
+              </div>
+              <h1 className="text-sm font-bold text-gray-900">CTU Argao Knowledge System</h1>
             </div>
 
-           <div className="p-10 sm:p-12">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Create Account</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Register for access to institutional policies and resources</p>
+            </div>
 
-              {apiError && (
-                <div className="mb-6 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  {apiError}
+            {/* Error Notification */}
+            {apiError && (
+              <div className="mb-3.5 bg-rose-50 border border-rose-200 p-3 rounded-xl flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-rose-700 leading-relaxed font-medium">{apiError}</p>
+              </div>
+            )}
+
+            {/* Success Notification */}
+            {successMsg && (
+              <div className="mb-3.5 bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-start gap-2.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-emerald-700 leading-relaxed font-medium">{successMsg}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateAccount} className="space-y-3.5">
+              
+              {/* Account Role Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Account Role</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { value: "STUDENT", label: "Student", icon: GraduationCap },
+                    { value: "FACULTY", label: "Faculty", icon: User }
+                  ].map((option) => {
+                    const Icon = option.icon;
+                    const isSelected = formData.role === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            role: option.value as UserRole
+                          })
+                        }
+                        className={`rounded-xl border py-2 px-3 flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-[#DD7230] bg-[#FFF4E5] text-[#DD7230]"
+                            : "border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        <span className="font-semibold text-xs">{option.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
 
-              {/* STEP 1 */}
-              {step === 1 && (
-                <div>
-
-                  <h2 className="text-3xl font-bold text-[#1F2937] mb-2">
-                    Create Account
-                  </h2>
-
-                 <p className="text-base text-[#6B7280] mb-8">
-                    Select your institutional role to get started.
-                  </p>
-
-                  {/* ROLE */}
-                  <div className="grid grid-cols-2 gap-4 mb-8">
-
-                    {[
-                      {
-                        value: "STUDENT",
-                        label: "Student",
-                        icon: GraduationCap
-                      },
-                      {
-                        value: "FACULTY",
-                        label: "Faculty",
-                        icon: User
-                      }
-                    ].map((option) => {
-                      const Icon = option.icon;
-
-                      const isSelected =
-                        formData.role === option.value;
-
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() =>
-                            setFormData({
-                              ...formData,
-                              role:
-                                option.value as UserRole
-                            })
-                          }
-                          className={`rounded-2xl border-2 p-5 flex flex-col items-center gap-3 transition-all ${
-                            isSelected
-                              ? "border-[#F25C1D] bg-orange-50"
-                              : "border-gray-200"
-                          }`}
-                        >
-                          <Icon
-                            className={`h-7 w-7 ${
-                              isSelected
-                                ? "text-[#F25C1D]"
-                                : "text-gray-400"
-                            }`}
-                          />
-
-                          <span className="font-semibold">
-                            {option.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* ACCOUNT DETAILS */}
-                  <div className="border-t border-gray-200 pt-6 space-y-5">
-
-                    <div>
-                      <h3 className="text-2xl font-bold text-gray-900">
-                        Account Details
-                      </h3>
-
-                      <p className="text-sm text-gray-500 mt-1">
-                        Set up your login credentials securely.
-                      </p>
-                    </div>
-
-                    {/* FULL NAME */}
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Full Name *
-                      </label>
-
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-
-                        <input
-                          type="text"
-                          value={formData.fullName}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              fullName: e.target.value
-                            })
-                          }
-                          placeholder="Juan Dela Cruz"
-                          className="w-full pl-10 pr-4 py-4 text-base rounded-xl bg-[#F5F7FA] border border-[#E5E7EB] outline-none focus:ring-2 focus:ring-[#F25C1D]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* EMAIL */}
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Email Address *
-                      </label>
-
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-
-                        <input
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              email: e.target.value
-                            })
-                          }
-                          placeholder="your.email@ctu.edu.ph"
-                          className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#F5F7FA] border border-gray-200 outline-none focus:ring-2 focus:ring-[#F25C1D]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* PASSWORD */}
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Password *
-                      </label>
-
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-
-                        <input
-                          type={
-                            showPassword
-                              ? "text"
-                              : "password"
-                          }
-                          value={formData.password}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              password: e.target.value
-                            })
-                          }
-                          placeholder="••••••••"
-                          className="w-full pl-10 pr-10 py-3 rounded-xl bg-[#F5F7FA] border border-gray-200 outline-none focus:ring-2 focus:ring-[#F25C1D]"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowPassword(
-                              !showPassword
-                            )
-                          }
-                          className="absolute right-3 top-1/2 -translate-y-1/2"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-gray-400" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* CONFIRM PASSWORD */}
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Confirm Password *
-                      </label>
-
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-
-                        <input
-                          type={
-                            showConfirmPassword
-                              ? "text"
-                              : "password"
-                          }
-                          value={
-                            formData.confirmPassword
-                          }
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              confirmPassword:
-                                e.target.value
-                            })
-                          }
-                          placeholder="••••••••"
-                          className="w-full pl-10 pr-10 py-3 rounded-xl bg-[#F5F7FA] border border-gray-200 outline-none focus:ring-2 focus:ring-[#F25C1D]"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowConfirmPassword(
-                              !showConfirmPassword
-                            )
-                          }
-                          className="absolute right-3 top-1/2 -translate-y-1/2"
-                        >
-                          {showConfirmPassword ? (
-                            <EyeOff className="h-4 w-4 text-gray-400" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleRequestOTP}
-                      disabled={isLoading}
-                      className="w-full py-3 rounded-xl bg-[#FF9501] hover:bg-[#D97E00] text-white font-semibold hover:bg-[#D94E16]"
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                      ) : (
-                        "Continue Verification"
-                      )}
-                    </button>
-
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 2 */}
-              {step === 2 && (
-               <div className="space-y-6">
-
-                  <button
-                    onClick={() => setStep(1)}
-                    className="flex items-center gap-1 text-sm text-gray-500"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back
-                  </button>
-
-                  <div className="text-center">
-                    <div className="mx-auto w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4">
-                      <ShieldCheck className="h-8 w-8 text-[#F25C1D]" />
-                    </div>
-
-                    <h2 className="text-3xl font-bold text-gray-900">
-                      Verify your email
-                    </h2>
-
-                    <p className="text-gray-500 mt-2">
-                      Enter the 6-digit code sent to
-                    </p>
-
-                    <p className="font-semibold text-gray-800">
-                      {formData.email}
-                    </p>
-                  </div>
-
+              {/* Full Name */}
+              <div>
+                <label htmlFor="fullName" className="block text-xs font-semibold text-gray-700 mb-1">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                   <input
+                    id="fullName"
                     type="text"
+                    required
+                    value={formData.fullName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, fullName: e.target.value })
+                    }
+                    placeholder="e.g. Juan Dela Cruz"
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
+                  />
+                </div>
+              </div>
+
+              {/* Email Address + Inline Send Code */}
+              <div>
+                <label htmlFor="email" className="block text-xs font-semibold text-gray-700 mb-1">
+                  Email Address
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      placeholder="name@ctu.edu.ph"
+                      className="w-full pl-9 pr-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSendCode}
+                    disabled={isSendingOtp || otpCountdown > 0 || !formData.email.trim()}
+                    className="px-3 py-2 bg-[#DD7230] text-white rounded-xl hover:bg-[#c66224] transition-all text-xs font-semibold whitespace-nowrap shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer active:scale-98"
+                  >
+                    {isSendingOtp ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <KeyRound className="h-3 w-3" />
+                    )}
+                    {otpCountdown > 0 ? `Resend in ${otpCountdown}s` : otpSent ? "Resend Code" : "Send Code"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Verification Code */}
+              <div>
+                <label htmlFor="otpCode" className="block text-xs font-semibold text-gray-700 mb-1">
+                  Verification Code (6-Digit OTP)
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    id="otpCode"
+                    type="text"
+                    required
                     maxLength={6}
                     value={formData.otpCode}
                     onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        otpCode: e.target.value
-                      })
+                      setFormData({ ...formData, otpCode: e.target.value.replace(/\D/g, "") })
                     }
-                    placeholder="000000"
-                    className="w-full text-center tracking-[1em] text-2xl font-bold py-4 rounded-xl bg-[#F5F7FA] border border-gray-200 outline-none focus:ring-2 focus:ring-[#F25C1D]"
+                    placeholder="Enter 6-digit code"
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400 placeholder:tracking-normal placeholder:font-sans"
                   />
-
-                  <button
-                    onClick={handleVerifyOTP}
-                    disabled={isLoading}
-                    className="w-full py-3 rounded-xl bg-[#F25C1D] text-white font-semibold"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                    ) : (
-                      "Verify Code"
-                    )}
-                  </button>
                 </div>
-              )}
+              </div>
 
-              {/* STEP 3 */}
-              {step === 3 && (
-                <div className="space-y-5">
+              {/* Password & Confirm Password */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label htmlFor="password" className="block text-xs font-semibold text-gray-700 mb-1">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={formData.password}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                      placeholder="••••••••"
+                      className="w-full pl-9 pr-8 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors focus:outline-none cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
 
-                  <h2 className="text-3xl font-bold text-gray-900">
-                    Academic Profile
-                  </h2>
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-xs font-semibold text-gray-700 mb-1">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={formData.confirmPassword}
+                      onChange={(e) =>
+                        setFormData({ ...formData, confirmPassword: e.target.value })
+                      }
+                      placeholder="••••••••"
+                      className="w-full pl-9 pr-8 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors focus:outline-none cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
 
+              {/* Password Requirement Hint */}
+              <p className="text-[11px] text-gray-400">
+                Minimum 8 characters with an uppercase letter, number, and special character.
+              </p>
+
+              {/* College & Program Dropdowns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    College
+                  </label>
                   <select
-                        title="Select College"
-                        aria-label="Select College"
-                        value={formData.selectedCollege}
+                    aria-label="Select College"
+                    required
+                    value={formData.selectedCollege}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        selectedCollege:
-                          e.target.value,
+                        selectedCollege: e.target.value,
                         course: ""
                       })
                     }
-                   className="w-full py-4 px-4 text-base rounded-xl bg-[#F5F7FA] border border-[#E5E7EB] focus:ring-2 focus:ring-[#F25C1D]"
+                    className="w-full py-2 px-2.5 text-xs rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all cursor-pointer"
                   >
-                    <option value="">
-                      Select College
-                    </option>
-
+                    <option value="">Select College</option>
                     {academicPrograms.map((c) => (
-                      <option
-                        key={c.college}
-                        value={c.college}
-                      >
+                      <option key={c.college} value={c.college}>
                         {c.college}
                       </option>
                     ))}
                   </select>
+                </div>
 
-                 <select
-                    title="Select Program"
-                    aria-label="Select Program"
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Academic Program
+                  </label>
+                  <select
+                    aria-label="Select Academic Program"
+                    required
                     value={formData.course}
                     onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        course: e.target.value
-                      })
+                      setFormData({ ...formData, course: e.target.value })
                     }
-                    className="w-full py-3 px-4 rounded-xl bg-[#F5F7FA] border border-gray-200"
+                    disabled={!formData.selectedCollege}
+                    className="w-full py-2 px-2.5 text-xs rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    <option value="">
-                      Select Program
-                    </option>
-
+                    <option value="">Select Program</option>
                     {currentCollegePrograms.map((p) => (
-                      <option
-                        key={p.value}
-                        value={p.value}
-                      >
+                      <option key={p.value} value={p.value}>
                         {p.label}
                       </option>
                     ))}
                   </select>
-
-                  {formData.role === "STUDENT" && (
-                    <select
-                      title="Select Year Level"
-                      aria-label="Select Year Level"
-                      value={formData.year}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          year: e.target.value
-                        })
-                      }
-                      className="w-full py-3 px-4 rounded-xl bg-[#F5F7FA] border border-gray-200"
-                    >
-                      <option value="">
-                        Select Year
-                      </option>
-
-                      {years.map((y) => (
-                        <option
-                          key={y}
-                          value={y}
-                        >
-                          {y}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      aria-label="Agree to Terms and Conditions"
-                      title="Agree to Terms and Conditions"
-                      checked={formData.agreeToTerms}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          agreeToTerms:
-                            e.target.checked
-                        })
-                      }
-                    />
-
-                    <p className="text-sm text-gray-600">
-                      I agree to the{" "}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowTermsModal(true)
-                        }
-                        className="text-[#F25C1D] font-semibold"
-                      >
-                        Terms and Conditions
-                      </button>
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={handleFinalSubmit}
-                    disabled={isLoading}
-                    className="w-full py-3 rounded-xl bg-[#006837] text-white font-semibold"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                    ) : (
-                      "Complete Registration"
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {/* FOOTER */}
-              <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-
-                <p className="text-sm text-gray-500">
-                  Already have an account?{" "}
-                  <Link
-                    to="/login"
-                    className="text-[#F25C1D] font-semibold"
-                  >
-                    Sign in
-                  </Link>
-                </p>
-
-                <div className="mt-3">
-                  <Link
-                    to="/"
-                    className="text-sm text-[#F25C1D]"
-                  >
-                    ← Back to Home
-                  </Link>
                 </div>
               </div>
 
+              {/* Year Level (Students Only) */}
+              {formData.role === "STUDENT" && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Year Level
+                  </label>
+                  <select
+                    aria-label="Select Year Level"
+                    required
+                    value={formData.year}
+                    onChange={(e) =>
+                      setFormData({ ...formData, year: e.target.value })
+                    }
+                    className="w-full py-2 px-2.5 text-xs rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="">Select Year Level</option>
+                    {years.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Terms and Conditions Checkbox - Clean Vertical & Horizontal Alignment */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="agreeToTerms"
+                  checked={formData.agreeToTerms}
+                  onChange={(e) =>
+                    setFormData({ ...formData, agreeToTerms: e.target.checked })
+                  }
+                  className="w-4 h-4 rounded border-gray-300 text-[#DD7230] focus:ring-[#DD7230] cursor-pointer shrink-0"
+                />
+                <div className="text-xs text-gray-600 select-none flex items-center gap-1">
+                  <label htmlFor="agreeToTerms" className="cursor-pointer">
+                    I agree to the
+                  </label>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowTermsModal(true);
+                    }}
+                    className="text-[#DD7230] font-semibold hover:underline cursor-pointer inline-flex items-center"
+                  >
+                    Terms and Conditions
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit CTA */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#c66224] transition-all font-semibold text-xs shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed flex justify-center items-center gap-1.5 cursor-pointer active:scale-98"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  "Create Account"
+                )}
+              </button>
+            </form>
+
+            <div className="mt-4 text-center pt-3 border-t border-gray-200">
+              <p className="text-xs text-gray-500">
+                Already have an account?{" "}
+                <Link to="/login" className="text-[#DD7230] hover:text-[#c66224] hover:underline font-semibold transition-colors">
+                  Sign in
+                </Link>
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* TERMS MODAL */}
+      {/* Terms and Conditions Modal */}
       {showTermsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-5">
-
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-8">
-
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">
-                Terms and Conditions
-              </h2>
-
-             <button
-              type="button"
-              title="Close"
-              aria-label="Close"
-              onClick={() => setShowTermsModal(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50/60">
+              <h3 className="text-xs font-bold text-gray-900">Terms and Conditions</h3>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="text-gray-400 hover:text-gray-700 cursor-pointer p-1"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
-            <p className="text-gray-600 mb-6">
-              By creating an account, you agree
-              to follow the university policies and
-              responsible usage of this system.
-            </p>
+            <div className="p-5 space-y-3 text-xs text-gray-600 leading-relaxed max-h-72 overflow-y-auto">
+              <p>
+                By registering for an account on the CTU Argao Institutional Knowledge System, you agree to comply with institutional data governance policies and maintain account confidentiality.
+              </p>
+              <p>
+                Student registrations receive immediate access to policy assistance and repositories. Faculty registrations are subject to administrative verification.
+              </p>
+            </div>
 
-            <button
-              onClick={() => {
-                setFormData({
-                  ...formData,
-                  agreeToTerms: true
-                });
-
-                setShowTermsModal(false);
-              }}
-              className="px-6 py-3 rounded-xl bg-[#F25C1D] text-white font-semibold"
-            >
-              I Agree
-            </button>
-
+            <div className="p-3.5 border-t border-gray-200 bg-gray-50/60 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData({ ...formData, agreeToTerms: true });
+                  setShowTermsModal(false);
+                }}
+                className="px-4 py-1.5 bg-[#DD7230] text-white font-semibold text-xs rounded-xl hover:bg-[#c66224] transition-all cursor-pointer shadow-2xs"
+              >
+                I Agree
+              </button>
+            </div>
           </div>
         </div>
       )}

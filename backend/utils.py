@@ -81,30 +81,37 @@ def generate_otp():
     return str(random.randint(100000, 999999))
 
 def send_otp_email(target_email: str, otp_code: str):
-    sender_email = os.getenv("EMAIL_ADDRESS")
-    sender_password = os.getenv("EMAIL_APP_PASSWORD")
+    sender_email = os.getenv("EMAIL_ADDRESS", "ragadmin123@gmail.com")
+    sender_password = os.getenv("EMAIL_APP_PASSWORD", "ragsample123")
 
     message = MIMEMultipart("alternative")
-    message["Subject"] = "Your CTU Knowledge System Verification Code"
+    message["Subject"] = f"Your CTU Knowledge System Verification Code: {otp_code}"
     message["From"] = f"CTU Argao Support <{sender_email}>"
     message["To"] = target_email
 
     html = f"""
     <html>
-        <body style="font-family: Arial, sans-serif;">
-            <div style="padding: 30px; border: 1px solid #E5E7EB; border-radius: 8px; max-w-md;">
-                <h2 style="color: #1D6FA3; margin-top: 0;">Email Verification</h2>
-                <p style="color: #4B5563;">Use the following 6-digit code to verify your email address and complete your registration:</p>
-                <div style="background-color: #F5F7FA; padding: 15px; border-radius: 6px; text-align: center; margin: 20px 0;">
-                    <h1 style="font-size: 36px; letter-spacing: 8px; color: #1F2937; margin: 0;">{otp_code}</h1>
+        <body style="font-family: Arial, sans-serif; background-color: #FAFAFA; padding: 20px;">
+            <div style="padding: 30px; border: 1px solid #E5E7EB; border-radius: 12px; max-width: 480px; margin: 0 auto; background-color: #FFFFFF;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="color: #DD7230; margin: 0; font-size: 22px;">Email Verification</h2>
+                    <p style="color: #6B7280; font-size: 14px; margin-top: 5px;">CTU Argao Institutional Knowledge System</p>
                 </div>
-                <p style="color: #6B7280; font-size: 13px;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+                <p style="color: #4B5563; font-size: 14px; line-height: 1.5;">Use the following 6-digit code to verify your email address and complete your registration:</p>
+                <div style="background-color: #FFF4E5; border: 1px solid #FFE0B2; padding: 18px; border-radius: 8px; text-align: center; margin: 24px 0;">
+                    <h1 style="font-size: 36px; letter-spacing: 10px; color: #DD7230; margin: 0; font-weight: bold;">{otp_code}</h1>
+                </div>
+                <p style="color: #9CA3AF; font-size: 12px; text-align: center;">This code will expire in 10 minutes. If you did not request this, please disregard this email.</p>
             </div>
         </body>
     </html>
     """
     message.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, target_email, message.as_string())
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, target_email, message.as_string())
+        print(f"[OTP] Sent verification email to {target_email} (Code: {otp_code})")
+    except Exception as e:
+        print(f"[OTP] SMTP send failed: {e}. Active OTP code is: {otp_code}")

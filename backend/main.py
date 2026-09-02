@@ -1783,12 +1783,34 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db)):
                 if doc_name:
                     if str(status).lower() == "archived":
                         continue
-                    if role.upper() not in ["FACULTY", "ADMIN"] and category == "Accreditation Evidence":
+                    # Students only see public institutional policies/handbooks, not internal accreditation evidence
+                    if role.upper() == "STUDENT" and category == "Accreditation Evidence":
                         continue
                     unique_docs.add(doc_name)
 
                 if category == "Accreditation Evidence" and str(status).lower() == "pending" and doc_name:
                     unique_pending.add(doc_name)
+
+        # For ADMIN: include total records across repository, paper trail, and QA evidences
+        if role.upper() == "ADMIN":
+            try:
+                ched_ev = db.query(models.ChedEvidence.file_name).all()
+                for (cf,) in ched_ev:
+                    if cf: unique_docs.add(cf)
+                
+                iso_ev = db.query(models.ISOEvidence.file_name).all()
+                for (isf,) in iso_ev:
+                    if isf: unique_docs.add(isf)
+
+                pt_records = db.query(models.PaperTrailRecord.title).all()
+                for (pt,) in pt_records:
+                    if pt: unique_docs.add(pt)
+
+                qms_ev = db.query(models.QMSEvidence.file_name).all()
+                for (qf,) in qms_ev:
+                    if qf: unique_docs.add(qf)
+            except Exception as ex:
+                print(f"Admin document aggregate error: {ex}")
 
         total_docs = len(unique_docs)
         aaccup_pending = len(unique_pending)
@@ -2586,7 +2608,7 @@ def get_notification_count(email: str):
 
 
 @app.patch("/notifications/mark-all-read")
-def mark_all_notifications_read(payload: dict = Body(...)):
+def mark_all_notifications_read(payload: dict = Body(...), db: Session = Depends(get_db)):
     email = payload.get("email")
     if not email:
         raise HTTPException(status_code=400, detail="email is required in request body")
@@ -2600,6 +2622,18 @@ def mark_all_notifications_read(payload: dict = Body(...)):
             .execute()
         )
         updated = len(response.data) if response.data else 0
+
+        # Increment read_count for any broadcast announcements present in read notifications
+        if response.data:
+            for item in response.data:
+                ntitle = item.get("title", "")
+                if "📢" in ntitle or "Announcement" in ntitle:
+                    clean = ntitle.replace("📢", "").strip()
+                    matched = db.query(models.Announcement).filter(models.Announcement.title.ilike(f"%{clean}%")).first()
+                    if matched:
+                        matched.read_count = (matched.read_count or 0) + 1
+            db.commit()
+
         return {"message": f"Marked {updated} notification(s) as read", "updated": updated}
 
     except Exception as e:
@@ -2608,7 +2642,7 @@ def mark_all_notifications_read(payload: dict = Body(...)):
 
 
 @app.patch("/notifications/{notification_id}/read")
-def mark_notification_read(notification_id: int):
+def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
     try:
         response = (
             supabase.table("notifications")
@@ -2618,6 +2652,17 @@ def mark_notification_read(notification_id: int):
         )
         if not response.data:
             raise HTTPException(status_code=404, detail="Notification not found")
+
+        # Sync read status to matching announcement if applicable
+        notif_item = response.data[0]
+        ntitle = notif_item.get("title", "")
+        if "📢" in ntitle or "Announcement" in ntitle:
+            clean = ntitle.replace("📢", "").strip()
+            matched = db.query(models.Announcement).filter(models.Announcement.title.ilike(f"%{clean}%")).first()
+            if matched:
+                matched.read_count = (matched.read_count or 0) + 1
+                db.commit()
+
         return {"message": "Notification marked as read"}
 
     except HTTPException:
@@ -2843,6 +2888,21 @@ def delete_announcement(announcement_id: str, db: Session = Depends(get_db)):
     db.delete(announcement)
     db.commit()
     return {"message": "Announcement deleted successfully."}
+
+@app.post("/announcements/{announcement_id}/read")
+def mark_announcement_read(announcement_id: str, db: Session = Depends(get_db)):
+    announcement = db.query(models.Announcement).filter(models.Announcement.id == announcement_id).first()
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    
+    announcement.read_count = (announcement.read_count or 0) + 1
+    db.commit()
+    db.refresh(announcement)
+    return {
+        "id": str(announcement.id),
+        "read_count": announcement.read_count,
+        "total_recipients": announcement.total_recipients
+    }
 
 # --- SETTINGS ROUTES ---
 @app.get("/settings", response_model=SettingsSchema)

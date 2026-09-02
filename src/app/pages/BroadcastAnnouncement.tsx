@@ -80,26 +80,25 @@ export function BroadcastAnnouncement() {
     }
   };
 
-  // --- NEW: Live Count Helper for the Modal ---
+  // --- Live Count Helper for Analytics ---
   const getLiveTargetCount = (recipientsString: string) => {
-    if (!recipientsString) return 0;
-    if (recipientsString.includes("All Users")) return userCounts.all;
+    if (!recipientsString) return userCounts.all || 1;
+    if (recipientsString.includes("All Users")) return userCounts.all || 1;
     
     let liveTotal = 0;
     if (recipientsString.includes("All Students")) liveTotal += userCounts.students;
     if (recipientsString.includes("All Faculty")) liveTotal += userCounts.faculty;
-    return liveTotal;
+    return liveTotal > 0 ? liveTotal : (userCounts.all || 1);
   };
 
   const calculateTotalTargets = (selections: string[]) => {
+    if (!selections || selections.length === 0) return userCounts.all || 1;
+    if (selections.includes("All Users")) return userCounts.all || 1;
+    
     let totalTargets = 0;
-    if (selections.includes("All Users")) {
-      totalTargets = userCounts.all;
-    } else {
-      if (selections.includes("All Students")) totalTargets += userCounts.students;
-      if (selections.includes("All Faculty")) totalTargets += userCounts.faculty;
-    }
-    return totalTargets;
+    if (selections.includes("All Students")) totalTargets += userCounts.students;
+    if (selections.includes("All Faculty")) totalTargets += userCounts.faculty;
+    return totalTargets > 0 ? totalTargets : (userCounts.all || 1);
   };
 
   const handleRecipientToggle = (value: string, currentSelections: string[], setFunction: (val: string[]) => void) => {
@@ -542,47 +541,67 @@ export function BroadcastAnnouncement() {
       {/* MODAL: View Sent Analytics */}
       {viewingAnnouncement && (() => {
         // Evaluate live targets for the specific modal instance
-        const liveModalTargets = getLiveTargetCount(viewingAnnouncement.recipients);
-        const modalReadPercent = liveModalTargets > 0 ? (viewingAnnouncement.read_count / liveModalTargets) * 100 : 0;
+        const liveModalTargets = viewingAnnouncement.total_recipients || getLiveTargetCount(viewingAnnouncement.recipients);
+        const readCount = viewingAnnouncement.read_count || 0;
+        const modalReadPercent = liveModalTargets > 0 ? Math.min(100, Math.round((readCount / liveModalTargets) * 100)) : 0;
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-xs animate-in fade-in">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50/50">
-                <h3 className="font-semibold text-xs text-gray-900">Broadcast Analytics</h3>
-                <button onClick={() => setViewingAnnouncement(null)} className="text-gray-400 hover:text-gray-900 p-1 cursor-pointer"><X className="h-4 w-4" /></button>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-200 bg-gray-50/60">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-[#FF9501]" />
+                  <h3 className="font-bold text-xs sm:text-sm text-gray-900">Broadcast Performance & Analytics</h3>
+                </div>
+                <button onClick={() => setViewingAnnouncement(null)} className="text-gray-400 hover:text-gray-900 p-1 cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
               
-              <div className="p-6 space-y-6">
+              <div className="p-5 sm:p-6 space-y-5">
                 <div>
-                  <h4 className="text-xl font-bold text-gray-900 mb-2">{viewingAnnouncement.title}</h4>
-                  <div className="flex flex-wrap gap-2 text-xs font-medium text-gray-500 mb-4">
-                    <span className="bg-gray-100 px-2 py-1 rounded">Sent: {formatDate(viewingAnnouncement.sent_date)}</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">By: {viewingAnnouncement.sent_by}</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">To: {viewingAnnouncement.recipients}</span>
+                  <h4 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5">{viewingAnnouncement.title}</h4>
+                  <div className="flex flex-wrap gap-2 text-[11px] font-medium text-gray-500 mb-3">
+                    <span className="bg-gray-100 px-2.5 py-1 rounded-lg">Sent: {formatDate(viewingAnnouncement.sent_date)}</span>
+                    <span className="bg-gray-100 px-2.5 py-1 rounded-lg">By: {viewingAnnouncement.sent_by}</span>
+                    <span className="bg-orange-50 text-[#D97E00] border border-[#FF9501]/20 px-2.5 py-1 rounded-lg">Audience: {viewingAnnouncement.recipients}</span>
                   </div>
-                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 text-sm text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                  <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-200 text-xs text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
                     {viewingAnnouncement.content}
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-gray-100">
-                  <h5 className="text-sm font-bold text-gray-900 mb-3">Delivery Performance</h5>
-                  <div className="flex items-end gap-3 mb-2">
-                    <span className="text-3xl font-black text-[#10B981]">{viewingAnnouncement.read_count}</span>
-                    <span className="text-sm font-medium text-gray-500 mb-1">out of {liveModalTargets} read</span>
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                      Delivery Performance
+                    </h5>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/60">
+                      {modalReadPercent}% Read Rate
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mb-2.5">
+                    <span className="text-3xl font-extrabold text-emerald-600">{readCount}</span>
+                    <span className="text-xs font-medium text-gray-500">out of {liveModalTargets} recipient{liveModalTargets !== 1 ? 's' : ''} confirmed read</span>
                   </div>
                   <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
                     <div
-                      className="h-full bg-[#10B981] transition-all duration-1000"
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-700"
                       style={{ width: `${modalReadPercent}%` }}
                     ></div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-gray-400 mt-2 font-medium">
+                    <span>Delivered to {liveModalTargets} accounts</span>
+                    <span>{liveModalTargets - readCount} pending unread</span>
                   </div>
                 </div>
               </div>
 
-              <div className="p-5 border-t border-[#E5E7EB] bg-gray-50 flex justify-end">
-                <button onClick={() => setViewingAnnouncement(null)} className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+              <div className="p-4 sm:p-5 border-t border-gray-200 bg-gray-50/60 flex justify-end">
+                <button
+                  onClick={() => setViewingAnnouncement(null)}
+                  className="px-5 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer shadow-2xs"
+                >
                   Close
                 </button>
               </div>

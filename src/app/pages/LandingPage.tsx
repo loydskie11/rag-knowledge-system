@@ -31,9 +31,9 @@ export function LandingPage() {
       try {
         const response = await axios.get("http://localhost:8000/system-stats");
         setStats({
-          documents: response.data.documents,
-          queries: response.data.queries,
-          users: response.data.users,
+          documents: response.data.documents || 0,
+          queries: response.data.queries || 0,
+          users: response.data.users || 0,
           isLoading: false
         });
       } catch (error) {
@@ -49,37 +49,37 @@ export function LandingPage() {
       icon: Database,
       title: "Knowledge Repository",
       description: "Store and manage all institutional policies, procedures, and documents in one secure, searchable location.",
-      color: "#FF9501"
+      color: "#DD7230"
     },
     {
       icon: MessageSquare,
       title: "AI Policy Q&A",
       description: "Ask questions in natural language and receive instant, accurate answers with source citations from documents.",
-      color: "#FF9501"
+      color: "#DD7230"
     },
     {
       icon: Award,
       title: "Accreditation Support",
       description: "Streamline accreditation processes with evidence locators, compliance checklists, and gap identification.",
-      color: "#10B981"
+      color: "#DD7230"
     },
     {
       icon: FileSearch,
       title: "Governance Reference",
       description: "Quick access to CHED memoranda, university policies, and regulatory frameworks with advanced search.",
-      color: "#FF9501"
+      color: "#DD7230"
     },
     {
       icon: Shield,
       title: "Audit Trail",
       description: "Complete tracking of all system activities including queries, document access, and version changes.",
-      color: "#FF9501"
+      color: "#DD7230"
     },
     {
       icon: Users,
       title: "Role-Based Access",
       description: "Secure access control with different permissions for administrators, faculty, and students.",
-      color: "#10B981"
+      color: "#DD7230"
     }
   ];
 
@@ -121,13 +121,13 @@ export function LandingPage() {
           <div className="flex items-center gap-4">
             <Link 
               to="/login" 
-              className="px-6 py-2.5 text-sm font-medium text-[#D97E00] hover:text-[#FF9501] transition-colors"
+              className="px-6 py-2.5 text-sm font-medium text-[#DD7230] hover:text-[#c66224] transition-colors"
             >
               Sign In
             </Link>
             <Link 
               to="/signup" 
-              className="px-6 py-2.5 text-sm font-medium bg-[#FF9501] text-white rounded-full hover:bg-[#D97E00] transition-all shadow-sm hover:shadow-md"
+              className="px-6 py-2.5 text-sm font-medium bg-[#DD7230] text-white rounded-full hover:bg-[#c66224] transition-all shadow-sm hover:shadow-md"
             >
               Sign Up
             </Link>
@@ -145,7 +145,7 @@ export function LandingPage() {
                 <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-[#1F2937] leading-tight tracking-tight">
                   RAG-Powered
                   <br />
-                  <span className="text-[#FF9501]">Knowledge</span>
+                  <span className="text-[#DD7230]">Knowledge</span>
                   <br />
                   System
                 </h1>
@@ -170,14 +170,14 @@ export function LandingPage() {
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <Link 
                   to="/signup" 
-                  className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#FF9501] text-white rounded-2xl hover:bg-[#D97E00] transition-all font-medium shadow-lg hover:shadow-xl"
+                  className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#DD7230] text-white rounded-2xl hover:bg-[#c66224] transition-all font-medium shadow-lg hover:shadow-xl"
                 >
                   Get Started
                   <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <Link 
                   to="/login" 
-                  className="inline-flex items-center justify-center px-8 py-4 bg-white border-2 border-[#E5E7EB] text-[#1F2937] rounded-2xl hover:border-[#FF9501] hover:text-[#FF9501] transition-all font-medium"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white border-2 border-[#E5E7EB] text-[#1F2937] rounded-2xl hover:border-[#DD7230] hover:text-[#DD7230] transition-all font-medium"
                 >
                   Sign in to System
                 </Link>
@@ -201,7 +201,7 @@ export function LandingPage() {
               <div className="relative">
                 <div className="rounded-3xl overflow-hidden shadow-2xl">
                   <img 
-                    src="/ctuac-bg.png"
+                    src="/ctuac-bg.png" 
                     alt="CTU Knowledge System"
                     className="w-full h-auto object-cover"
                   />
@@ -210,7 +210,7 @@ export function LandingPage() {
                 <div className="absolute -bottom-8 -left-8 bg-white rounded-2xl shadow-xl p-6 border border-[#E5E7EB]">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-[#FFF4E5] rounded-xl flex items-center justify-center">
-                      <Database className="h-6 w-6 text-[#FF9501]" />
+                      <Database className="h-6 w-6 text-[#DD7230]" />
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-[#1F2937]">
@@ -280,7 +280,7 @@ export function LandingPage() {
       {/* Stats Section */}
       <section className="py-24 bg-white">
         <div className="container mx-auto px-8">
-          <div className="bg-gradient-to-br from-[#FF9501] to-[#D97E00] rounded-[3rem] p-16">
+          <div className="bg-gradient-to-br from-[#DD7230] to-[#DD7230] rounded-[3rem] p-16">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
                 Trusted by CTU Community
@@ -327,7 +327,7 @@ export function LandingPage() {
             <div className="pt-4">
               <Link 
                 to="/signup" 
-                className="group inline-flex items-center justify-center gap-2 px-10 py-5 bg-[#FF9501] text-white rounded-2xl hover:bg-[#D97E00] transition-all font-medium text-lg shadow-xl hover:shadow-2xl"
+                className="group inline-flex items-center justify-center gap-2 px-10 py-5 bg-[#DD7230] text-white rounded-2xl hover:bg-[#c66224] transition-all font-medium text-lg shadow-xl hover:shadow-2xl"
               >
                 Get Started Today
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -353,17 +353,17 @@ export function LandingPage() {
                 © 2026 Cebu Technological University - Argao Campus
               </div>
             </div>
-            {/* UPDATED FOOTER LINKS */}
+            {/* FOOTER LINKS */}
             <div className="flex gap-8 text-sm text-[#6B7280]">
               <button 
                 onClick={() => setIsPrivacyOpen(true)} 
-                className="hover:text-[#FF9501] transition-colors cursor-pointer"
+                className="hover:text-[#DD7230] transition-colors cursor-pointer"
               >
                 Privacy Policy
               </button>
               <button 
                 onClick={() => setIsTermsOpen(true)} 
-                className="hover:text-[#FF9501] transition-colors cursor-pointer"
+                className="hover:text-[#DD7230] transition-colors cursor-pointer"
               >
                 Terms of Service
               </button>
@@ -404,8 +404,8 @@ export function LandingPage() {
             </div>
             <div className="p-6 border-t border-[#E5E7EB] bg-gray-50 flex justify-end">
               <button 
-                onClick={() => setIsTermsOpen(false)}
-                className="px-6 py-2.5 bg-[#FF9501] text-white font-medium rounded-xl hover:bg-[#D97E00] transition-colors cursor-pointer"
+                onClick={() => setIsTermsOpen(false)} 
+                className="px-6 py-2.5 bg-[#DD7230] text-white font-medium rounded-xl hover:bg-[#c66224] transition-colors cursor-pointer"
               >
                 Understood
               </button>
@@ -425,7 +425,7 @@ export function LandingPage() {
               </button>
             </div>
             <div className="p-6 overflow-y-auto space-y-6 text-[#4B5563]">
-              <div className="bg-[#FFF4E5] border border-[#FF9501] text-[#D97E00] p-4 rounded-xl text-sm font-medium">
+              <div className="bg-[#FFF4E5] border border-[#DD7230] text-[#DD7230] p-4 rounded-xl text-sm font-medium">
                 In compliance with the Data Privacy Act of 2012 (Republic Act No. 10173).
               </div>
               <section>
@@ -447,8 +447,8 @@ export function LandingPage() {
             </div>
             <div className="p-6 border-t border-[#E5E7EB] bg-gray-50 flex justify-end">
               <button 
-                onClick={() => setIsPrivacyOpen(false)}
-                className="px-6 py-2.5 bg-[#FF9501] text-white font-medium rounded-xl hover:bg-[#D97E00] transition-colors cursor-pointer"
+                onClick={() => setIsPrivacyOpen(false)} 
+                className="px-6 py-2.5 bg-[#DD7230] text-white font-medium rounded-xl hover:bg-[#c66224] transition-colors cursor-pointer"
               >
                 Close Policy
               </button>

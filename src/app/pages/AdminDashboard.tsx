@@ -30,7 +30,7 @@ export function AdminDashboard() {
       setIsLoading(true);
       try {
         const [statsRes, userCountsRes, docsRes, queriesRes, versionsRes, popularRes, pendingRes] = await Promise.all([
-          axios.get("http://localhost:8000/system-stats"),
+          axios.get("http://localhost:8000/system-stats?role=ADMIN"),
           axios.get("http://localhost:8000/users/counts"),
           axios.get("http://localhost:8000/documents"),
           axios.get("http://localhost:8000/audit/queries"),
@@ -119,19 +119,19 @@ export function AdminDashboard() {
 
   const stats = [
     {
-      label: "Total Documents",
+      label: "Total Knowledge Assets",
       value: globalStats.documents,
       icon: FileText,
       color: "#FF9501", // Base Amber
-      subtitle: "active in repository",
+      subtitle: "Policies, Evidences & Records",
       path: "/app/knowledge-repository"
     },
     {
-      label: "AI Policy Queries",
+      label: "AI System Inquiries",
       value: globalStats.queries,
       icon: MessageSquare,
       color: "#D97E00", // Medium Amber
-      subtitle: "all-time interactions",
+      subtitle: "All-Time Inquiries Resolved",
       path: "/app/audit-trail"
     },
     {
@@ -139,15 +139,15 @@ export function AdminDashboard() {
       value: `${globalStats.isoCompliance}%`,
       icon: CheckCircle,
       color: "#006837", // CTU Green
-      subtitle: "ISO 9001:2015 active cycle",
+      subtitle: "ISO 9001:2015 Active Cycle",
       path: "/app/accreditation-support"
     },
     {
-      label: "Overdue Action Plans",
+      label: "Pending Action Plans",
       value: globalStats.qmsOverdue,
       icon: AlertTriangle,
-      color: "#EF4444", // Red
-      subtitle: "MRC Form 6 past target date",
+      color: globalStats.qmsOverdue > 0 ? "#EF4444" : "#006837",
+      subtitle: globalStats.qmsOverdue > 0 ? "MRC Form 6 Overdue Items" : "All Action Plans On Track",
       path: "/app/accreditation-support"
     }
   ];
@@ -226,7 +226,7 @@ export function AdminDashboard() {
               title={`View ${stat.label}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
                   style={{ backgroundColor: `${stat.color}15` }}
@@ -238,7 +238,7 @@ export function AdminDashboard() {
                 <h3 className="text-2xl font-bold" style={{ color: stat.color }}>
                   {stat.value}
                 </h3>
-                <span className="text-[11px] text-gray-500 flex items-center gap-1 group-hover:text-gray-700">
+                <span className="text-[11px] font-medium text-gray-500 flex items-center gap-1 group-hover:text-gray-700">
                   {stat.subtitle}
                 </span>
               </div>

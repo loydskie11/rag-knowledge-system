@@ -104,35 +104,35 @@ export function FacultyDashboard() {
 
   const stats = [
     {
-      label: "Institutional Documents",
+      label: "Institutional Knowledge Base",
       value: totalDocs,
       icon: BookOpen,
       color: "#FF9501", // Base Amber
-      subtitle: "Active in repository",
+      subtitle: "University Policies & Manuals",
       path: "/app/knowledge-repository"
     },
     {
-      label: "My AI Queries",
+      label: "AI Policy Consultations",
       value: myQueriesCount,
       icon: MessageSquare,
       color: "#D97E00", // Medium Amber
-      subtitle: "Last 7 days",
+      subtitle: "Interactive Query Inquiries",
       path: "/app/ask-policy"
     },
     {
-      label: "My Document Access",
+      label: "Document Access Logs",
       value: myAccessCount,
       icon: FileText,
       color: "#995900", // Dark Amber
-      subtitle: "Total views & downloads",
+      subtitle: "Total Views & Downloads",
       path: "/app/knowledge-repository"
     },
     {
-      label: "QA Pending Tasks",
+      label: "Quality Assurance Tasks",
       value: missingEvidence,
       icon: Clock,
-      color: "#CE0000", // Standard Red for Pending alerts
-      subtitle: `Missing ${userDepartment} evidence`,
+      color: missingEvidence > 0 ? "#CE0000" : "#006837",
+      subtitle: missingEvidence > 0 ? `Pending Evidence for ${userDepartment}` : `All Evidence Compliant (${userDepartment})`,
       path: "/app/accreditation-support"
     }
   ];
@@ -181,7 +181,7 @@ export function FacultyDashboard() {
               title={`View ${stat.label}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: `${stat.color}15` }}>
                   <Icon className="h-4 w-4" style={{ color: stat.color }} />
                 </div>
@@ -190,7 +190,7 @@ export function FacultyDashboard() {
                 <h3 className="text-2xl font-bold" style={{ color: stat.color }}>
                   {stat.value}
                 </h3>
-                <span className="text-[11px] text-gray-500 group-hover:text-gray-700">{stat.subtitle}</span>
+                <span className="text-[11px] font-medium text-gray-500 group-hover:text-gray-700">{stat.subtitle}</span>
               </div>
             </div>
           );
