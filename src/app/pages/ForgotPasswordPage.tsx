@@ -58,8 +58,8 @@ export function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-white flex overflow-hidden">
       {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#FF9501] flex-col items-center justify-center p-12 relative">
-        <div className="absolute inset-0 bg-[#D97E00] opacity-20"></div>
+      <div className="hidden lg:flex lg:w-1/2 bg-[#DD7230] flex-col items-center justify-center p-12 relative">
+        <div className="absolute inset-0 bg-[#DD7230] opacity-20"></div>
         <div className="relative z-10 text-center">
           <div className="flex justify-center mb-6">
             <div className="w-28 h-28 bg-white rounded-3xl flex items-center justify-center shadow-xl p-3">
@@ -102,22 +102,22 @@ export function ForgotPasswordPage() {
                     <div className="flex flex-col items-center">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
                         i < currentStepIndex
-                          ? "bg-[#FF9501] text-white"
+                          ? "bg-[#DD7230] text-white"
                           : i === currentStepIndex
-                          ? "bg-[#FF9501] text-white ring-4 ring-[#FF9501]/20 shadow-2xs"
+                          ? "bg-[#DD7230] text-white ring-4 ring-[#DD7230]/20 shadow-2xs"
                           : "bg-gray-200 text-gray-500"
                       }`}>
                         {i < currentStepIndex ? "✓" : i + 1}
                       </div>
                       <span className={`text-[11px] mt-1 font-semibold ${
-                        i <= currentStepIndex ? "text-[#D97E00]" : "text-gray-400"
+                        i <= currentStepIndex ? "text-[#DD7230]" : "text-gray-400"
                       }`}>
                         {s.label}
                       </span>
                     </div>
                     {i < stepConfig.length - 1 && (
                       <div className={`w-12 sm:w-16 h-0.5 mx-2 mb-4 transition-colors ${
-                        i < currentStepIndex ? "bg-[#FF9501]" : "bg-gray-200"
+                        i < currentStepIndex ? "bg-[#DD7230]" : "bg-gray-200"
                       }`} />
                     )}
                   </div>
@@ -136,8 +136,8 @@ export function ForgotPasswordPage() {
             {step === "email" && (
               <>
                 <div className="mb-5">
-                  <div className="w-11 h-11 bg-orange-50 rounded-xl flex items-center justify-center mb-3 border border-[#FF9501]/20">
-                    <Mail className="h-5 w-5 text-[#D97E00]" />
+                  <div className="w-11 h-11 bg-orange-50 rounded-xl flex items-center justify-center mb-3 border border-[#DD7230]/20">
+                    <Mail className="h-5 w-5 text-[#DD7230]" />
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-1">Forgot Password</h2>
                   <p className="text-xs text-gray-500">
@@ -157,14 +157,14 @@ export function ForgotPasswordPage() {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                         placeholder="your.email@ctu.edu.ph"
                       />
                     </div>
                   </div>
                   <button
                     type="submit"
-                    className="w-full py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
+                    className="w-full py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
                   >
                     Send Verification Code
                   </button>
@@ -176,8 +176,8 @@ export function ForgotPasswordPage() {
             {step === "verify" && (
               <>
                 <div className="mb-5">
-                  <div className="w-11 h-11 bg-orange-50 rounded-xl flex items-center justify-center mb-3 border border-[#FF9501]/20">
-                    <KeyRound className="h-5 w-5 text-[#D97E00]" />
+                  <div className="w-11 h-11 bg-orange-50 rounded-xl flex items-center justify-center mb-3 border border-[#DD7230]/20">
+                    <KeyRound className="h-5 w-5 text-[#DD7230]" />
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-1">Enter Verification Code</h2>
                   <p className="text-xs text-gray-500">
@@ -196,13 +196,13 @@ export function ForgotPasswordPage() {
                       maxLength={6}
                       value={code}
                       onChange={(e) => { setError(""); setCode(e.target.value.replace(/\D/g, "")); }}
-                      className="w-full px-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 tracking-[0.4em] text-center focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                      className="w-full px-4 py-3 bg-gray-50/60 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 tracking-[0.4em] text-center focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                       placeholder="000000"
                     />
                   </div>
                   <button
                     type="submit"
-                    className="w-full py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
+                    className="w-full py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
                   >
                     Verify Code
                   </button>
@@ -221,8 +221,8 @@ export function ForgotPasswordPage() {
             {step === "reset" && (
               <>
                 <div className="mb-5">
-                  <div className="w-11 h-11 bg-orange-50 rounded-xl flex items-center justify-center mb-3 border border-[#FF9501]/20">
-                    <Lock className="h-5 w-5 text-[#D97E00]" />
+                  <div className="w-11 h-11 bg-orange-50 rounded-xl flex items-center justify-center mb-3 border border-[#DD7230]/20">
+                    <Lock className="h-5 w-5 text-[#DD7230]" />
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-1">Set New Password</h2>
                   <p className="text-xs text-gray-500">
@@ -242,7 +242,7 @@ export function ForgotPasswordPage() {
                         required
                         value={password}
                         onChange={(e) => { setError(""); setPassword(e.target.value); }}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                         placeholder="Min. 8 characters"
                       />
                     </div>
@@ -259,14 +259,14 @@ export function ForgotPasswordPage() {
                         required
                         value={confirmPassword}
                         onChange={(e) => { setError(""); setConfirmPassword(e.target.value); }}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                         placeholder="••••••••"
                       />
                     </div>
                   </div>
                   <button
                     type="submit"
-                    className="w-full py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
+                    className="w-full py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
                   >
                     Reset Password
                   </button>
@@ -288,7 +288,7 @@ export function ForgotPasswordPage() {
                 </p>
                 <button
                   onClick={() => navigate("/login")}
-                  className="w-full py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer"
+                  className="w-full py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors text-xs font-semibold shadow-2xs cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -299,7 +299,7 @@ export function ForgotPasswordPage() {
           {/* Back to Login */}
           {step !== "done" && (
             <div className="mt-5 text-center">
-              <Link to="/login" className="text-xs font-semibold text-[#D97E00] hover:text-[#B26500]">
+              <Link to="/login" className="text-xs font-semibold text-[#DD7230] hover:text-[#B26500]">
                 ← Back to Sign In
               </Link>
             </div>

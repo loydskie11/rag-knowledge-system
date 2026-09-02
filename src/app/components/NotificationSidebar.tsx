@@ -41,7 +41,7 @@ function NotifIcon({ type, read }: { type: string; read: boolean }) {
     case "success": return <CheckCircle2 className={`${base} ${dim} text-emerald-500`} />;
     case "warning": return <AlertTriangle className={`${base} ${dim} text-amber-500`}  />;
     case "error":   return <AlertTriangle className={`${base} ${dim} text-rose-500`}  />;
-    default:        return <Info         className={`${base} ${dim} text-[#FF9501]`}  />;
+    default:        return <Info         className={`${base} ${dim} text-[#DD7230]`}  />;
   }
 }
 
@@ -50,7 +50,7 @@ const TYPE_COLORS: Record<string, { bar: string; dot: string; badge: string }> =
   success: { bar: "bg-emerald-500", dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/60" },
   warning: { bar: "bg-amber-500",   dot: "bg-amber-500",   badge: "bg-amber-50  text-amber-700 border-amber-200/60"   },
   error:   { bar: "bg-rose-500",    dot: "bg-rose-500",    badge: "bg-rose-50   text-rose-700 border-rose-200/60"      },
-  info:    { bar: "bg-[#FF9501]",   dot: "bg-[#FF9501]",   badge: "bg-orange-50 text-[#D97E00] border-[#FF9501]/30" },
+  info:    { bar: "bg-[#DD7230]",   dot: "bg-[#DD7230]",   badge: "bg-orange-50 text-[#DD7230] border-[#DD7230]/30" },
 };
 
 const typeLabel: Record<string, string> = {
@@ -77,7 +77,7 @@ function Pill({
         <span className={`
           inline-flex items-center justify-center
           min-w-[18px] h-4 px-1.5 rounded-full text-[10px] font-semibold
-          ${active ? "bg-[#FF9501] text-white" : "bg-gray-200/80 text-gray-600"}
+          ${active ? "bg-[#DD7230] text-white" : "bg-gray-200/80 text-gray-600"}
         `}>
           {count}
         </span>
@@ -128,7 +128,7 @@ function NotifRow({
     >
       {/* Left subtle unread accent line */}
       {!notif.is_read && (
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#FF9501]" />
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#DD7230]" />
       )}
 
       {/* Icon bubble */}
@@ -153,7 +153,7 @@ function NotifRow({
               {typeLabel[notif.type] || notif.type}
             </span>
             {!notif.is_read && (
-              <span className="w-1.5 h-1.5 rounded-full bg-[#FF9501]" title="Unread" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#DD7230]" title="Unread" />
             )}
           </div>
           <time className="text-[10px] text-gray-400 font-normal shrink-0">
@@ -231,7 +231,7 @@ export function NotificationSidebar({
               <div className="relative w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700">
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#FF9501] rounded-full" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#DD7230] rounded-full" />
                 )}
               </div>
 
@@ -254,7 +254,7 @@ export function NotificationSidebar({
                 className="p-1.5 hover:bg-gray-100 rounded-md transition-colors cursor-pointer text-gray-400 hover:text-gray-700"
                 title="Refresh notifications"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-[#FF9501]" : ""}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-[#DD7230]" : ""}`} />
               </button>
               <button
                 onClick={onClose}
@@ -321,7 +321,7 @@ export function NotificationSidebar({
 
           {isLoading && (
             <span className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-              <Loader2 className="h-3 w-3 text-[#FF9501] animate-spin" />
+              <Loader2 className="h-3 w-3 text-[#DD7230] animate-spin" />
               Syncing...
             </span>
           )}
@@ -405,4 +405,4 @@ export function NotificationSidebar({
       `}</style>
     </>
   );
-}
+}

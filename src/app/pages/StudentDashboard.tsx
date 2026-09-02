@@ -126,7 +126,7 @@ export function StudentDashboard() {
       label: "University Policies & Guides",
       value: totalDocs,
       icon: BookOpen,
-      color: "#FF9501", // Base Amber
+      color: "#DD7230", // Base Amber
       subtitle: "Active in Knowledge Base",
       path: "/app/knowledge-repository"
     },
@@ -134,7 +134,7 @@ export function StudentDashboard() {
       label: "My AI Inquiries",
       value: weeklyQueries,
       icon: MessageSquare,
-      color: "#D97E00", // Medium Amber
+      color: "#DD7230", // Medium Amber
       subtitle: "Interactive Chat Sessions",
       path: "/app/ask-policy"
     },
@@ -142,7 +142,7 @@ export function StudentDashboard() {
       label: "Recent Document Activity",
       value: recentViewsCount,
       icon: Clock,
-      color: "#995900", // Dark Amber
+      color: "#DD7230", // Dark Amber
       subtitle: "Policies Accessed & Viewed",
       path: "/app/knowledge-repository"
     }
@@ -151,7 +151,7 @@ export function StudentDashboard() {
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
-        <Loader2 className="h-7 w-7 animate-spin text-[#FF9501]" />
+        <Loader2 className="h-7 w-7 animate-spin text-[#DD7230]" />
         <p className="text-xs text-gray-500 font-medium italic">Loading Student Portal Telemetry...</p>
       </div>
     );
@@ -165,7 +165,7 @@ export function StudentDashboard() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Student Dashboard</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Access university policies, AI assistance, campus announcements, and academic resources</p>
         </div>
-        <div className="flex items-center gap-2 bg-[#FF9501] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
+        <div className="flex items-center gap-2 bg-[#DD7230] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
           <GraduationCap className="h-4 w-4" />
           <span className="text-xs font-semibold uppercase tracking-wider">Student Portal</span>
         </div>
@@ -179,11 +179,11 @@ export function StudentDashboard() {
             <div
               key={stat.label}
               onClick={() => stat.path && navigate(stat.path)}
-              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#FF9501] hover:shadow-xs transition-all cursor-pointer group"
+              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#DD7230] hover:shadow-xs transition-all cursor-pointer group"
               title={`View ${stat.label}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#DD7230] transition-colors">{stat.label}</span>
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
                   style={{ backgroundColor: `${stat.color}15` }}
@@ -208,7 +208,7 @@ export function StudentDashboard() {
         {/* Query Activity Chart */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs lg:col-span-2">
           <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-[#FF9501]" />
+            <TrendingUp className="h-4 w-4 text-[#DD7230]" />
             My AI Query Activity (6 Months)
           </h2>
           <ResponsiveContainer width="100%" height={240}>
@@ -225,9 +225,9 @@ export function StudentDashboard() {
                   color: '#fff',
                   fontSize: '11px'
                 }}
-                itemStyle={{ color: '#FF9501' }}
+                itemStyle={{ color: '#DD7230' }}
               />
-              <Bar dataKey="queries" fill="#FF9501" radius={[3, 3, 0, 0]} barSize={36} name="AI Queries" />
+              <Bar dataKey="queries" fill="#DD7230" radius={[3, 3, 0, 0]} barSize={36} name="AI Queries" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -255,11 +255,11 @@ export function StudentDashboard() {
                 <div
                   key={index}
                   onClick={() => handleOpenAnnouncement(announcement)}
-                  className="flex items-start gap-2.5 p-2.5 bg-gray-50/60 rounded-lg hover:bg-orange-50/30 hover:border-[#FF9501] transition-all border border-gray-200/70 cursor-pointer group"
+                  className="flex items-start gap-2.5 p-2.5 bg-gray-50/60 rounded-lg hover:bg-orange-50/30 hover:border-[#DD7230] transition-all border border-gray-200/70 cursor-pointer group"
                 >
-                  <div className="mt-1 w-1.5 h-1.5 rounded-full bg-[#FF9501] shrink-0 group-hover:scale-125 transition-transform"></div>
+                  <div className="mt-1 w-1.5 h-1.5 rounded-full bg-[#DD7230] shrink-0 group-hover:scale-125 transition-transform"></div>
                   <div className="overflow-hidden">
-                    <p className="text-xs text-gray-900 font-semibold leading-snug truncate group-hover:text-[#D97E00] transition-colors">{announcement.title}</p>
+                    <p className="text-xs text-gray-900 font-semibold leading-snug truncate group-hover:text-[#DD7230] transition-colors">{announcement.title}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{announcement.date}</p>
                   </div>
                 </div>
@@ -276,12 +276,12 @@ export function StudentDashboard() {
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs flex flex-col h-full">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold text-gray-900 flex items-center gap-2">
-              <History className="h-4 w-4 text-[#FF9501]" />
+              <History className="h-4 w-4 text-[#DD7230]" />
               Recently Accessed Documents
             </h2>
             <button
               onClick={() => navigate('/app/knowledge-repository')}
-              className="text-[11px] text-[#FF9501] hover:text-[#D97E00] font-medium cursor-pointer"
+              className="text-[11px] text-[#DD7230] hover:text-[#DD7230] font-medium cursor-pointer"
             >
               Browse All &rarr;
             </button>
@@ -297,15 +297,15 @@ export function StudentDashboard() {
                 <div
                   key={index}
                   onClick={() => navigate('/app/knowledge-repository')}
-                  className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg hover:bg-orange-50/20 hover:border-[#FF9501] transition-all border border-gray-200/70 cursor-pointer group"
+                  className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg hover:bg-orange-50/20 hover:border-[#DD7230] transition-all border border-gray-200/70 cursor-pointer group"
                   title="Open in Knowledge Repository"
                 >
                   <div className="flex items-center gap-2.5 overflow-hidden">
-                    <div className="p-1.5 rounded-md bg-orange-50 text-[#FF9501] shrink-0">
+                    <div className="p-1.5 rounded-md bg-orange-50 text-[#DD7230] shrink-0">
                       <FileText className="h-3.5 w-3.5" />
                     </div>
                     <div className="truncate">
-                      <p className="text-xs text-gray-900 font-medium truncate group-hover:text-[#D97E00] transition-colors">{doc.title}</p>
+                      <p className="text-xs text-gray-900 font-medium truncate group-hover:text-[#DD7230] transition-colors">{doc.title}</p>
                       <p className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-wider">{doc.category}</p>
                     </div>
                   </div>
@@ -320,7 +320,7 @@ export function StudentDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <button 
             onClick={() => navigate('/app/knowledge-repository')} 
-            className="bg-gradient-to-br from-[#FF9501] to-[#D97E00] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
+            className="bg-gradient-to-br from-[#DD7230] to-[#DD7230] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
           >
             <div className="w-9 h-9 bg-white/20 backdrop-blur-xs rounded-lg flex items-center justify-center mb-4">
               <Search className="h-5 w-5 text-white" />
@@ -334,7 +334,7 @@ export function StudentDashboard() {
 
           <button 
             onClick={() => navigate('/app/ask-policy')} 
-            className="bg-gradient-to-br from-[#D97E00] to-[#995900] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
+            className="bg-gradient-to-br from-[#DD7230] to-[#DD7230] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
           >
             <div className="w-9 h-9 bg-white/20 backdrop-blur-xs rounded-lg flex items-center justify-center mb-4">
               <MessageSquare className="h-5 w-5 text-white" />

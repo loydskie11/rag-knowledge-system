@@ -149,7 +149,7 @@ export function GradeEvaluation() {
           <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden">
             <div className="p-3.5 bg-gray-50/80 border-b border-gray-200">
               <h3 className="font-semibold text-gray-900 text-xs flex items-center gap-2">
-                <Upload className="h-3.5 w-3.5 text-[#FF9501]" /> Document Upload
+                <Upload className="h-3.5 w-3.5 text-[#DD7230]" /> Document Upload
               </h3>
             </div>
             
@@ -161,7 +161,7 @@ export function GradeEvaluation() {
                 onClick={() => !selectedFile && fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
                   selectedFile ? "border-transparent bg-transparent p-0" : 
-                  isDragging ? "border-[#FF9501] bg-orange-50/30 cursor-pointer" : "border-gray-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                  isDragging ? "border-[#DD7230] bg-orange-50/30 cursor-pointer" : "border-gray-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
                 }`}
               >
                 {/* FILE DISPLAY WITH CLOSE ICON */}
@@ -175,7 +175,7 @@ export function GradeEvaluation() {
                       <X className="h-3.5 w-3.5" />
                     </button>
                     <div className="p-2.5 bg-white rounded-lg border border-gray-200 mb-2">
-                      <FileText className="h-6 w-6 text-[#FF9501]" />
+                      <FileText className="h-6 w-6 text-[#DD7230]" />
                     </div>
                     <p className="text-xs font-semibold text-gray-900 text-center px-2 truncate w-full">{selectedFile.name}</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
@@ -195,7 +195,7 @@ export function GradeEvaluation() {
               <button
                 onClick={submitForEvaluation}
                 disabled={!selectedFile || isEvaluating}
-                className="w-full mt-4 py-2.5 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-all disabled:opacity-50 disabled:hover:bg-[#FF9501] flex justify-center items-center gap-2 text-xs font-semibold shadow-2xs cursor-pointer active:scale-95"
+                className="w-full mt-4 py-2.5 bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-all disabled:opacity-50 disabled:hover:bg-[#DD7230] flex justify-center items-center gap-2 text-xs font-semibold shadow-2xs cursor-pointer active:scale-95"
               >
                 {isEvaluating ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing Grades...</> : "Evaluate Performance"}
               </button>
@@ -215,7 +215,7 @@ export function GradeEvaluation() {
         <div className="lg:col-span-2">
           {isEvaluating ? (
             <div className="bg-white rounded-xl shadow-2xs border border-gray-200 h-full min-h-[460px] flex flex-col items-center justify-center p-8 text-center">
-              <Loader2 className="h-8 w-8 text-[#FF9501] animate-spin mb-4" />
+              <Loader2 className="h-8 w-8 text-[#DD7230] animate-spin mb-4" />
               <h3 className="text-base font-semibold text-gray-900">Extracting Academic Data...</h3>
               <p className="text-xs text-gray-500 max-w-sm mt-1.5 leading-relaxed">Scanning transcripts and computing weighted averages using deterministic CTU grading mathematics.</p>
             </div>

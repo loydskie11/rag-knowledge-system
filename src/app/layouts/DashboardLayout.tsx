@@ -77,7 +77,7 @@ export function DashboardLayout() {
     const dept = sessionStorage.getItem("userDepartment");
     switch (userProfile.role) {
       case "ADMIN":   
-        return { icon: Shield, color: "bg-[#FF9501]", label: "Administrator" };
+        return { icon: Shield, color: "bg-[#DD7230]", label: "Administrator" };
       case "FACULTY": 
         if (designation === "College Dean") {
           return { icon: BookOpen, color: "bg-purple-600", label: `Dean • ${dept || 'College'}` };
@@ -85,9 +85,9 @@ export function DashboardLayout() {
         if (designation === "Program Chair") {
           return { icon: BookOpen, color: "bg-blue-600", label: `Chair • ${dept || 'Program'}` };
         }
-        return { icon: BookOpen, color: "bg-[#FF9501]", label: "Faculty" };
+        return { icon: BookOpen, color: "bg-[#DD7230]", label: "Faculty" };
       default:        
-        return { icon: GraduationCap, color: "bg-[#FF9501]", label: "Student" };
+        return { icon: GraduationCap, color: "bg-[#DD7230]", label: "Student" };
     }
   };
 
@@ -245,7 +245,7 @@ export function DashboardLayout() {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="flex items-center justify-between gap-3 px-3 py-2 mb-1 rounded-lg transition-all cursor-pointer text-gray-600 hover:bg-orange-50 hover:text-[#D97E00] font-medium group"
+                        className="flex items-center justify-between gap-3 px-3 py-2 mb-1 rounded-lg transition-all cursor-pointer text-gray-600 hover:bg-orange-50 hover:text-[#DD7230] font-medium group"
                         title={sidebarCollapsed ? item.label : undefined}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -255,7 +255,7 @@ export function DashboardLayout() {
                           </span>
                         </div>
                         {!sidebarCollapsed && (
-                          <ExternalLink className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 shrink-0 md:block hidden text-gray-400 group-hover:text-[#D97E00]" />
+                          <ExternalLink className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 shrink-0 md:block hidden text-gray-400 group-hover:text-[#DD7230]" />
                         )}
                       </a>
                     );
@@ -268,8 +268,8 @@ export function DashboardLayout() {
                       onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 mb-1 rounded-lg transition-all cursor-pointer ${
                         isActive
-                          ? "bg-[#FF9501] text-white font-semibold shadow-2xs"
-                          : "text-gray-600 hover:bg-orange-50 hover:text-[#D97E00] font-medium"
+                          ? "bg-[#DD7230] text-white font-semibold shadow-2xs"
+                          : "text-gray-600 hover:bg-orange-50 hover:text-[#DD7230] font-medium"
                       }`}
                       title={sidebarCollapsed ? item.label : undefined}
                     >
@@ -327,7 +327,7 @@ export function DashboardLayout() {
           {isAIChatOpen && (
             <div className="w-[360px] sm:w-[420px] h-[550px] bg-white rounded-2xl shadow-2xl border border-[#E5E7EB] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
               
-              <div className="p-4 bg-[#FF9501] text-white flex justify-between items-center shadow-md shrink-0">
+              <div className="p-4 bg-[#DD7230] text-white flex justify-between items-center shadow-md shrink-0">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 animate-pulse text-white" />
                   <span className="font-bold text-sm tracking-wide">AskPolicy Assistant</span>
@@ -348,7 +348,7 @@ export function DashboardLayout() {
 
           <button
             onClick={() => setIsAIChatOpen(!isAIChatOpen)}
-            className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer bg-gradient-to-br from-[#FF9501] to-[#D97E00] ${
+            className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer bg-gradient-to-br from-[#DD7230] to-[#DD7230] ${
               isAIChatOpen ? "rotate-90 bg-gray-800" : ""
             }`}
           >

@@ -121,10 +121,10 @@ export function AuditTrail() {
       {toast && (
         <div className={`fixed bottom-6 right-6 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-medium z-50 transition-all duration-300 animate-in slide-in-from-bottom-3 fade-in ${
           toast.type === 'success' 
-            ? 'bg-[#FFF4E5] text-[#D97E00] border border-[#FF9501]/30' 
+            ? 'bg-[#FFF4E5] text-[#DD7230] border border-[#DD7230]/30' 
             : 'bg-rose-50 text-rose-800 border border-rose-200'
         }`}>
-          {toast.type === 'success' ? <CheckCircle2 className="h-4 w-4 text-[#FF9501]" /> : <AlertCircle className="h-4 w-4 text-rose-500" />}
+          {toast.type === 'success' ? <CheckCircle2 className="h-4 w-4 text-[#DD7230]" /> : <AlertCircle className="h-4 w-4 text-rose-500" />}
           {toast.message}
         </div>
       )}
@@ -137,7 +137,7 @@ export function AuditTrail() {
         </div>
         <button 
           onClick={() => setShowExportModal(true)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-[#FF9501] text-white text-xs font-semibold rounded-lg hover:bg-[#D97E00] transition-colors shadow-2xs cursor-pointer active:scale-95 shrink-0"
+          className="flex items-center gap-2 px-3.5 py-2 bg-[#DD7230] text-white text-xs font-semibold rounded-lg hover:bg-[#DD7230] transition-colors shadow-2xs cursor-pointer active:scale-95 shrink-0"
         >
           <Download className="h-3.5 w-3.5" />
           Export Report
@@ -224,7 +224,7 @@ export function AuditTrail() {
                   placeholder="Search logs..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-colors" 
+                  className="w-full pl-9 pr-9 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-colors" 
                 />
                 {searchQuery && (
                   <button
@@ -244,7 +244,7 @@ export function AuditTrail() {
         <div className="overflow-x-auto min-h-[360px]">
           {isLoading ? (
              <div className="flex justify-center items-center h-[360px]">
-                <Loader2 className="h-6 w-6 animate-spin text-[#FF9501]" />
+                <Loader2 className="h-6 w-6 animate-spin text-[#DD7230]" />
              </div>
           ) : activeTab === "queries" ? (
             <table className="w-full text-left whitespace-nowrap table-fixed min-w-[800px]">
@@ -439,7 +439,7 @@ export function AuditTrail() {
                 <select 
                   value={exportType}
                   onChange={(e) => setExportType(e.target.value as TabType)}
-                  className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                  className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                 >
                   <option value="queries">AI Query Logs</option>
                   <option value="access">Document Access Logs</option>
@@ -457,7 +457,7 @@ export function AuditTrail() {
                       type="date" 
                       value={exportDates.start}
                       onChange={(e) => setExportDates({...exportDates, start: e.target.value})}
-                      className="w-full pl-8 pr-2 py-2 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-xs cursor-pointer"
+                      className="w-full pl-8 pr-2 py-2 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-xs cursor-pointer"
                     />
                   </div>
                 </div>
@@ -469,7 +469,7 @@ export function AuditTrail() {
                       type="date" 
                       value={exportDates.end}
                       onChange={(e) => setExportDates({...exportDates, end: e.target.value})}
-                      className="w-full pl-8 pr-2 py-2 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-xs cursor-pointer"
+                      className="w-full pl-8 pr-2 py-2 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-xs cursor-pointer"
                     />
                   </div>
                 </div>
@@ -486,7 +486,7 @@ export function AuditTrail() {
               </button>
               <button 
                 onClick={handleExport} 
-                className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-[#FF9501] hover:bg-[#D97E00] transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-[#DD7230] hover:bg-[#DD7230] transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
               >
                 <Download className="h-3.5 w-3.5" />
                 Download CSV

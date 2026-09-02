@@ -62,7 +62,7 @@ export function AdminDashboard() {
           catCounts[cat] = (catCounts[cat] || 0) + 1;
         });
         
-        const amberPalette = ["#FF9501", "#D97E00", "#995900", "#FFB84D", "#B36B00", "#FFD280"];
+        const amberPalette = ["#DD7230", "#DD7230", "#DD7230", "#FFB84D", "#B36B00", "#FFD280"];
         const formattedPieData = Object.keys(catCounts).map((key, index) => ({
           name: key,
           value: catCounts[key],
@@ -122,7 +122,7 @@ export function AdminDashboard() {
       label: "Total Knowledge Assets",
       value: globalStats.documents,
       icon: FileText,
-      color: "#FF9501", // Base Amber
+      color: "#DD7230", // Base Amber
       subtitle: "Policies, Evidences & Records",
       path: "/app/knowledge-repository"
     },
@@ -130,7 +130,7 @@ export function AdminDashboard() {
       label: "AI System Inquiries",
       value: globalStats.queries,
       icon: MessageSquare,
-      color: "#D97E00", // Medium Amber
+      color: "#DD7230", // Medium Amber
       subtitle: "All-Time Inquiries Resolved",
       path: "/app/audit-trail"
     },
@@ -194,7 +194,7 @@ export function AdminDashboard() {
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
-        <Loader2 className="h-7 w-7 animate-spin text-[#FF9501]" />
+        <Loader2 className="h-7 w-7 animate-spin text-[#DD7230]" />
         <p className="text-xs text-gray-500 font-medium italic">Compiling Institutional Telemetry...</p>
       </div>
     );
@@ -208,7 +208,7 @@ export function AdminDashboard() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Dashboard</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Complete system telemetry, governance queues, and management controls</p>
         </div>
-        <div className="flex items-center gap-2 bg-[#FF9501] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
+        <div className="flex items-center gap-2 bg-[#DD7230] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
           <Shield className="h-4 w-4" />
           <span className="text-xs font-semibold uppercase tracking-wider">System Administrator</span>
         </div>
@@ -222,11 +222,11 @@ export function AdminDashboard() {
             <div
               key={stat.label}
               onClick={() => stat.path && navigate(stat.path)}
-              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#FF9501] hover:shadow-xs transition-all cursor-pointer group"
+              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#DD7230] hover:shadow-xs transition-all cursor-pointer group"
               title={`View ${stat.label}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#DD7230] transition-colors">{stat.label}</span>
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
                   style={{ backgroundColor: `${stat.color}15` }}
@@ -250,7 +250,7 @@ export function AdminDashboard() {
       {/* System Alerts */}
       <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs">
         <div className="flex items-center gap-2 mb-3">
-          <AlertCircle className="h-4 w-4 text-[#FF9501]" />
+          <AlertCircle className="h-4 w-4 text-[#DD7230]" />
           <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">System Health & Compliance Alerts</h2>
         </div>
         <div className="space-y-2">
@@ -276,7 +276,7 @@ export function AdminDashboard() {
                   <Icon
                     className={`h-4 w-4 shrink-0 ${
                       alert.severity === "warning"
-                        ? "text-[#D97E00]"
+                        ? "text-[#DD7230]"
                         : alert.severity === "error"
                         ? "text-rose-600"
                         : alert.severity === "info"
@@ -299,7 +299,7 @@ export function AdminDashboard() {
         {/* Activity Trend Chart */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs h-[360px] flex flex-col">
           <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2 shrink-0">
-            <TrendingUp className="h-4 w-4 text-[#FF9501]" /> Activity Trends (6 Months)
+            <TrendingUp className="h-4 w-4 text-[#DD7230]" /> Activity Trends (6 Months)
           </h2>
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
@@ -309,8 +309,8 @@ export function AdminDashboard() {
                 <YAxis tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px' }} />
                 <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px', fontWeight: 500 }} />
-                <Line type="monotone" dataKey="documents" stroke="#FF9501" strokeWidth={2.5} dot={{ r: 3.5 }} name="Documents Uploaded" activeDot={{ r: 5 }} />
-                <Line type="monotone" dataKey="queries" stroke="#D97E00" strokeWidth={2.5} dot={{ r: 3.5 }} name="AI Queries" activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="documents" stroke="#DD7230" strokeWidth={2.5} dot={{ r: 3.5 }} name="Documents Uploaded" activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="queries" stroke="#DD7230" strokeWidth={2.5} dot={{ r: 3.5 }} name="AI Queries" activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -319,7 +319,7 @@ export function AdminDashboard() {
         {/* Document Taxonomy Chart */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs h-[360px] flex flex-col">
           <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2 shrink-0">
-            <FileText className="h-4 w-4 text-[#FF9501]" /> Document Taxonomy
+            <FileText className="h-4 w-4 text-[#DD7230]" /> Document Taxonomy
           </h2>
           <div className="flex-1 min-h-0">
             {documentDistribution.length === 0 ? (
@@ -352,7 +352,7 @@ export function AdminDashboard() {
         {/* User Distribution */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs h-[360px] flex flex-col">
           <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2 shrink-0">
-            <Users className="h-4 w-4 text-[#FF9501]" /> Active Demographics
+            <Users className="h-4 w-4 text-[#DD7230]" /> Active Demographics
           </h2>
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
@@ -361,7 +361,7 @@ export function AdminDashboard() {
                 <XAxis dataKey="role" tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip cursor={{ fill: '#F9FAFB' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '11px' }} />
-                <Bar dataKey="count" fill="#FF9501" radius={[4, 4, 0, 0]} barSize={44} name="Total Users" />
+                <Bar dataKey="count" fill="#DD7230" radius={[4, 4, 0, 0]} barSize={44} name="Total Users" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -370,7 +370,7 @@ export function AdminDashboard() {
         {/* Trending AI Policy Topics */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs h-[360px] flex flex-col">
           <h2 className="text-xs font-semibold text-gray-900 mb-1 flex items-center gap-2 shrink-0">
-            <MessageSquare className="h-4 w-4 text-[#FF9501]" /> Trending AI Policy Topics
+            <MessageSquare className="h-4 w-4 text-[#DD7230]" /> Trending AI Policy Topics
           </h2>
           <p className="text-[11px] text-gray-500 mb-3">Most frequent subjects queried by students and faculty via the AI Assistant.</p>
           <div className="flex-1 overflow-y-auto pr-1 min-h-0 custom-scrollbar">
@@ -381,7 +381,7 @@ export function AdminDashboard() {
                 {popularTopics.map((topic, index) => (
                   <div
                     key={index}
-                    className="px-3 py-1.5 border border-gray-200 bg-gray-50/70 hover:bg-orange-50/30 hover:border-[#FF9501] rounded-lg text-xs font-medium text-gray-700 shadow-2xs transition-colors cursor-default"
+                    className="px-3 py-1.5 border border-gray-200 bg-gray-50/70 hover:bg-orange-50/30 hover:border-[#DD7230] rounded-lg text-xs font-medium text-gray-700 shadow-2xs transition-colors cursor-default"
                   >
                     # {topic.label}
                   </div>

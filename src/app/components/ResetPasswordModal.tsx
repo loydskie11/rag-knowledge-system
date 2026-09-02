@@ -85,7 +85,7 @@ export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPass
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                 placeholder="Enter new password (min. 6 characters)"
               />
             </div>
@@ -100,7 +100,7 @@ export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPass
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                 placeholder="Confirm new password"
               />
             </div>
@@ -109,7 +109,7 @@ export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPass
           <button
             type="submit"
             disabled={isLoading || (status?.type === 'success')}
-            className="w-full py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] text-xs font-semibold shadow-2xs disabled:opacity-50 flex justify-center items-center transition-colors cursor-pointer active:scale-98"
+            className="w-full py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] text-xs font-semibold shadow-2xs disabled:opacity-50 flex justify-center items-center transition-colors cursor-pointer active:scale-98"
           >
             {isLoading ? (
               <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

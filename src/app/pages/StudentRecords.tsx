@@ -255,7 +255,7 @@ export function StudentRecords() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white rounded-xl shadow-2xs border border-gray-200 p-5">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#FF9501] rounded-xl flex items-center justify-center shadow-2xs">
+            <div className="w-12 h-12 bg-[#DD7230] rounded-xl flex items-center justify-center shadow-2xs">
               <GraduationCap className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -267,14 +267,14 @@ export function StudentRecords() {
         {courses.map((course) => (
           <div
             key={course.code}
-            className="bg-white rounded-xl shadow-2xs border border-gray-200 p-5 hover:border-[#FF9501]/40 transition-all"
+            className="bg-white rounded-xl shadow-2xs border border-gray-200 p-5 hover:border-[#DD7230]/40 transition-all"
           >
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center border border-[#FF9501]/20">
-                <Users className="h-6 w-6 text-[#D97E00]" />
+              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center border border-[#DD7230]/20">
+                <Users className="h-6 w-6 text-[#DD7230]" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-[#D97E00]">{course.students.length}</p>
+                <p className="text-2xl font-bold text-[#DD7230]">{course.students.length}</p>
                 <p className="text-xs text-gray-500 font-medium">{course.code}</p>
               </div>
             </div>
@@ -292,7 +292,7 @@ export function StudentRecords() {
               placeholder="Search by student name, ID, or strand..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
             />
           </div>
           <button className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200 cursor-pointer">
@@ -313,7 +313,7 @@ export function StudentRecords() {
             >
               <div className="flex items-center gap-4">
                 {expandedCourse === course.code ? (
-                  <ChevronDown className="h-5 w-5 text-[#FF9501]" />
+                  <ChevronDown className="h-5 w-5 text-[#DD7230]" />
                 ) : (
                   <ChevronRight className="h-5 w-5 text-gray-400" />
                 )}
@@ -325,7 +325,7 @@ export function StudentRecords() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="px-3.5 py-1.5 bg-[#FF9501] text-white rounded-lg text-xs font-semibold shadow-2xs">
+                <span className="px-3.5 py-1.5 bg-[#DD7230] text-white rounded-lg text-xs font-semibold shadow-2xs">
                   {course.students.length} Students
                 </span>
               </div>
@@ -353,7 +353,7 @@ export function StudentRecords() {
                           <td className="px-6 py-3.5 text-xs text-gray-900 font-semibold">{student.studentId}</td>
                           <td className="px-6 py-3.5">
                             <div className="flex items-center gap-3">
-                              <div className="w-7 h-7 bg-orange-100 text-[#D97E00] rounded-md flex items-center justify-center text-[10px] font-bold">
+                              <div className="w-7 h-7 bg-orange-100 text-[#DD7230] rounded-md flex items-center justify-center text-[10px] font-bold">
                                 {student.name.split(" ").map(n => n[0]).join("")}
                               </div>
                               <span className="text-xs text-gray-900 font-medium">{student.name}</span>
@@ -379,7 +379,7 @@ export function StudentRecords() {
                           </td>
                           <td className="px-6 py-3.5">
                             <button
-                              className="p-1.5 text-gray-400 hover:text-[#D97E00] hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+                              className="p-1.5 text-gray-400 hover:text-[#DD7230] hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
                               title="View Details"
                             >
                               <Eye className="h-4 w-4" />

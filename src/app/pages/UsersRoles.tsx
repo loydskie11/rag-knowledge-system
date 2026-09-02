@@ -263,7 +263,7 @@ export function UsersRoles() {
   });
 
   const roleStats = [
-    { role: "Administrator", userCount: users.filter(u => u.role === "ADMIN").length, color: "#FF9501" },
+    { role: "Administrator", userCount: users.filter(u => u.role === "ADMIN").length, color: "#DD7230" },
     { role: "Faculty", userCount: users.filter(u => u.role === "FACULTY").length, color: "#FDB913" },
     { role: "Student", userCount: users.filter(u => u.role === "STUDENT").length, color: "#006837" }
   ];
@@ -271,7 +271,7 @@ export function UsersRoles() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-[#FF9501]" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#DD7230]" />
       </div>
     );
   }
@@ -299,7 +299,7 @@ export function UsersRoles() {
         </div>
         <button 
           onClick={() => setShowAddUserModal(true)} 
-          className="flex items-center gap-2 px-4 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors text-xs font-semibold cursor-pointer shadow-2xs self-start sm:self-auto"
+          className="flex items-center gap-2 px-4 py-2 bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors text-xs font-semibold cursor-pointer shadow-2xs self-start sm:self-auto"
         >
           <UserPlus className="h-4 w-4" />
           <span>Add New User</span>
@@ -325,7 +325,7 @@ export function UsersRoles() {
       {pendingFaculty.length > 0 && (
         <div className="bg-white rounded-xl border border-amber-200 shadow-2xs overflow-hidden">
           <div className="p-4 border-b border-amber-100 bg-amber-50/50 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[#FF9501]" />
+            <Clock className="h-4 w-4 text-[#DD7230]" />
             <h2 className="text-xs font-bold text-amber-900 uppercase tracking-wider">Pending Faculty Registrations ({pendingFaculty.length})</h2>
           </div>
           <div className="overflow-x-auto">
@@ -380,7 +380,7 @@ export function UsersRoles() {
                 placeholder="Search by name, email, or designation..." 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)} 
-                className="w-full pl-9 pr-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-colors" 
+                className="w-full pl-9 pr-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-colors" 
               />
             </div>
             
@@ -388,7 +388,7 @@ export function UsersRoles() {
               <select 
                 value={selectedRole} 
                 onChange={(e) => setSelectedRole(e.target.value)} 
-                className="sm:w-40 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-700 cursor-pointer transition-colors"
+                className="sm:w-40 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-700 cursor-pointer transition-colors"
               >
                 <option value="all">All Roles</option>
                 <option value="ADMIN">Admin</option>
@@ -399,7 +399,7 @@ export function UsersRoles() {
               <select 
                 value={selectedStatus} 
                 onChange={(e) => setSelectedStatus(e.target.value)} 
-                className="sm:w-40 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-700 cursor-pointer transition-colors"
+                className="sm:w-40 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-700 cursor-pointer transition-colors"
               >
                 <option value="all">All Status</option>
                 <option value="Active">Active</option>
@@ -447,14 +447,14 @@ export function UsersRoles() {
                                 : 'Faculty Member'}
                             </span>
                             {user.is_iqa_auditor && (
-                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-orange-100 text-[#D97E00] rounded border border-orange-200">
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-orange-100 text-[#DD7230] rounded border border-orange-200">
                                 IQA Auditor
                               </span>
                             )}
                           </div>
                         ) : (
                           <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${
-                            user.role === 'ADMIN' ? 'bg-orange-50 text-[#D97E00] border-[#FF9501]/30' : 
+                            user.role === 'ADMIN' ? 'bg-orange-50 text-[#DD7230] border-[#DD7230]/30' : 
                             'bg-emerald-50 text-emerald-700 border-emerald-200/60'
                           }`}>
                             {user.role}
@@ -541,17 +541,17 @@ export function UsersRoles() {
             <form onSubmit={handleAddUserSubmit} className="p-5 space-y-3.5 overflow-y-auto flex-1 custom-scrollbar">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Full Name <span className="text-rose-500">*</span></label>
-                <input type="text" name="name" required value={addUserData.name} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="e.g., Dr. Jane Doe" />
+                <input type="text" name="name" required value={addUserData.name} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" placeholder="e.g., Dr. Jane Doe" />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Email Address <span className="text-rose-500">*</span></label>
-                <input type="email" name="email" required value={addUserData.email} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="jane.doe@ctu.edu.ph" />
+                <input type="email" name="email" required value={addUserData.email} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" placeholder="jane.doe@ctu.edu.ph" />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">System Role <span className="text-rose-500">*</span></label>
-                <select name="role" value={addUserData.role} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer">
+                <select name="role" value={addUserData.role} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
                   <option value="ADMIN">Administrator</option>
                   <option value="FACULTY">Faculty</option>
                   <option value="STUDENT">Student</option>
@@ -565,7 +565,7 @@ export function UsersRoles() {
                     <select 
                       value={addUserData.designation} 
                       onChange={(e) => setAddUserData({ ...addUserData, designation: e.target.value })} 
-                      className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                      className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                     >
                       <option value="Faculty Member">Faculty Member (Regular)</option>
                       <option value="Program Chair">Program Chair</option>
@@ -579,7 +579,7 @@ export function UsersRoles() {
                       <select
                         value={addUserData.designation_entity}
                         onChange={(e) => setAddUserData({ ...addUserData, designation_entity: e.target.value })}
-                        className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                        className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                       >
                         {CAMPUS_PROGRAMS.map((prog) => (
                           <option key={prog.code} value={prog.code}>
@@ -596,7 +596,7 @@ export function UsersRoles() {
                       <select
                         value={addUserData.designation_entity || CAMPUS_COLLEGES[0]}
                         onChange={(e) => setAddUserData({ ...addUserData, designation_entity: e.target.value })}
-                        className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                        className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                       >
                         {CAMPUS_COLLEGES.map((col) => (
                           <option key={col} value={col}>
@@ -616,7 +616,7 @@ export function UsersRoles() {
                     name="administrative_office" 
                     value={addUserData.administrative_office} 
                     onChange={handleAddUserChange} 
-                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                   >
                     <option value="">None / Unassigned (Academic Only)</option>
                     {ISO_OFFICES_16.map((off) => (
@@ -627,13 +627,13 @@ export function UsersRoles() {
               )}
 
               {addUserData.role === "FACULTY" && (
-                <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#FF9501]/30 rounded-lg">
+                <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#DD7230]/30 rounded-lg">
                   <input
                     type="checkbox"
                     id="add_is_iqa_auditor"
                     checked={addUserData.is_iqa_auditor}
                     onChange={(e) => setAddUserData({ ...addUserData, is_iqa_auditor: e.target.checked })}
-                    className="h-3.5 w-3.5 mt-0.5 text-[#FF9501] focus:ring-[#FF9501] border-gray-300 rounded cursor-pointer"
+                    className="h-3.5 w-3.5 mt-0.5 text-[#DD7230] focus:ring-[#DD7230] border-gray-300 rounded cursor-pointer"
                   />
                   <label htmlFor="add_is_iqa_auditor" className="text-xs text-gray-700 font-medium cursor-pointer">
                     Designate as Internal Quality Auditor (IQA Auditor)
@@ -643,14 +643,14 @@ export function UsersRoles() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Temporary Password <span className="text-rose-500">*</span></label>
-                <input type="password" name="password" required value={addUserData.password} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" placeholder="Enter secure password" />
+                <input type="password" name="password" required value={addUserData.password} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" placeholder="Enter secure password" />
               </div>
             
               <div className="pt-2 flex gap-2 justify-end border-t border-gray-200 shrink-0">
                 <button type="button" onClick={() => setShowAddUserModal(false)} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" disabled={isCreating} className="px-4 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                <button type="submit" disabled={isCreating} className="px-4 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
                    {isCreating ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Creating...</> : "Create Account"}
                 </button>
               </div>
@@ -680,7 +680,7 @@ export function UsersRoles() {
                   type="text" 
                   value={editingUser.full_name || ""} 
                   onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })} 
-                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" 
+                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" 
                 />
               </div>
 
@@ -701,7 +701,7 @@ export function UsersRoles() {
                     <select 
                       value={editingUser.designation || "Faculty Member"} 
                       onChange={(e) => setEditingUser({ ...editingUser, designation: e.target.value })} 
-                      className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                      className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                     >
                       <option value="Faculty Member">Faculty Member (Regular)</option>
                       <option value="Program Chair">Program Chair</option>
@@ -715,7 +715,7 @@ export function UsersRoles() {
                       <select
                         value={editingUser.designation_entity || editingUser.department || "BSIT"}
                         onChange={(e) => setEditingUser({ ...editingUser, designation_entity: e.target.value, department: e.target.value })}
-                        className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                        className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                       >
                         {CAMPUS_PROGRAMS.map((prog) => (
                           <option key={prog.code} value={prog.code}>
@@ -732,7 +732,7 @@ export function UsersRoles() {
                       <select
                         value={editingUser.designation_entity || editingUser.department || CAMPUS_COLLEGES[0]}
                         onChange={(e) => setEditingUser({ ...editingUser, designation_entity: e.target.value, department: e.target.value })}
-                        className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                        className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                       >
                         {CAMPUS_COLLEGES.map((col) => (
                           <option key={col} value={col}>
@@ -751,7 +751,7 @@ export function UsersRoles() {
                   <select 
                     value={editingUser.administrative_office || ""} 
                     onChange={(e) => setEditingUser({ ...editingUser, administrative_office: e.target.value })} 
-                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                   >
                     <option value="">None / Unassigned (Academic Only)</option>
                     {ISO_OFFICES_16.map((off) => (
@@ -763,13 +763,13 @@ export function UsersRoles() {
               )}
 
               {editingUser.role === "FACULTY" && (
-                <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#FF9501]/30 rounded-lg">
+                <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#DD7230]/30 rounded-lg">
                   <input
                     type="checkbox"
                     id="edit_is_iqa_auditor"
                     checked={Boolean(editingUser.is_iqa_auditor)}
                     onChange={(e) => setEditingUser({ ...editingUser, is_iqa_auditor: e.target.checked })}
-                    className="h-3.5 w-3.5 mt-0.5 text-[#FF9501] focus:ring-[#FF9501] border-gray-300 rounded cursor-pointer"
+                    className="h-3.5 w-3.5 mt-0.5 text-[#DD7230] focus:ring-[#DD7230] border-gray-300 rounded cursor-pointer"
                   />
                   <label htmlFor="edit_is_iqa_auditor" className="text-xs text-gray-700 font-medium cursor-pointer">
                     Designate as Internal Quality Auditor (IQA Auditor) — Campus-wide audit access
@@ -781,7 +781,7 @@ export function UsersRoles() {
                 <button type="button" onClick={() => setShowEditUserModal(false)} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" disabled={isUpdatingUser} className="px-4 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                <button type="submit" disabled={isUpdatingUser} className="px-4 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
                    {isUpdatingUser ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Saving...</> : "Save Assignment"}
                 </button>
               </div>

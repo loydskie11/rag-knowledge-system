@@ -107,7 +107,7 @@ export function FacultyDashboard() {
       label: "Institutional Knowledge Base",
       value: totalDocs,
       icon: BookOpen,
-      color: "#FF9501", // Base Amber
+      color: "#DD7230", // Base Amber
       subtitle: "University Policies & Manuals",
       path: "/app/knowledge-repository"
     },
@@ -115,7 +115,7 @@ export function FacultyDashboard() {
       label: "AI Policy Consultations",
       value: myQueriesCount,
       icon: MessageSquare,
-      color: "#D97E00", // Medium Amber
+      color: "#DD7230", // Medium Amber
       subtitle: "Interactive Query Inquiries",
       path: "/app/ask-policy"
     },
@@ -123,7 +123,7 @@ export function FacultyDashboard() {
       label: "Document Access Logs",
       value: myAccessCount,
       icon: FileText,
-      color: "#995900", // Dark Amber
+      color: "#DD7230", // Dark Amber
       subtitle: "Total Views & Downloads",
       path: "/app/knowledge-repository"
     },
@@ -143,12 +143,12 @@ export function FacultyDashboard() {
   ];
   
   // UPDATED: Now using Base Amber and Gray instead of Green
-  const PIE_COLORS = ["#FF9501", "#E5E7EB"]; 
+  const PIE_COLORS = ["#DD7230", "#E5E7EB"]; 
 
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
-        <Loader2 className="h-7 w-7 animate-spin text-[#FF9501]" />
+        <Loader2 className="h-7 w-7 animate-spin text-[#DD7230]" />
         <p className="text-xs text-gray-500 font-medium italic">Loading Faculty Dashboard Telemetry...</p>
       </div>
     );
@@ -163,7 +163,7 @@ export function FacultyDashboard() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Faculty Dashboard</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Manage institutional knowledge, evidence submissions, and accreditation compliance</p>
         </div>
-        <div className="flex items-center gap-2 bg-[#FF9501] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
+        <div className="flex items-center gap-2 bg-[#DD7230] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
           <Award className="h-4 w-4" />
           <span className="text-xs font-semibold uppercase tracking-wider">Faculty Portal</span>
         </div>
@@ -177,11 +177,11 @@ export function FacultyDashboard() {
             <div
               key={stat.label}
               onClick={() => stat.path && navigate(stat.path)}
-              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#FF9501] hover:shadow-xs transition-all cursor-pointer group"
+              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#DD7230] hover:shadow-xs transition-all cursor-pointer group"
               title={`View ${stat.label}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#D97E00] transition-colors">{stat.label}</span>
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#DD7230] transition-colors">{stat.label}</span>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: `${stat.color}15` }}>
                   <Icon className="h-4 w-4" style={{ color: stat.color }} />
                 </div>
@@ -203,7 +203,7 @@ export function FacultyDashboard() {
         {/* Engagement Activity Chart */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs lg:col-span-2">
           <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-[#FF9501]" />
+            <TrendingUp className="h-4 w-4 text-[#DD7230]" />
             My System Engagement (6 Months)
           </h2>
           <ResponsiveContainer width="100%" height={230}>
@@ -212,8 +212,8 @@ export function FacultyDashboard() {
               <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip cursor={{ fill: '#F9FAFB' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '11px' }} />
-              <Bar dataKey="Views" fill="#FF9501" radius={[3, 3, 0, 0]} maxBarSize={36} name="Document Views" />
-              <Bar dataKey="Queries" fill="#D97E00" radius={[3, 3, 0, 0]} maxBarSize={36} name="AI Queries" />
+              <Bar dataKey="Views" fill="#DD7230" radius={[3, 3, 0, 0]} maxBarSize={36} name="Document Views" />
+              <Bar dataKey="Queries" fill="#DD7230" radius={[3, 3, 0, 0]} maxBarSize={36} name="AI Queries" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -221,16 +221,16 @@ export function FacultyDashboard() {
         {/* Accreditation Readiness Widget */}
         <div 
           onClick={() => navigate('/app/accreditation-support')}
-          className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs flex flex-col items-center justify-between relative overflow-hidden cursor-pointer hover:border-[#FF9501] hover:shadow-xs transition-all group"
+          className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs flex flex-col items-center justify-between relative overflow-hidden cursor-pointer hover:border-[#DD7230] hover:shadow-xs transition-all group"
           title="Open Accreditation Support"
         >
           <div className="w-full">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold text-gray-900 flex items-center gap-2 group-hover:text-[#D97E00] transition-colors">
-                <ShieldCheck className="h-4 w-4 text-[#D97E00]" />
+              <h2 className="text-xs font-semibold text-gray-900 flex items-center gap-2 group-hover:text-[#DD7230] transition-colors">
+                <ShieldCheck className="h-4 w-4 text-[#DD7230]" />
                 {userDepartment} QA Readiness
               </h2>
-              <span className="text-[10px] text-gray-400 font-medium group-hover:text-[#FF9501]">View &rarr;</span>
+              <span className="text-[10px] text-gray-400 font-medium group-hover:text-[#DD7230]">View &rarr;</span>
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5">Real-time accreditation compliance</p>
           </div>
@@ -256,7 +256,7 @@ export function FacultyDashboard() {
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-2xl font-bold text-[#D97E00] group-hover:scale-105 transition-transform">{accreditationScore}%</span>
+              <span className="text-2xl font-bold text-[#DD7230] group-hover:scale-105 transition-transform">{accreditationScore}%</span>
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Compliant</span>
             </div>
           </div>
@@ -274,7 +274,7 @@ export function FacultyDashboard() {
         {/* Recent Activity List */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs flex flex-col h-full">
           <h2 className="text-xs font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[#FF9501]" />
+            <Clock className="h-4 w-4 text-[#DD7230]" />
             My Recent Activity
           </h2>
           {recentActivity.length === 0 ? (
@@ -286,7 +286,7 @@ export function FacultyDashboard() {
               {recentActivity.map((log, index) => (
                 <div key={index} className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg hover:bg-orange-50/20 transition-colors border border-gray-200/70">
                   <div className="flex items-center gap-2.5 overflow-hidden">
-                    <div className={`p-1.5 rounded-md shrink-0 ${log.action === 'Download' ? 'bg-orange-50 text-[#D97E00]' : 'bg-orange-50 text-[#FF9501]'}`}>
+                    <div className={`p-1.5 rounded-md shrink-0 ${log.action === 'Download' ? 'bg-orange-50 text-[#DD7230]' : 'bg-orange-50 text-[#DD7230]'}`}>
                       {log.action === 'Download' ? <UploadCloud className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
                     </div>
                     <div className="truncate">
@@ -304,7 +304,7 @@ export function FacultyDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <button 
             onClick={() => navigate('/app/accreditation-support')} 
-            className="bg-gradient-to-br from-[#FF9501] to-[#D97E00] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
+            className="bg-gradient-to-br from-[#DD7230] to-[#DD7230] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
           >
             <div className="w-9 h-9 bg-white/20 backdrop-blur-xs rounded-lg flex items-center justify-center mb-4">
               <UploadCloud className="h-5 w-5 text-white" />
@@ -318,7 +318,7 @@ export function FacultyDashboard() {
 
           <button 
             onClick={() => navigate('/app/knowledge-repository')} 
-            className="bg-gradient-to-br from-[#D97E00] to-[#995900] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
+            className="bg-gradient-to-br from-[#DD7230] to-[#DD7230] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
           >
             <div className="w-9 h-9 bg-white/20 backdrop-blur-xs rounded-lg flex items-center justify-center mb-4">
               <Search className="h-5 w-5 text-white" />

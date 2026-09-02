@@ -109,13 +109,13 @@ export function AdminProfilePage() {
 
       {/* Avatar Card */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 flex items-center gap-5 shadow-2xs">
-        <div className="w-16 h-16 rounded-full bg-[#FF9501] flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-2xs">
+        <div className="w-16 h-16 rounded-full bg-[#DD7230] flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-2xs">
           AU
         </div>
         <div>
           <p className="text-lg font-bold text-gray-900">{profileData.fullName}</p>
           <p className="text-xs text-gray-500">{profileData.email}</p>
-          <span className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-[#D97E00] border border-[#FF9501]/20">
+          <span className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-[#DD7230] border border-[#DD7230]/20">
             <Shield className="h-3 w-3" />
             {profileData.role}
           </span>
@@ -139,7 +139,7 @@ export function AdminProfilePage() {
             onClick={() => setActiveTab(key)}
             className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === key
-                ? "bg-white text-[#D97E00] shadow-2xs border border-gray-200"
+                ? "bg-white text-[#DD7230] shadow-2xs border border-gray-200"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -164,7 +164,7 @@ export function AdminProfilePage() {
                   value={profileData.fullName}
                   onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
                   placeholder="Full Name"
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                 />
               </div>
             </div>
@@ -193,7 +193,7 @@ export function AdminProfilePage() {
                 value={profileData.department}
                 onChange={(e) => setProfileData({ ...profileData, department: e.target.value })}
                 placeholder="Department"
-                className="w-full px-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                className="w-full px-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
               />
             </div>
 
@@ -216,7 +216,7 @@ export function AdminProfilePage() {
             <div className="pt-2 flex items-center gap-3">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
               >
                 <Save className="h-4 w-4" />
                 Save Changes
@@ -263,7 +263,7 @@ export function AdminProfilePage() {
                       setPasswordError("");
                       setPasswordData({ ...passwordData, [key]: e.target.value });
                     }}
-                    className="w-full pl-10 pr-10 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                    className="w-full pl-10 pr-10 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                     placeholder="••••••••"
                   />
                   <button
@@ -287,7 +287,7 @@ export function AdminProfilePage() {
             <div className="pt-2 flex items-center gap-3">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
               >
                 <Save className="h-4 w-4" />
                 Update Password
@@ -313,8 +313,8 @@ export function AdminProfilePage() {
           </p>
 
           {/* Info box explaining why this matters */}
-          <div className="flex items-start gap-3 bg-orange-50 border border-[#FF9501]/20 rounded-xl p-4 mb-5">
-            <LifeBuoy className="h-5 w-5 text-[#D97E00] flex-shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 bg-orange-50 border border-[#DD7230]/20 rounded-xl p-4 mb-5">
+            <LifeBuoy className="h-5 w-5 text-[#DD7230] flex-shrink-0 mt-0.5" />
             <div className="text-xs text-gray-700">
               <p className="font-semibold text-gray-900 mb-1">Why is this important?</p>
               <p className="text-gray-600 leading-relaxed">
@@ -360,7 +360,7 @@ export function AdminProfilePage() {
                   required
                   value={recoveryEmail}
                   onChange={(e) => { setRecoveryError(""); setRecoveryEmail(e.target.value); }}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                   placeholder="yourpersonal@gmail.com"
                 />
               </div>
@@ -378,7 +378,7 @@ export function AdminProfilePage() {
                   required
                   value={confirmRecoveryEmail}
                   onChange={(e) => { setRecoveryError(""); setConfirmRecoveryEmail(e.target.value); }}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
                   placeholder="yourpersonal@gmail.com"
                 />
               </div>
@@ -387,7 +387,7 @@ export function AdminProfilePage() {
             <div className="pt-2 flex items-center gap-3">
               <button
                 type="submit"
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98"
               >
                 <Save className="h-4 w-4" />
                 Save Recovery Email

@@ -51,7 +51,7 @@ export function Settings() {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-[#FF9501]" /></div>;
+    return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-[#DD7230]" /></div>;
   }
 
   return (
@@ -61,10 +61,10 @@ export function Settings() {
       {toast && (
         <div className={`fixed bottom-8 right-8 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-medium z-[100] transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in ${
           toast.type === 'success' 
-            ? 'bg-[#FFF4E5] text-[#D97E00] border border-[#FF9501]/30' 
+            ? 'bg-[#FFF4E5] text-[#DD7230] border border-[#DD7230]/30' 
             : 'bg-rose-50 text-rose-800 border border-rose-200'
         }`}>
-          {toast.type === 'success' ? <CheckCircle className="h-4 w-4 text-[#FF9501]" /> : <Loader2 className="h-4 w-4 text-rose-500" />}
+          {toast.type === 'success' ? <CheckCircle className="h-4 w-4 text-[#DD7230]" /> : <Loader2 className="h-4 w-4 text-rose-500" />}
           {toast.message}
         </div>
       )}
@@ -84,7 +84,7 @@ export function Settings() {
             onClick={() => setActiveTab("profile")} 
             className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${
               activeTab === "profile" 
-                ? "border-b-2 border-[#FF9501] text-[#D97E00] font-semibold bg-white" 
+                ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" 
                 : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"
             }`}
           >
@@ -94,7 +94,7 @@ export function Settings() {
             onClick={() => setActiveTab("security")} 
             className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${
               activeTab === "security" 
-                ? "border-b-2 border-[#FF9501] text-[#D97E00] font-semibold bg-white" 
+                ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" 
                 : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"
             }`}
           >
@@ -104,7 +104,7 @@ export function Settings() {
             onClick={() => setActiveTab("ai_engine")} 
             className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${
               activeTab === "ai_engine" 
-                ? "border-b-2 border-[#FF9501] text-[#D97E00] font-semibold bg-white" 
+                ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" 
                 : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"
             }`}
           >
@@ -127,7 +127,7 @@ export function Settings() {
                       type="text" 
                       value={settings.platform_name} 
                       onChange={(e) => handleChange("platform_name", e.target.value)} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-900" 
+                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" 
                     />
                   </div>
                   <div>
@@ -136,7 +136,7 @@ export function Settings() {
                       type="text" 
                       value={settings.campus} 
                       onChange={(e) => handleChange("campus", e.target.value)} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-900" 
+                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" 
                     />
                   </div>
                   <div>
@@ -145,7 +145,7 @@ export function Settings() {
                       type="email" 
                       value={settings.admin_email} 
                       onChange={(e) => handleChange("admin_email", e.target.value)} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-900" 
+                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" 
                     />
                   </div>
                 </div>
@@ -186,14 +186,14 @@ export function Settings() {
                       <h3 className="text-xs font-semibold text-gray-900">Student Auto-Verification</h3>
                       <p className="text-[11px] text-gray-500 mt-0.5">Student accounts bypass manual admin approval and are automatically verified upon successful OTP confirmation.</p>
                     </div>
-                    <input type="checkbox" defaultChecked disabled className="w-4 h-4 mt-0.5 cursor-not-allowed accent-[#FF9501]" />
+                    <input type="checkbox" defaultChecked disabled className="w-4 h-4 mt-0.5 cursor-not-allowed accent-[#DD7230]" />
                   </div>
                   <div className="flex items-start justify-between p-4 bg-gray-50/40 border border-gray-200 rounded-xl">
                     <div>
                       <h3 className="text-xs font-semibold text-gray-900">Strict Faculty Verification</h3>
                       <p className="text-[11px] text-gray-500 mt-0.5">Faculty and Administrator accounts remain in a 'Pending' state until manually verified by an existing Administrator.</p>
                     </div>
-                    <input type="checkbox" defaultChecked disabled className="w-4 h-4 mt-0.5 cursor-not-allowed accent-[#FF9501]" />
+                    <input type="checkbox" defaultChecked disabled className="w-4 h-4 mt-0.5 cursor-not-allowed accent-[#DD7230]" />
                   </div>
                 </div>
               </div>
@@ -208,7 +208,7 @@ export function Settings() {
                       type="number" 
                       value={settings.jwt_expiration} 
                       onChange={(e) => handleChange("jwt_expiration", Number(e.target.value))} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" 
+                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" 
                     />
                   </div>
                   <div>
@@ -217,7 +217,7 @@ export function Settings() {
                       type="number" 
                       value={settings.otp_expiration} 
                       onChange={(e) => handleChange("otp_expiration", Number(e.target.value))} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]" 
+                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" 
                     />
                   </div>
                 </div>
@@ -239,7 +239,7 @@ export function Settings() {
                     <select 
                       value={settings.ai_model} 
                       onChange={(e) => handleChange("ai_model", e.target.value)} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer text-gray-900"
+                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer text-gray-900"
                     >
                       <option value="qwen2.5">Ollama: Qwen 2.5 (Local Server)</option>
                       <option value="qwen-2.5-32b">Groq Cloud: Qwen 2.5 32B</option>
@@ -250,7 +250,7 @@ export function Settings() {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-medium text-gray-700">Temperature Threshold</label>
-                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-orange-50 text-[#D97E00] border border-[#FF9501]/30">
+                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-orange-50 text-[#DD7230] border border-[#DD7230]/30">
                         {settings.ai_temperature}
                       </span>
                     </div>
@@ -261,7 +261,7 @@ export function Settings() {
                       step="0.1" 
                       value={settings.ai_temperature} 
                       onChange={(e) => handleChange("ai_temperature", parseFloat(e.target.value))} 
-                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2 accent-[#FF9501]" 
+                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2 accent-[#DD7230]" 
                     />
                     <div className="flex justify-between text-[10px] text-gray-400 mt-1.5">
                       <span>Strict / Factual (0.0)</span>
@@ -280,7 +280,7 @@ export function Settings() {
                     rows={5}
                     value={settings.ai_system_prompt}
                     onChange={(e) => handleChange("ai_system_prompt", e.target.value)}
-                    className="w-full px-3 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-all resize-none text-xs font-mono text-gray-700 leading-relaxed"
+                    className="w-full px-3 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-all resize-none text-xs font-mono text-gray-700 leading-relaxed"
                   />
                 </div>
               </div>
@@ -301,7 +301,7 @@ export function Settings() {
                       type="number" 
                       value={settings.rag_max_chunks} 
                       onChange={(e) => handleChange("rag_max_chunks", Number(e.target.value))} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] text-gray-900" 
+                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" 
                     />
                   </div>
                 </div>
@@ -316,7 +316,7 @@ export function Settings() {
           <button 
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#FF9501] text-white text-xs font-semibold rounded-lg hover:bg-[#D97E00] transition-colors cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#DD7230] text-white text-xs font-semibold rounded-lg hover:bg-[#DD7230] transition-colors cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
           >
             {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             {isSaving ? "Saving Config..." : "Save System Settings"}

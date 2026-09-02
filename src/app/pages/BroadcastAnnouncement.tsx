@@ -299,7 +299,7 @@ export function BroadcastAnnouncement() {
           className="w-full flex items-center justify-between p-4 sm:p-5 bg-white hover:bg-gray-50/70 transition-colors cursor-pointer"
         >
           <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isCreateOpen ? "bg-[#FF9501] text-white" : "bg-orange-50 text-[#FF9501]"}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isCreateOpen ? "bg-[#DD7230] text-white" : "bg-orange-50 text-[#DD7230]"}`}>
               <Radio className="h-4 w-4" />
             </div>
             <div className="text-left">
@@ -319,7 +319,7 @@ export function BroadcastAnnouncement() {
                 <label className="block text-xs font-medium mb-1.5 text-gray-700">Announcement Title *</label>
                 <input
                   type="text" value={title} onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-all"
+                  className="w-full px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-all"
                   placeholder="Enter announcement title"
                 />
               </div>
@@ -327,7 +327,7 @@ export function BroadcastAnnouncement() {
                 <label className="block text-xs font-medium mb-1.5 text-gray-700">Message Content *</label>
                 <textarea
                   value={content} onChange={(e) => setContent(e.target.value)} rows={4}
-                  className="w-full px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-all resize-none"
+                  className="w-full px-3.5 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-all resize-none"
                   placeholder="Type your announcement message here..."
                 />
               </div>
@@ -340,12 +340,12 @@ export function BroadcastAnnouncement() {
                       onClick={() => handleRecipientToggle(option.value, selectedRecipients, setSelectedRecipients)}
                       className={`p-3.5 rounded-lg border text-left cursor-pointer transition-all ${
                         selectedRecipients.includes(option.value) 
-                          ? "border-[#FF9501] bg-orange-50/40 text-gray-900" 
+                          ? "border-[#DD7230] bg-orange-50/40 text-gray-900" 
                           : "border-gray-200 bg-white hover:border-gray-300"
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <Users className={`h-4 w-4 ${selectedRecipients.includes(option.value) ? "text-[#FF9501]" : "text-gray-400"}`} />
+                        <Users className={`h-4 w-4 ${selectedRecipients.includes(option.value) ? "text-[#DD7230]" : "text-gray-400"}`} />
                         <h3 className="text-xs font-semibold text-gray-900">{option.label}</h3>
                       </div>
                       <p className="text-[11px] text-gray-500">{option.count} recipients</p>
@@ -358,7 +358,7 @@ export function BroadcastAnnouncement() {
                 <div className="flex items-center gap-2">
                   <input
                     type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)}
-                    className="w-full sm:w-72 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] transition-all cursor-pointer"
+                    className="w-full sm:w-72 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-all cursor-pointer"
                   />
                   <span className="text-[11px] text-gray-400">Leave empty to send immediately</span>
                 </div>
@@ -366,7 +366,7 @@ export function BroadcastAnnouncement() {
               <div className="flex gap-2 pt-3 border-t border-gray-200">
                 <button
                   onClick={() => handleSendAnnouncement("Sent")} disabled={isLoading}
-                  className="flex items-center justify-center gap-1.5 px-4 py-2 bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors text-xs font-semibold disabled:opacity-50 cursor-pointer shadow-2xs active:scale-95"
+                  className="flex items-center justify-center gap-1.5 px-4 py-2 bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors text-xs font-semibold disabled:opacity-50 cursor-pointer shadow-2xs active:scale-95"
                 >
                   {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   {scheduleDate ? "Schedule Announcement" : "Send Broadcast Now"}
@@ -393,13 +393,13 @@ export function BroadcastAnnouncement() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
               <input
                 type="text" placeholder="Search broadcasts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501]"
+                className="w-full pl-9 pr-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
               />
             </div>
             <div className="relative w-full sm:w-auto">
               <select
                 value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="w-full sm:w-auto px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF9501] cursor-pointer"
+                className="w-full sm:w-auto px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
               >
                 <option value="All">All Statuses</option>
                 <option value="Sent">Sent</option>
@@ -411,7 +411,7 @@ export function BroadcastAnnouncement() {
         </div>
         
         {isFetching ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#FF9501]" /></div>
+          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#DD7230]" /></div>
         ) : filteredAnnouncements.length === 0 ? (
           <div className="text-center py-10 text-gray-400 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-xs">
             No announcements found.
@@ -467,14 +467,14 @@ export function BroadcastAnnouncement() {
                 <label className="block text-xs font-medium mb-1 text-gray-700">Title</label>
                 <input
                   type="text" value={editingAnnouncement.title} onChange={(e) => setEditingAnnouncement({...editingAnnouncement, title: e.target.value})}
-                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-[#FF9501] outline-none"
+                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-[#DD7230] outline-none"
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1 text-gray-700">Content</label>
                 <textarea
                   value={editingAnnouncement.content} onChange={(e) => setEditingAnnouncement({...editingAnnouncement, content: e.target.value})} rows={4}
-                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-[#FF9501] outline-none resize-none"
+                  className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-[#DD7230] outline-none resize-none"
                 />
               </div>
               <div>
@@ -490,7 +490,7 @@ export function BroadcastAnnouncement() {
                           handleRecipientToggle(opt.value, current, (newVals) => setEditingAnnouncement({...editingAnnouncement, recipients: newVals.join(", ")}))
                         }}
                         className={`px-3 py-1 rounded-md text-xs font-medium transition-colors border cursor-pointer ${
-                          isSelected ? "bg-[#FF9501] text-white border-[#FF9501]" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                          isSelected ? "bg-[#DD7230] text-white border-[#DD7230]" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
                         }`}
                       >
                         {opt.label}
@@ -506,7 +506,7 @@ export function BroadcastAnnouncement() {
                     type="datetime-local" 
                     value={editingAnnouncement.schedule_date ? new Date(editingAnnouncement.schedule_date).toISOString().slice(0, 16) : ""} 
                     onChange={(e) => setEditingAnnouncement({...editingAnnouncement, schedule_date: e.target.value})}
-                    className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-[#FF9501] outline-none cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-[#DD7230] outline-none cursor-pointer"
                   />
                 </div>
               )}
@@ -528,7 +528,7 @@ export function BroadcastAnnouncement() {
                 </button>
                 <button 
                   onClick={() => handleUpdateAnnouncement(editingAnnouncement.id, "Send Now")} disabled={isModalLoading}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-lg hover:bg-[#D97E00] transition-colors cursor-pointer shadow-2xs"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors cursor-pointer shadow-2xs"
                 >
                   {isModalLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Send Now
                 </button>
@@ -550,7 +550,7 @@ export function BroadcastAnnouncement() {
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-200 bg-gray-50/60">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-[#FF9501]" />
+                  <BarChart3 className="h-4 w-4 text-[#DD7230]" />
                   <h3 className="font-bold text-xs sm:text-sm text-gray-900">Broadcast Performance & Analytics</h3>
                 </div>
                 <button onClick={() => setViewingAnnouncement(null)} className="text-gray-400 hover:text-gray-900 p-1 cursor-pointer">
@@ -564,7 +564,7 @@ export function BroadcastAnnouncement() {
                   <div className="flex flex-wrap gap-2 text-[11px] font-medium text-gray-500 mb-3">
                     <span className="bg-gray-100 px-2.5 py-1 rounded-lg">Sent: {formatDate(viewingAnnouncement.sent_date)}</span>
                     <span className="bg-gray-100 px-2.5 py-1 rounded-lg">By: {viewingAnnouncement.sent_by}</span>
-                    <span className="bg-orange-50 text-[#D97E00] border border-[#FF9501]/20 px-2.5 py-1 rounded-lg">Audience: {viewingAnnouncement.recipients}</span>
+                    <span className="bg-orange-50 text-[#DD7230] border border-[#DD7230]/20 px-2.5 py-1 rounded-lg">Audience: {viewingAnnouncement.recipients}</span>
                   </div>
                   <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-200 text-xs text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">
                     {viewingAnnouncement.content}

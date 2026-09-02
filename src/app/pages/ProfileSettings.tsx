@@ -199,7 +199,7 @@ export function ProfileSettings() {
               onClick={() => setActiveTab("profile")}
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium cursor-pointer ${
                 activeTab === "profile" 
-                ? "bg-orange-50 text-[#D97E00] border border-[#FF9501]/30 font-semibold" 
+                ? "bg-orange-50 text-[#DD7230] border border-[#DD7230]/30 font-semibold" 
                 : "text-gray-600 hover:bg-gray-100"
               }`}
             >
@@ -209,7 +209,7 @@ export function ProfileSettings() {
               onClick={() => setActiveTab("security")}
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium cursor-pointer ${
                 activeTab === "security" 
-                ? "bg-orange-50 text-[#D97E00] border border-[#FF9501]/30 font-semibold" 
+                ? "bg-orange-50 text-[#DD7230] border border-[#DD7230]/30 font-semibold" 
                 : "text-gray-600 hover:bg-gray-100"
               }`}
             >
@@ -220,7 +220,7 @@ export function ProfileSettings() {
           <div className="md:col-span-3 space-y-6">
             
             <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-5">
-              <div className="w-14 h-14 bg-[#FF9501] rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-14 h-14 bg-[#DD7230] rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-lg font-semibold text-white">{profileData.fullName.charAt(0) || "U"}</span>
               </div>
               <div>
@@ -230,7 +230,7 @@ export function ProfileSettings() {
                     <Mail className="h-3.5 w-3.5" /> {profileData.email}
                   </span>
                   <span className="text-gray-300">|</span>
-                  <span className="flex items-center gap-1.5 text-[#D97E00] font-medium">
+                  <span className="flex items-center gap-1.5 text-[#DD7230] font-medium">
                     <Shield className="h-3.5 w-3.5" /> {userRole}
                   </span>
                 </div>
@@ -260,7 +260,7 @@ export function ProfileSettings() {
                         required
                         value={profileData.fullName}
                         onChange={(e) => setProfileData({...profileData, fullName: e.target.value})}
-                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent transition-colors"
+                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:border-transparent transition-colors"
                       />
                     </div>
                     
@@ -271,7 +271,7 @@ export function ProfileSettings() {
                         required
                         value={profileData.email}
                         onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent transition-colors"
+                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:border-transparent transition-colors"
                       />
                     </div>
 
@@ -294,7 +294,7 @@ export function ProfileSettings() {
                           required
                           value={profileData.program}
                           onChange={(e) => setProfileData({...profileData, program: e.target.value})}
-                          className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent transition-colors cursor-pointer"
+                          className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:border-transparent transition-colors cursor-pointer"
                         >
                           <option value="" disabled>Select your academic program</option>
                           {academicPrograms.map((college, cIdx) => (
@@ -315,7 +315,7 @@ export function ProfileSettings() {
                     <button
                       type="submit"
                       disabled={isUpdatingProfile}
-                      className="px-5 py-2 bg-[#FF9501] text-white text-sm rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 font-medium flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                      className="px-5 py-2 bg-[#DD7230] text-white text-sm rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 font-medium flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                     >
                       {isUpdatingProfile ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : "Save Changes"}
                     </button>
@@ -345,7 +345,7 @@ export function ProfileSettings() {
                         required
                         value={passwords.current}
                         onChange={(e) => setPasswords({...passwords, current: e.target.value})}
-                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent"
+                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:border-transparent"
                       />
                       <button
                         type="button"
@@ -365,7 +365,7 @@ export function ProfileSettings() {
                         required
                         value={passwords.new}
                         onChange={(e) => setPasswords({...passwords, new: e.target.value})}
-                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent"
+                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:border-transparent"
                       />
                       <button
                         type="button"
@@ -406,7 +406,7 @@ export function ProfileSettings() {
                         required
                         value={passwords.confirm}
                         onChange={(e) => setPasswords({...passwords, confirm: e.target.value})}
-                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:border-transparent"
+                        className="w-full px-3.5 py-2 pr-10 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:border-transparent"
                       />
                       <button
                         type="button"
@@ -425,7 +425,7 @@ export function ProfileSettings() {
                     <button
                       type="submit"
                       disabled={isUpdatingPassword || !passwords.current || !passwords.new || !passwords.confirm || !isPasswordValid || passwords.new !== passwords.confirm}
-                      className="px-5 py-2 bg-[#FF9501] text-white text-sm rounded-lg hover:bg-[#D97E00] transition-colors disabled:opacity-50 font-medium flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                      className="px-5 py-2 bg-[#DD7230] text-white text-sm rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 font-medium flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                     >
                       {isUpdatingPassword ? <><Loader2 className="h-4 w-4 animate-spin" /> Updating...</> : "Update Password"}
                     </button>
@@ -447,7 +447,7 @@ export function ProfileSettings() {
               <h3 className="text-xl font-bold text-gray-900 mb-2">{modalContent.title}</h3>
               <p className="text-sm text-gray-500 leading-relaxed mb-6">
                 {modalContent.message} <br/><br/>
-                Redirecting in <strong className="text-[#D97E00] text-base">{logoutCountdown}</strong> seconds...
+                Redirecting in <strong className="text-[#DD7230] text-base">{logoutCountdown}</strong> seconds...
               </p>
               <button 
                 onClick={handleForceLogout}

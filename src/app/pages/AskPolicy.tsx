@@ -365,7 +365,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                 <button
                   key={idx}
                   onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
-                  className="text-left p-2.5 rounded-lg bg-white border border-gray-200 hover:border-[#FF9501] text-xs text-gray-700 transition-colors cursor-pointer shadow-2xs leading-snug"
+                  className="text-left p-2.5 rounded-lg bg-white border border-gray-200 hover:border-[#DD7230] text-xs text-gray-700 transition-colors cursor-pointer shadow-2xs leading-snug"
                 >
                   {suggestion}
                 </button>
@@ -396,7 +396,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
               <div
                 className={`rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
                   message.type === "user"
-                    ? "bg-[#FF9501] text-white rounded-tr-xs shadow-2xs font-normal"
+                    ? "bg-[#DD7230] text-white rounded-tr-xs shadow-2xs font-normal"
                     : message.isError
                     ? "bg-rose-50 text-rose-800 border border-rose-200 rounded-tl-xs"
                     : message.isRestricted
@@ -517,7 +517,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                       key={idx}
                       onClick={() => handleSendMessage(question)}
                       disabled={isLoading}
-                      className="text-left text-xs bg-white text-gray-700 border border-gray-200 hover:border-[#FF9501] px-2.5 py-1 rounded-full transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                      className="text-left text-xs bg-white text-gray-700 border border-gray-200 hover:border-[#DD7230] px-2.5 py-1 rounded-full transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
                     >
                       {question}
                     </button>
@@ -532,7 +532,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
         {isLoading && (
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-tl-xs px-3.5 py-2 bg-gray-50 border border-gray-200 flex items-center gap-2 shadow-2xs">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FF9501]" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-[#DD7230]" />
               <p className="text-xs text-gray-500">Searching knowledge base...</p>
             </div>
           </div>
@@ -548,7 +548,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
             <button
               key={idx}
               onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
-              className="whitespace-nowrap px-2.5 py-0.5 text-xs text-gray-700 bg-white border border-gray-200 hover:border-[#FF9501] rounded-full shadow-2xs transition-colors cursor-pointer shrink-0"
+              className="whitespace-nowrap px-2.5 py-0.5 text-xs text-gray-700 bg-white border border-gray-200 hover:border-[#DD7230] rounded-full shadow-2xs transition-colors cursor-pointer shrink-0"
             >
               {suggestion}
             </button>
@@ -574,7 +574,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
               className={`w-full px-3 py-2 bg-gray-50/50 border rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:bg-white transition-all resize-none min-h-[38px] max-h-[120px] disabled:opacity-60 disabled:cursor-not-allowed ${
                 isOverLimit
                   ? "border-rose-300 focus:ring-rose-500"
-                  : "border-gray-200 focus:ring-[#FF9501]"
+                  : "border-gray-200 focus:ring-[#DD7230]"
               }`}
               rows={1}
             />
@@ -592,7 +592,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
             onClick={() => handleSendMessage()}
             disabled={isLoading || !query.trim() || isOverLimit}
             aria-label="Send question"
-            className="p-2 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center h-[38px] w-[38px] shrink-0 active:scale-95 shadow-2xs cursor-pointer"
+            className="p-2 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center h-[38px] w-[38px] shrink-0 active:scale-95 shadow-2xs cursor-pointer"
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -655,7 +655,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                 onClick={() => setSelectedCategoryTab(idx)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                   selectedCategoryTab === idx
-                    ? "bg-[#FF9501] text-white"
+                    ? "bg-[#DD7230] text-white"
                     : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
                 }`}
               >
@@ -670,7 +670,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
               <button
                 key={idx}
                 onClick={() => { setQuery(suggestion); textareaRef.current?.focus(); }}
-                className="w-full text-left p-2.5 rounded-lg border border-gray-200 bg-white hover:border-[#FF9501] transition-colors text-xs text-gray-700 cursor-pointer shadow-2xs leading-snug"
+                className="w-full text-left p-2.5 rounded-lg border border-gray-200 bg-white hover:border-[#DD7230] transition-colors text-xs text-gray-700 cursor-pointer shadow-2xs leading-snug"
               >
                 {suggestion}
               </button>

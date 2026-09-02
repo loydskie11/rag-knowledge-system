@@ -60,7 +60,7 @@ A curated list of academic resources, textbooks, and supplementary materials to 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-[#FF9501]" />
+            <Sparkles className="h-6 w-6 text-[#DD7230]" />
             AI Document Generator
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Generate institutional academic documents and governance templates using AI assistance</p>
@@ -79,7 +79,7 @@ A curated list of academic resources, textbooks, and supplementary materials to 
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={5}
-              className="w-full p-4 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF9501] focus:bg-white transition-all placeholder-gray-400"
+              className="w-full p-4 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
               placeholder="Describe the document you want to generate (e.g. syllabus, lesson plan, exam rubric, or departmental memo with objectives and grading criteria)..."
             />
           </div>
@@ -87,7 +87,7 @@ A curated list of academic resources, textbooks, and supplementary materials to 
           <button
             onClick={handleGenerate}
             disabled={isGenerating || !prompt.trim()}
-            className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors text-xs font-semibold shadow-2xs cursor-pointer active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
               <>
@@ -112,7 +112,7 @@ A curated list of academic resources, textbooks, and supplementary materials to 
             <button
               key={index}
               onClick={() => setPrompt(quickPrompt)}
-              className="text-left p-3.5 bg-gray-50/60 rounded-xl hover:bg-orange-50/50 hover:border-[#FF9501]/40 border border-gray-200 transition-all cursor-pointer group"
+              className="text-left p-3.5 bg-gray-50/60 rounded-xl hover:bg-orange-50/50 hover:border-[#DD7230]/40 border border-gray-200 transition-all cursor-pointer group"
             >
               <p className="text-gray-700 text-xs font-medium group-hover:text-gray-900 transition-colors">{quickPrompt}</p>
             </button>
@@ -133,7 +133,7 @@ A curated list of academic resources, textbooks, and supplementary materials to 
                 <Copy className="h-3.5 w-3.5" />
                 Copy
               </button>
-              <button className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-[#FF9501] text-white rounded-xl hover:bg-[#D97E00] transition-colors shadow-2xs cursor-pointer">
+              <button className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] transition-colors shadow-2xs cursor-pointer">
                 <Download className="h-3.5 w-3.5" />
                 Export
               </button>
@@ -146,7 +146,7 @@ A curated list of academic resources, textbooks, and supplementary materials to 
             </pre>
           </div>
 
-          <div className="p-3.5 bg-orange-50 border border-[#FF9501]/20 rounded-xl text-xs text-gray-700">
+          <div className="p-3.5 bg-orange-50 border border-[#DD7230]/20 rounded-xl text-xs text-gray-700">
             <p>
               <strong className="text-gray-900">Note:</strong> This is AI-generated draft content. Please review and verify alignment with CTU institutional policies before official publication.
             </p>
