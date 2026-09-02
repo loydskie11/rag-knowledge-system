@@ -4272,3 +4272,77 @@ async def upload_historical_certificate(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload certificate: {str(e)}")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI DOCUMENT GENERATOR (Supports Local Qwen2.5 / Groq)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class GenerateDocRequest(BaseModel):
+    prompt: str
+    temperature: Optional[float] = 0.3
+
+@app.post("/api/generate-document")
+@app.post("/generate-document")
+def generate_document_endpoint(req: GenerateDocRequest):
+    """
+    Generates professional document body content using local Qwen2.5 (via Ollama) or Groq.
+    Outputs structured markdown formatted for DOCX/PDF export.
+    """
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty.")
+
+    system_prompt = (
+        "You are a professional document-drafting assistant embedded in an institutional document generator.\n\n"
+        "RULES:\n"
+        "1. Generate ONLY the body content of the requested document (academic syllabus, business contract, "
+        "memorandum, proposal, letter, NDA, certificate, invoice, lesson plan, report, rubric, etc.).\n"
+        "2. NEVER generate, describe, or reference a header, footer, letterhead, logo, page-number block, "
+        "or company seal. Those are managed client-side.\n"
+        "3. Do NOT wrap the response in markdown code fences.\n"
+        "4. Format clearly:\n"
+        "   - Top-level title as the first line starting with '# ' in Title Case.\n"
+        "   - Section headings starting with '## ' in Title Case.\n"
+        "   - Use runs of underscores (e.g. '______________') for fill-in blanks (names, dates, amounts, signatures).\n"
+        "   - Use '- ' for bulleted lists and standard paragraphs for prose.\n"
+        "5. Keep the draft complete, highly professional, and ready for export."
+    )
+
+    try:
+        response = groq_client.chat.completions.create(
+            model="qwen2.5",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": req.prompt.strip()}
+            ],
+            temperature=req.temperature or 0.3,
+            max_tokens=3000
+        )
+        content = response.choices[0].message.content.strip()
+        return {"content": content}
+    except Exception as e:
+        print(f"[Document Generator Error]: {e}")
+        # Try fallback if Groq API key is set
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if groq_api_key:
+            try:
+                from groq import Groq as GroqClient
+                g_client = GroqClient(api_key=groq_api_key)
+                g_res = g_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": req.prompt.strip()}
+                    ],
+                    temperature=req.temperature or 0.3,
+                    max_tokens=3000
+                )
+                return {"content": g_res.choices[0].message.content.strip()}
+            except Exception as g_err:
+                print(f"[Groq Fallback Error]: {g_err}")
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not generate document with local AI: {str(e)}"
+        )
+
+

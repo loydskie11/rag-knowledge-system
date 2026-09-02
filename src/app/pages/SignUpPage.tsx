@@ -249,9 +249,9 @@ export function SignUpPage() {
       <Link
         to="/"
         aria-label="Back to Home"
-        className="group absolute top-6 left-6 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-2xs hover:shadow-xs hover:border-[#DD7230] transition-all"
+        className="group absolute top-6 left-6 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-2xs hover:shadow-xs hover:border-[#DD7230] transition-all"
       >
-        <ArrowRight className="h-4 w-4 rotate-180 text-[#DD7230] transition-transform duration-200 group-hover:-translate-x-0.5" />
+        <ArrowRight className="h-4.5 w-4.5 rotate-180 text-[#DD7230] transition-transform duration-200 group-hover:-translate-x-0.5" />
       </Link>
 
       {/* Split View Container */}
@@ -264,17 +264,17 @@ export function SignUpPage() {
               <img 
                 src="/ctu-logo.png" 
                 alt="CTU Logo" 
-                className="h-24 w-24 object-contain" 
+                className="h-28 w-28 object-contain" 
               />
             </div>
-            <h1 className="text-3xl font-bold text-[#DD7230] mb-2 leading-tight">
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#DD7230] mb-3 leading-tight">
               CTU-Argao Knowledge System
             </h1>
-            <p className="text-sm text-gray-700 font-medium">Cebu Technological University</p>
-            <p className="text-xs text-gray-500 mt-0.5">Argao Campus</p>
+            <p className="text-base text-gray-700 font-medium">Cebu Technological University</p>
+            <p className="text-sm text-gray-500 mt-0.5">Argao Campus</p>
             
-            <div className="mt-6 p-3.5 bg-[#FFF4E5] border border-[#FFE0B2] rounded-xl inline-block">
-              <p className="text-[#DD7230] text-xs font-semibold">
+            <div className="mt-8 p-4 bg-[#FFF4E5] border border-[#FFE0B2] rounded-xl inline-block">
+              <p className="text-[#DD7230] text-sm font-semibold">
                 RAG-Powered Knowledge Management System
               </p>
             </div>
@@ -283,47 +283,47 @@ export function SignUpPage() {
 
         {/* Right Sign Up Form Panel */}
         <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-white overflow-y-auto">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8 my-auto">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 p-8 sm:p-10 my-auto">
             
             {/* Mobile Header */}
-            <div className="lg:hidden text-center mb-4">
-              <div className="flex justify-center mb-2">
+            <div className="lg:hidden text-center mb-6">
+              <div className="flex justify-center mb-3">
                 <img
                   src="/ctu-logo.png"
                   alt="CTU Logo"
-                  className="h-12 w-12 object-contain"
+                  className="h-14 w-14 object-contain"
                 />
               </div>
-              <h1 className="text-sm font-bold text-gray-900">CTU Argao Knowledge System</h1>
+              <h1 className="text-lg font-bold text-gray-900">CTU Argao Knowledge System</h1>
             </div>
 
-            <div className="mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Create Account</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Register for access to institutional policies and resources</p>
+            <div className="mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Create Account</h2>
+              <p className="text-sm text-gray-500 mt-1">Register for access to institutional policies and resources</p>
             </div>
 
             {/* Error Notification */}
             {apiError && (
-              <div className="mb-3.5 bg-rose-50 border border-rose-200 p-3 rounded-xl flex items-start gap-2.5">
-                <AlertCircle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-rose-700 leading-relaxed font-medium">{apiError}</p>
+              <div className="mb-4 bg-rose-50 border border-rose-200 p-3.5 rounded-xl flex items-start gap-2.5">
+                <AlertCircle className="h-4.5 w-4.5 text-rose-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-rose-700 leading-relaxed font-medium">{apiError}</p>
               </div>
             )}
 
             {/* Success Notification */}
             {successMsg && (
-              <div className="mb-3.5 bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-start gap-2.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <p className="text-xs text-emerald-700 leading-relaxed font-medium">{successMsg}</p>
+              <div className="mb-4 bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl flex items-start gap-2.5">
+                <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-sm text-emerald-700 leading-relaxed font-medium">{successMsg}</p>
               </div>
             )}
 
-            <form onSubmit={handleCreateAccount} className="space-y-3.5">
+            <form onSubmit={handleCreateAccount} className="space-y-4">
               
               {/* Account Role Selector */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Account Role</label>
-                <div className="grid grid-cols-2 gap-2.5">
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Account Role</label>
+                <div className="grid grid-cols-2 gap-3">
                   {[
                     { value: "STUDENT", label: "Student", icon: GraduationCap },
                     { value: "FACULTY", label: "Faculty", icon: User }
@@ -341,14 +341,14 @@ export function SignUpPage() {
                             role: option.value as UserRole
                           })
                         }
-                        className={`rounded-xl border py-2 px-3 flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        className={`rounded-xl border py-2.5 px-3.5 flex items-center justify-center gap-2 transition-all cursor-pointer ${
                           isSelected
                             ? "border-[#DD7230] bg-[#FFF4E5] text-[#DD7230]"
                             : "border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-gray-600"
                         }`}
                       >
-                        <Icon className="h-3.5 w-3.5" />
-                        <span className="font-semibold text-xs">{option.label}</span>
+                        <Icon className="h-4 w-4" />
+                        <span className="font-semibold text-sm">{option.label}</span>
                       </button>
                     );
                   })}
@@ -357,11 +357,11 @@ export function SignUpPage() {
 
               {/* Full Name */}
               <div>
-                <label htmlFor="fullName" className="block text-xs font-semibold text-gray-700 mb-1">
+                <label htmlFor="fullName" className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Full Name
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     id="fullName"
                     type="text"
@@ -371,19 +371,19 @@ export function SignUpPage() {
                       setFormData({ ...formData, fullName: e.target.value })
                     }
                     placeholder="e.g. Juan Dela Cruz"
-                    className="w-full pl-9 pr-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
                   />
                 </div>
               </div>
 
               {/* Email Address + Inline Send Code */}
               <div>
-                <label htmlFor="email" className="block text-xs font-semibold text-gray-700 mb-1">
+                <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Email Address
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       id="email"
                       type="email"
@@ -393,19 +393,19 @@ export function SignUpPage() {
                         setFormData({ ...formData, email: e.target.value })
                       }
                       placeholder="name@ctu.edu.ph"
-                      className="w-full pl-9 pr-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={handleSendCode}
                     disabled={isSendingOtp || otpCountdown > 0 || !formData.email.trim()}
-                    className="px-3 py-2 bg-[#DD7230] text-white rounded-xl hover:bg-[#c66224] transition-all text-xs font-semibold whitespace-nowrap shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer active:scale-98"
+                    className="px-4 py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#c66224] transition-all text-sm font-semibold whitespace-nowrap shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer active:scale-98"
                   >
                     {isSendingOtp ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <KeyRound className="h-3 w-3" />
+                      <KeyRound className="h-4 w-4" />
                     )}
                     {otpCountdown > 0 ? `Resend in ${otpCountdown}s` : otpSent ? "Resend Code" : "Send Code"}
                   </button>
@@ -414,11 +414,11 @@ export function SignUpPage() {
 
               {/* Verification Code */}
               <div>
-                <label htmlFor="otpCode" className="block text-xs font-semibold text-gray-700 mb-1">
+                <label htmlFor="otpCode" className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Verification Code (6-Digit OTP)
                 </label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     id="otpCode"
                     type="text"
@@ -429,19 +429,19 @@ export function SignUpPage() {
                       setFormData({ ...formData, otpCode: e.target.value.replace(/\D/g, "") })
                     }
                     placeholder="Enter 6-digit code"
-                    className="w-full pl-9 pr-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400 placeholder:tracking-normal placeholder:font-sans"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400 placeholder:tracking-normal placeholder:font-sans"
                   />
                 </div>
               </div>
 
               {/* Password & Confirm Password */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="password" className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -451,24 +451,24 @@ export function SignUpPage() {
                         setFormData({ ...formData, password: e.target.value })
                       }
                       placeholder="••••••••"
-                      className="w-full pl-9 pr-8 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
+                      className="w-full pl-10 pr-9 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors focus:outline-none cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors focus:outline-none cursor-pointer"
                     >
-                      {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Confirm Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       id="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
@@ -478,28 +478,28 @@ export function SignUpPage() {
                         setFormData({ ...formData, confirmPassword: e.target.value })
                       }
                       placeholder="••••••••"
-                      className="w-full pl-9 pr-8 py-2 bg-gray-50/70 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
+                      className="w-full pl-10 pr-9 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors focus:outline-none cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors focus:outline-none cursor-pointer"
                     >
-                      {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
               </div>
 
               {/* Password Requirement Hint */}
-              <p className="text-[11px] text-gray-400">
+              <p className="text-xs text-gray-400">
                 Minimum 8 characters with an uppercase letter, number, and special character.
               </p>
 
               {/* College & Program Dropdowns */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     College
                   </label>
                   <select
@@ -513,7 +513,7 @@ export function SignUpPage() {
                         course: ""
                       })
                     }
-                    className="w-full py-2 px-2.5 text-xs rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all cursor-pointer"
+                    className="w-full py-2.5 px-3 text-sm rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all cursor-pointer"
                   >
                     <option value="">Select College</option>
                     {academicPrograms.map((c) => (
@@ -525,7 +525,7 @@ export function SignUpPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Academic Program
                   </label>
                   <select
@@ -536,7 +536,7 @@ export function SignUpPage() {
                       setFormData({ ...formData, course: e.target.value })
                     }
                     disabled={!formData.selectedCollege}
-                    className="w-full py-2 px-2.5 text-xs rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                    className="w-full py-2.5 px-3 text-sm rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <option value="">Select Program</option>
                     {currentCollegePrograms.map((p) => (
@@ -551,7 +551,7 @@ export function SignUpPage() {
               {/* Year Level (Students Only) */}
               {formData.role === "STUDENT" && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                     Year Level
                   </label>
                   <select
@@ -561,7 +561,7 @@ export function SignUpPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, year: e.target.value })
                     }
-                    className="w-full py-2 px-2.5 text-xs rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all cursor-pointer"
+                    className="w-full py-2.5 px-3 text-sm rounded-xl bg-gray-50/70 border border-gray-200 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all cursor-pointer"
                   >
                     <option value="">Select Year Level</option>
                     {years.map((y) => (
@@ -573,8 +573,8 @@ export function SignUpPage() {
                 </div>
               )}
 
-              {/* Terms and Conditions Checkbox - Clean Vertical & Horizontal Alignment */}
-              <div className="flex items-center gap-2 pt-1">
+              {/* Terms and Conditions Checkbox */}
+              <div className="flex items-center gap-2.5 pt-1.5">
                 <input
                   type="checkbox"
                   id="agreeToTerms"
@@ -584,7 +584,7 @@ export function SignUpPage() {
                   }
                   className="w-4 h-4 rounded border-gray-300 text-[#DD7230] focus:ring-[#DD7230] cursor-pointer shrink-0"
                 />
-                <div className="text-xs text-gray-600 select-none flex items-center gap-1">
+                <div className="text-sm text-gray-600 select-none flex items-center gap-1">
                   <label htmlFor="agreeToTerms" className="cursor-pointer">
                     I agree to the
                   </label>
@@ -605,11 +605,11 @@ export function SignUpPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#c66224] transition-all font-semibold text-xs shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed flex justify-center items-center gap-1.5 cursor-pointer active:scale-98"
+                className="w-full py-3 bg-[#DD7230] text-white rounded-xl hover:bg-[#c66224] transition-all font-semibold text-sm shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed flex justify-center items-center gap-2 cursor-pointer active:scale-98"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Creating account...
                   </>
                 ) : (
@@ -618,8 +618,8 @@ export function SignUpPage() {
               </button>
             </form>
 
-            <div className="mt-4 text-center pt-3 border-t border-gray-200">
-              <p className="text-xs text-gray-500">
+            <div className="mt-6 text-center pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-500">
                 Already have an account?{" "}
                 <Link to="/login" className="text-[#DD7230] hover:text-[#c66224] hover:underline font-semibold transition-colors">
                   Sign in
@@ -634,18 +634,18 @@ export function SignUpPage() {
       {showTermsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50/60">
-              <h3 className="text-xs font-bold text-gray-900">Terms and Conditions</h3>
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gray-50/60">
+              <h3 className="text-sm font-bold text-gray-900">Terms and Conditions</h3>
               <button
                 type="button"
                 onClick={() => setShowTermsModal(false)}
                 className="text-gray-400 hover:text-gray-700 cursor-pointer p-1"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4.5 w-4.5" />
               </button>
             </div>
 
-            <div className="p-5 space-y-3 text-xs text-gray-600 leading-relaxed max-h-72 overflow-y-auto">
+            <div className="p-6 space-y-3.5 text-sm text-gray-600 leading-relaxed max-h-72 overflow-y-auto">
               <p>
                 By registering for an account on the CTU Argao Institutional Knowledge System, you agree to comply with institutional data governance policies and maintain account confidentiality.
               </p>
@@ -654,14 +654,14 @@ export function SignUpPage() {
               </p>
             </div>
 
-            <div className="p-3.5 border-t border-gray-200 bg-gray-50/60 flex justify-end">
+            <div className="p-4 border-t border-gray-200 bg-gray-50/60 flex justify-end">
               <button
                 type="button"
                 onClick={() => {
                   setFormData({ ...formData, agreeToTerms: true });
                   setShowTermsModal(false);
                 }}
-                className="px-4 py-1.5 bg-[#DD7230] text-white font-semibold text-xs rounded-xl hover:bg-[#c66224] transition-all cursor-pointer shadow-2xs"
+                className="px-5 py-2 bg-[#DD7230] text-white font-semibold text-sm rounded-xl hover:bg-[#c66224] transition-all cursor-pointer shadow-2xs"
               >
                 I Agree
               </button>
