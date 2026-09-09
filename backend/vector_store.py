@@ -22,8 +22,20 @@ if SUPABASE_URL and SUPABASE_KEY:
 else:
     print("[ERROR] SUPABASE_URL or SUPABASE_SERVICE_KEY is missing from .env!")
 
+# Suppress Hugging Face symlinks warning on Windows
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
 # Load embedding model for semantic embeddings
-model = SentenceTransformer('all-MiniLM-L6-v2')
+try:
+    # Try loading directly from local Hugging Face cache first (instant, works offline without DNS queries)
+    model = SentenceTransformer('all-MiniLM-L6-v2', local_files_only=True)
+except Exception:
+    try:
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+    except Exception as e:
+        print(f"[WARNING] Could not load SentenceTransformer: {e}")
+        model = None
+
 
 
 def create_intelligent_chunks(text: str, max_chunk_size: int = 500, overlap: int = 100) -> List[str]:
@@ -92,6 +104,10 @@ def add_to_vector_db(text: str, metadata: dict) -> int:
     if not chunks:
         return 0
 
+    if model is None:
+        print("[ERROR] SentenceTransformer model is not loaded. Cannot generate embeddings.")
+        return 0
+
     # Batch encode all embeddings in memory at once
     embeddings = model.encode(chunks).tolist()
 
@@ -135,26 +151,29 @@ def search_knowledge(
     # Lowered threshold to 0.30 to catch more genuine matches.
     # We rely on ordering by similarity to rank the best ones.
     # ---------------------------------------------------------
-    try:
-        query_embedding = model.encode(question).tolist()
-        response = supabase.rpc(
-            'match_document_sections',
-            {
-                'query_embedding': query_embedding,
-                'match_threshold': 0.30,
-                'match_count': match_count * 2  # Fetch extra, we'll filter below
-            }
-        ).execute()
+    if model is not None:
+        try:
+            query_embedding = model.encode(question).tolist()
+            response = supabase.rpc(
+                'match_document_sections',
+                {
+                    'query_embedding': query_embedding,
+                    'match_threshold': 0.30,
+                    'match_count': match_count * 2  # Fetch extra, we'll filter below
+                }
+            ).execute()
 
-        for item in (response.data or []):
-            item_id = item.get('id') or item.get('content', '')[:50]
-            if item_id and item_id not in seen_ids:
-                seen_ids.add(item_id)
-                item['score_source'] = 'vector'
-                item['confidence_score'] = float(item.get('similarity', 0.0))
-                combined_results.append(item)
-    except Exception as e:
-        print(f"[Vector Search Error]: {e}")
+            for item in (response.data or []):
+                item_id = item.get('id') or item.get('content', '')[:50]
+                if item_id and item_id not in seen_ids:
+                    seen_ids.add(item_id)
+                    item['score_source'] = 'vector'
+                    item['confidence_score'] = float(item.get('similarity', 0.0))
+                    combined_results.append(item)
+        except Exception as e:
+            print(f"[Vector Search Error]: {e}")
+    else:
+        print("[WARNING] Vector model unavailable, falling back directly to keyword search.")
 
     # ---------------------------------------------------------
     # 2. KEYWORD FALLBACK — only used when vector gives few results

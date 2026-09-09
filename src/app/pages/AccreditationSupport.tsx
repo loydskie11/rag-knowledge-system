@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, MessageSquare, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
 import { ISO_OFFICES_16 } from "./UsersRoles";
@@ -17,6 +17,78 @@ export const MASTER_AACCUP_AREAS = [
   { code: "Area X", title: "Administration" },
 ];
 
+// Module-level caches to avoid redundant fetching and keep tab switches and page navigations instant
+const isoRequirementsCache = new Map<string, any[]>();
+const iqaDaysCache = new Map<string, any[]>();
+const qmsPlansCache = new Map<string, any[]>();
+let isoCyclesCache: string[] | null = null;
+
+export const getIsoProcessCategory = (req: any): string => {
+  if (req?.process_category) return req.process_category;
+  const office = (req?.auditee_office || "").toLowerCase();
+  if (
+    office.includes("educational") ||
+    office.includes("instruction") ||
+    office.includes("academic") ||
+    office.includes("research") ||
+    office.includes("extension") ||
+    office.includes("production") ||
+    office.includes("library") ||
+    office.includes("student affairs") ||
+    office.includes("registrar")
+  ) {
+    return "Core Process";
+  }
+  if (
+    office.includes("management") ||
+    office.includes("director") ||
+    office.includes("leadership") ||
+    office.includes("quality") ||
+    office.includes("drrm") ||
+    office.includes("gender")
+  ) {
+    return "Management Process";
+  }
+  return "Support Process";
+};
+
+export const isOfficeMatch = (reqOffice: string, filterOffice: string): boolean => {
+  if (!filterOffice || filterOffice === "all") return true;
+  if (!reqOffice) return false;
+  if (reqOffice.toLowerCase() === filterOffice.toLowerCase()) return true;
+
+  const normalize = (s: string) => s.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+  if (normalize(reqOffice) === normalize(filterOffice)) return true;
+
+  const aliases: Record<string, string[]> = {
+    "hrmo": ["hr & records management", "hr", "human resources", "hrmo", "hr & records"],
+    "finance/budget/accounting/cashier": ["administrative & finance", "finance", "budget", "accounting", "cashier"],
+    "student affairs services": ["student affairs & services", "sas", "student affairs"],
+    "registrar/mis": ["registrar's office", "registrar", "mis", "mis & information technology unit"],
+    "library services": ["university library", "library"],
+    "supply/property custodian": ["supply & property unit", "supply", "property"],
+    "management/leadership": ["campus director", "management", "leadership"],
+    "educational delivery processes": ["academic affairs", "instruction", "curriculum", "director of instruction"],
+    "extension": ["extension & community services"],
+    "production and resource generation": ["production & resource generation"],
+    "research and development": ["research & development"],
+    "quality assurance": ["quality assurance & management (qau)", "qau", "quality assurance"],
+    "drrm": ["security & physical plant unit", "drrm"]
+  };
+
+  const nReq = normalize(reqOffice);
+  const nFilter = normalize(filterOffice);
+
+  for (const [canonical, syns] of Object.entries(aliases)) {
+    const allNames = [canonical, ...syns].map(normalize);
+    if (allNames.includes(nReq) && allNames.includes(nFilter)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // ==========================================
 // SUB-COMPONENTS FOR TAB CONTENTS
 // ==========================================
@@ -26,6 +98,7 @@ export const AaccupTabContent = ({
   filteredAreas,
   selectedProgram,
   userRole,
+  userIsIqaAuditor,
   isUnassignedFaculty,
   isAdminQueueOpen,
   setIsAdminQueueOpen,
@@ -131,7 +204,7 @@ export const AaccupTabContent = ({
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-gray-900">AACCUP Area Compliance</h2>
-                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded-full">
+                <span className="text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md">
                   {currentData.areas.length} {currentData.areas.length === 10 ? "Areas (All 10)" : "Areas (Scoped)"}
                 </span>
               </div>
@@ -160,8 +233,8 @@ export const AaccupTabContent = ({
             </div>
 
             {/* Admin Verification Queue Panel */}
-            {userRole === "ADMIN" && pendingDocs.length > 0 && (
-              <div className="mb-6 bg-gray-50/80 border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
+            {(userRole === "ADMIN" || userIsIqaAuditor) && pendingDocs.length > 0 && (
+              <div className="mb-6 bg-gray-50/60 border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
                 <div 
                   onClick={() => setIsAdminQueueOpen(!isAdminQueueOpen)}
                   className="p-3.5 bg-gray-100/60 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
@@ -178,22 +251,22 @@ export const AaccupTabContent = ({
                     </div>
                   </div>
                   <button className="p-1 hover:bg-white/50 rounded-lg text-gray-500">
-                    {isAdminQueueOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    {isAdminQueueOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </button>
                 </div>
 
                 {isAdminQueueOpen && (
-                  <div className="p-4 space-y-3 border-t border-[#DD7230]/20 max-h-80 overflow-y-auto">
+                  <div className="p-4 space-y-3 border-t border-gray-200 max-h-80 overflow-y-auto">
                     {pendingDocs.map((doc: any, idx: number) => (
-                      <div key={idx} className="bg-white p-3.5 rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-[#DD7230]/40 transition-all">
+                      <div key={idx} className="bg-white p-3.5 rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-gray-300 transition-all">
                         <div className="flex items-start gap-3 min-w-0">
-                          <div className="p-2 bg-orange-50 text-[#DD7230] rounded-lg shrink-0 mt-0.5">
+                          <div className="p-2 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg shrink-0 mt-0.5">
                             <FileText className="h-4 w-4" />
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-gray-900 truncate">{doc.name}</span>
-                              <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md uppercase shrink-0">
+                              <span className="text-xs font-semibold text-gray-900 truncate">{doc.name}</span>
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-700 border border-gray-200 text-[10px] font-medium rounded-md uppercase shrink-0">
                                 {doc.area_code}
                               </span>
                             </div>
@@ -210,7 +283,7 @@ export const AaccupTabContent = ({
                           <button
                             onClick={() => handleAdminReview(doc.name, "Approved")}
                             disabled={isReviewing}
-                            className="px-3 py-1.5 bg-[#006837] hover:bg-[#00502a] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                            className="px-3 py-1.5 bg-[#DD7230] hover:bg-[#c86324] text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" /> Approve
                           </button>
@@ -220,7 +293,7 @@ export const AaccupTabContent = ({
                               setShowFeedbackModal(true);
                             }}
                             disabled={isReviewing}
-                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
                           >
                             <AlertTriangle className="h-3.5 w-3.5" /> Request Revision
                           </button>
@@ -242,36 +315,36 @@ export const AaccupTabContent = ({
                 filteredAreas.map((area: any) => (
                   <div
                     key={area.id}
-                    className="border border-gray-200 rounded-xl p-5 hover:border-[#DD7230] transition-all hover:shadow-md bg-white flex flex-col justify-between group"
+                    className="border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition-all hover:shadow-sm bg-white flex flex-col justify-between group"
                   >
                     <div>
                       <div className="flex justify-between items-start mb-3">
-                        <span className="px-2.5 py-1 bg-orange-50 text-[#DD7230] border border-[#DD7230]/20 font-bold text-xs rounded-md">
+                        <span className="px-2.5 py-0.5 bg-gray-100 text-gray-800 border border-gray-200 font-semibold text-xs rounded-md">
                           {area.code}
                         </span>
                         <span
-                          className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                          className={`text-xs font-medium px-2 py-0.5 rounded-md border ${
                             area.compliance === 100
-                              ? "bg-emerald-100 text-emerald-700"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                               : area.compliance >= 50
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-red-100 text-red-700"
+                              ? "bg-amber-50 text-amber-800 border-amber-200/60"
+                              : "bg-rose-50 text-rose-700 border-rose-200/60"
                           }`}
                         >
                           {area.compliance}% Compliant
                         </span>
                       </div>
-                      <h3 className="font-bold text-gray-900 text-sm mb-3 group-hover:text-[#DD7230] transition-colors">
+                      <h3 className="font-semibold text-gray-900 text-sm mb-3 group-hover:text-gray-950 transition-colors">
                         {area.title}
                       </h3>
-                      <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden mb-4">
+                      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden mb-4">
                         <div
                           className={`h-full transition-all duration-500 rounded-full ${
                             area.compliance === 100
-                              ? "bg-[#006837]"
+                              ? "bg-emerald-600"
                               : area.compliance >= 50
                               ? "bg-[#DD7230]"
-                              : "bg-red-500"
+                              : "bg-rose-500"
                           }`}
                           style={{ width: `${area.compliance}%` }}
                         />
@@ -279,12 +352,12 @@ export const AaccupTabContent = ({
                       <div className="flex justify-between text-xs text-gray-500 font-medium mb-4">
                         <span>Required: <strong>{area.required}</strong></span>
                         <span>Approved Evidence: <strong>{area.evidenceCount}</strong></span>
-                        <span className="text-red-500">Gaps: <strong>{area.gaps}</strong></span>
+                        <span className="text-gray-600">Gaps: <strong className="text-gray-900">{area.gaps}</strong></span>
                       </div>
                     </div>
                     <button
                       onClick={() => handleViewDetails ? handleViewDetails(area) : setExpandedArea(area)}
-                      className="w-full py-2.5 px-4 bg-[#F5F7FA] hover:bg-[#FFF4E5] text-gray-700 hover:text-[#DD7230] font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 border border-gray-200 hover:border-[#DD7230]/40 cursor-pointer"
+                      className="w-full py-2.5 px-4 bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900 font-medium text-xs rounded-lg transition-colors flex items-center justify-center gap-2 border border-gray-200 cursor-pointer"
                     >
                       View Requirements & Evidence Details <ChevronDown className="h-4 w-4" />
                     </button>
@@ -311,18 +384,16 @@ export const AaccupTabContent = ({
                 <h2 className="text-xl font-bold text-gray-900">{expandedArea.title}</h2>
               </div>
             </div>
-            {!isUnassignedFaculty && (
-              <button
-                onClick={() => {
-                  setUploadTargetArea(expandedArea);
-                  setUploadForm({ fileName: "", requirementTarget: "" });
-                  setShowUploadModal(true);
-                }}
-                className="px-4 py-2.5 bg-[#DD7230] hover:bg-[#DD7230] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
-              >
-                <Upload className="h-4 w-4" /> Upload Evidence File
-              </button>
-            )}
+            <button
+              onClick={() => {
+                setUploadTargetArea(expandedArea);
+                setUploadForm({ fileName: "", requirementTarget: "" });
+                setShowUploadModal(true);
+              }}
+              className="px-4 py-2.5 bg-[#DD7230] hover:bg-[#DD7230] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+            >
+              <Upload className="h-4 w-4" /> Upload Evidence File
+            </button>
           </div>
 
           {isLoadingDetails ? (
@@ -364,8 +435,10 @@ export const AaccupTabContent = ({
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                              req.is_met || req.isUploaded ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                            className={`px-2 py-0.5 rounded-md font-medium text-[10px] uppercase border ${
+                              req.is_met || req.isUploaded 
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" 
+                                : "bg-gray-100 text-gray-600 border-gray-200"
                             }`}
                           >
                             {req.is_met || req.isUploaded ? "Uploaded" : "Missing Evidence"}
@@ -382,7 +455,7 @@ export const AaccupTabContent = ({
                                   });
                                   setShowEditAaccupReqModal(true);
                                 }}
-                                className="p-1 text-gray-400 hover:text-[#DD7230] transition-colors rounded cursor-pointer"
+                                className="p-1 text-gray-400 hover:text-gray-700 transition-colors rounded cursor-pointer"
                                 title="Edit Requirement"
                               >
                                 <Edit className="h-3.5 w-3.5" />
@@ -395,7 +468,7 @@ export const AaccupTabContent = ({
                                   });
                                   setShowDeleteAaccupReqModal(true);
                                 }}
-                                className="p-1 text-gray-400 hover:text-red-600 transition-colors rounded cursor-pointer"
+                                className="p-1 text-gray-400 hover:text-rose-600 transition-colors rounded cursor-pointer"
                                 title="Delete Requirement"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -423,7 +496,7 @@ export const AaccupTabContent = ({
                         className="p-4 rounded-xl border border-gray-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-gray-300 transition-all"
                       >
                         <div className="flex items-start gap-3 min-w-0">
-                          <div className="p-2 bg-orange-50 text-[#DD7230] rounded-lg shrink-0 mt-0.5">
+                          <div className="p-2 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg shrink-0 mt-0.5">
                             <FileText className="h-4 w-4" />
                           </div>
                           <div className="min-w-0">
@@ -439,12 +512,12 @@ export const AaccupTabContent = ({
 
                         <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                           <span
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-medium uppercase border ${
                               doc.status === "Approved"
-                                ? "bg-emerald-100 text-emerald-800"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                                 : doc.status === "Needs Revision"
-                                ? "bg-red-100 text-red-800"
-                                : "bg-amber-100 text-amber-800"
+                                ? "bg-rose-50 text-rose-700 border-rose-200/60"
+                                : "bg-amber-50 text-amber-800 border-amber-200/60"
                             }`}
                           >
                             {doc.status || "Pending Verification"}
@@ -502,6 +575,7 @@ export const ChedTabContent = ({
   isLoadingChed,
   selectedProgram,
   userRole,
+  userIsIqaAuditor,
   isUnassignedFaculty,
   setShowAddChedReqModal,
   setShowEditChedModal,
@@ -572,9 +646,9 @@ export const ChedTabContent = ({
                                 <span className="font-semibold text-gray-800 truncate max-w-[200px]">{ev.document_name}</span>
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
-                                <span className={`px-2 py-0.5 text-[9px] font-bold rounded-md uppercase ${
-                                  ev.status === "Approved" ? "bg-emerald-100 text-emerald-800" :
-                                  ev.status === "Needs Revision" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"
+                                <span className={`px-2 py-0.5 text-[9px] font-medium rounded-md uppercase border ${
+                                  ev.status === "Approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" :
+                                  ev.status === "Needs Revision" ? "bg-rose-50 text-rose-700 border-rose-200/60" : "bg-amber-50 text-amber-800 border-amber-200/60"
                                 }`}>
                                   {ev.status}
                                 </span>
@@ -583,17 +657,17 @@ export const ChedTabContent = ({
                                     href={ev.file_url || ev.url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="p-1 text-gray-500 hover:text-[#DD7230] hover:bg-orange-50 rounded cursor-pointer"
+                                    className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded cursor-pointer"
                                     title="View Evidence Document"
                                   >
                                     <Eye className="h-3.5 w-3.5" />
                                   </a>
                                 )}
-                                {userRole === "ADMIN" && ev.status === "Pending Verification" && (
+                                {(userRole === "ADMIN" || userIsIqaAuditor) && ev.status === "Pending Verification" && (
                                   <button
                                     onClick={() => handleReviewChedEvidence(ev.id, "Approved")}
                                     disabled={isReviewing}
-                                    className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer"
+                                    className="p-1 bg-gray-900 hover:bg-black text-white rounded cursor-pointer transition-colors shadow-2xs"
                                     title="Approve Evidence"
                                   >
                                     <Check className="h-3 w-3" />
@@ -602,7 +676,7 @@ export const ChedTabContent = ({
                                 {userRole === "ADMIN" && (
                                   <button
                                     onClick={() => { setChedEvidenceToDelete(ev); setShowDeleteChedEvidenceModal(true); }}
-                                    className="p-1 text-gray-400 hover:text-red-600 rounded cursor-pointer"
+                                    className="p-1 text-gray-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
                                     title="Remove Evidence"
                                   >
                                     <Trash2 className="h-3 w-3" />
@@ -617,21 +691,19 @@ export const ChedTabContent = ({
                       )}
                     </td>
                     <td className="p-3.5">
-                      <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full uppercase ${
-                        req.status === "Compliant" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                      <span className={`px-2 py-0.5 text-[10px] font-medium rounded-md uppercase border ${
+                        req.status === "Compliant" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" : "bg-gray-100 text-gray-600 border-gray-200"
                       }`}>
                         {req.status || "Not Compliant"}
                       </span>
                     </td>
                     <td className="p-3.5 text-right space-x-1">
-                      {!isUnassignedFaculty && (
-                        <button
-                          onClick={() => { setSelectedChedReq(req); setShowChedUploadModal(true); }}
-                          className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-[#DD7230] border border-[#DD7230]/30 font-bold rounded-lg text-xs transition-colors cursor-pointer"
-                        >
-                          Upload Proof
-                        </button>
-                      )}
+                      <button
+                        onClick={() => { setSelectedChedReq(req); setShowChedUploadModal(true); }}
+                        className="px-2.5 py-1.5 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 font-medium rounded-lg text-xs transition-colors cursor-pointer shadow-2xs"
+                      >
+                        Upload Proof
+                      </button>
                       {userRole === "ADMIN" && (
                         <>
                           <button
@@ -681,11 +753,16 @@ export const IsoTabContent = ({
   setIsoFilterCategory,
   isoFilterOffice,
   setIsoFilterOffice,
+  isoStatusFilter,
+  setIsoStatusFilter,
+  availableIsoOffices = [],
   isoSearchQuery,
   setIsoSearchQuery,
   filteredIsoClauses,
   isoCompliantCount,
   isoTotalCount,
+  cycleTotalCount,
+  cycleCompliantCount,
   isoCompliancePercent,
   iqaProgramSchedule,
   iqaAuditDays,
@@ -729,14 +806,28 @@ export const IsoTabContent = ({
   handleReviewIsoEvidence,
   handleUpdateQmsStatus,
   isReviewing,
-  showToast
+  confirmIsoStatusUpdate,
+  userIsIqaAuditor,
+  showToast,
+  setIsoFeedbackDoc,
+  setIsoPendingStatus,
+  setShowIsoFeedbackModal,
+  setIsoFeedbackText
 }: any) => {
+  // Strict ISO Rule: Clause can only be approved if it has evidence, and ALL evidence is approved.
+  const evidenceList = (expandedIsoClause?.evidences && expandedIsoClause.evidences.length > 0)
+    ? expandedIsoClause.evidences
+    : (isoClauseEvidences || []);
+  const hasEvidence = (expandedIsoClause?.evidences && expandedIsoClause.evidences.length > 0) || (evidenceList.length > 0);
+  const allEvidenceApproved = hasEvidence && evidenceList.every((ev: any) => ev.status === "Approved");
+  const isClauseReadyForApproval = expandedIsoClause?.status !== "Compliant" && allEvidenceApproved;
+
   return (
     <>
       {!expandedIsoClause ? (
         <>
           {/* --- 100% ISO 9001:2015 COMPLIANCE SUCCESS BANNER --- */}
-          {isoTotalCount > 0 && isoCompliantCount === isoTotalCount && (
+          {(cycleTotalCount ?? isoTotalCount) > 0 && (cycleCompliantCount ?? isoCompliantCount) === (cycleTotalCount ?? isoTotalCount) && (
             <div className="p-6 bg-[#006837] text-white rounded-2xl shadow-xl border-2 border-emerald-400 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
               <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
               <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
@@ -746,10 +837,10 @@ export const IsoTabContent = ({
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2.5 py-0.5 bg-amber-400 text-gray-900 text-[10px] font-black uppercase rounded-full tracking-widest shadow-sm flex items-center gap-1">
+                      <span className="px-2.5 py-0.5 bg-amber-400 text-gray-900 text-[10px] font-bold uppercase rounded-md tracking-wider shadow-sm flex items-center gap-1">
                         <Award className="h-3 w-3 text-amber-900" /> 100% Fully Compliant
                       </span>
-                      <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-sm border border-white/30">
+                      <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-semibold rounded-md uppercase tracking-wider backdrop-blur-sm border border-white/30">
                         {selectedIsoCycleYear}
                       </span>
                       <span className="text-xs font-semibold text-emerald-100 hidden sm:inline">ISO 9001:2015 Audit Certified</span>
@@ -809,8 +900,8 @@ export const IsoTabContent = ({
                     )}
                   </div>
                   {isOfficeRestricted && (
-                    <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 font-medium text-xs rounded-md flex items-center gap-1">
-                      <Lock className="h-3 w-3" /> Scoped to: {userAdminOffice}
+                    <span className="px-2.5 py-0.5 bg-gray-100 text-gray-700 border border-gray-200 font-medium text-xs rounded-md flex items-center gap-1">
+                      <Lock className="h-3 w-3 text-gray-500" /> Scoped to: {userAdminOffice}
                     </span>
                   )}
                 </div>
@@ -899,7 +990,7 @@ export const IsoTabContent = ({
                     <select
                       value={isoFilterCategory}
                       onChange={(e) => setIsoFilterCategory(e.target.value)}
-                      className="px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                      className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#DD7230] shadow-2xs cursor-pointer"
                     >
                       <option value="all">All Process Categories</option>
                       <option value="Core Process">Core Process</option>
@@ -911,25 +1002,51 @@ export const IsoTabContent = ({
                       value={isoFilterOffice}
                       onChange={(e) => setIsoFilterOffice(e.target.value)}
                       disabled={isOfficeRestricted}
-                      className={`px-3 py-2 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#DD7230] ${
-                        isOfficeRestricted ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed" : "bg-[#F5F7FA] text-gray-700 border-gray-200"
+                      className={`px-3 py-2 border rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#DD7230] shadow-2xs cursor-pointer ${
+                        isOfficeRestricted ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed" : "bg-white text-gray-700 border-gray-200"
                       }`}
                     >
-                      <option value="all">All Auditee Offices (16 Offices)</option>
-                      {ISO_OFFICES_16.map((off: string) => (
+                      <option value="all">All Auditee Offices ({availableIsoOffices.length > 0 ? availableIsoOffices.length : 16} Offices)</option>
+                      {(availableIsoOffices.length > 0 ? availableIsoOffices : ISO_OFFICES_16).map((off: string) => (
                         <option key={off} value={off}>{off}</option>
                       ))}
                     </select>
+
+                    <select
+                      value={isoStatusFilter}
+                      onChange={(e) => setIsoStatusFilter && setIsoStatusFilter(e.target.value)}
+                      className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#DD7230] shadow-2xs cursor-pointer"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="Compliant">Compliant</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Not Compliant">Not Compliant</option>
+                    </select>
+
+                    {(isoFilterCategory !== "all" || (isoFilterOffice !== "all" && !isOfficeRestricted) || (isoStatusFilter && isoStatusFilter !== "all") || isoSearchQuery) && (
+                      <button
+                        onClick={() => {
+                          setIsoFilterCategory("all");
+                          if (!isOfficeRestricted) setIsoFilterOffice("all");
+                          if (setIsoStatusFilter) setIsoStatusFilter("all");
+                          setIsoSearchQuery("");
+                        }}
+                        className="px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        title="Reset all ISO clause filters"
+                      >
+                        Reset Filters
+                      </button>
+                    )}
                   </div>
 
                   <div className="relative w-full md:w-64">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
                     <input
                       type="text"
-                      placeholder="Search clauses or titles..."
+                      placeholder="Search clauses, titles, offices..."
                       value={isoSearchQuery}
                       onChange={(e) => setIsoSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                      className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] shadow-2xs"
                     />
                   </div>
                 </div>
@@ -958,13 +1075,18 @@ export const IsoTabContent = ({
                       </thead>
                       <tbody className="divide-y divide-gray-100 text-xs">
                         {filteredIsoClauses.map((clause: any) => (
-                          <tr key={clause.id} className="hover:bg-gray-50/60 transition-colors">
+                          <tr 
+                            key={clause.id} 
+                            onClick={() => setExpandedIsoClause(clause)}
+                            className="hover:bg-orange-50/50 transition-colors cursor-pointer group"
+                            title="Click to open clause details and evidence"
+                          >
                             <td className="p-3.5 font-bold text-gray-900 max-w-xs">
                               <div className="flex items-center gap-2">
-                                <span className="px-2 py-0.5 bg-orange-50 text-[#DD7230] border border-[#DD7230]/30 text-[10px] font-black rounded-md shrink-0">
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-700 border border-gray-200 text-[10px] font-semibold rounded-md shrink-0 transition-colors">
                                   {clause.iso_clause}
                                 </span>
-                                <span className="truncate">{clause.title}</span>
+                                <span className="truncate group-hover:text-gray-950 transition-colors">{clause.title}</span>
                               </div>
                               {clause.process_category && (
                                 <span className="text-[10px] text-gray-400 font-medium block mt-0.5">{clause.process_category}</span>
@@ -973,23 +1095,17 @@ export const IsoTabContent = ({
                             <td className="p-3.5 text-gray-600 font-medium">{clause.auditee_office || 'Campus-Wide'}</td>
                             <td className="p-3.5 font-semibold text-gray-700">{clause.evidences?.length || 0} file(s)</td>
                             <td className="p-3.5">
-                              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full uppercase ${
-                                clause.status === "Compliant" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                              <span className={`px-2 py-0.5 text-[10px] font-medium rounded-md uppercase border ${
+                                clause.status === "Compliant" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" : "bg-gray-100 text-gray-600 border-gray-200"
                               }`}>
                                 {clause.status || "Not Compliant"}
                               </span>
                             </td>
-                            <td className="p-3.5 text-right space-x-1">
-                              <button
-                                onClick={() => setExpandedIsoClause(clause)}
-                                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg text-xs transition-colors cursor-pointer"
-                              >
-                                Details
-                              </button>
+                            <td className="p-3.5 text-right space-x-1" onClick={(e) => e.stopPropagation()}>
                               {!isUnassignedFaculty && (
                                 <button
-                                  onClick={() => { setSelectedIsoReqForUpload(clause); setShowIsoUploadEvidenceModal(true); }}
-                                  className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-[#DD7230] border border-[#DD7230]/30 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedIsoReqForUpload(clause); setShowIsoUploadEvidenceModal(true); }}
+                                  className="px-2.5 py-1.5 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 font-medium rounded-lg text-xs transition-colors cursor-pointer shadow-2xs"
                                 >
                                   Upload Proof
                                 </button>
@@ -997,14 +1113,16 @@ export const IsoTabContent = ({
                               {userRole === "ADMIN" && (
                                 <>
                                   <button
-                                    onClick={() => { setEditingIsoReq(clause); setShowEditIsoReqModal(true); }}
+                                    onClick={(e) => { e.stopPropagation(); setEditingIsoReq(clause); setShowEditIsoReqModal(true); }}
                                     className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg cursor-pointer"
+                                    title="Edit Clause"
                                   >
                                     <Edit className="h-4 w-4" />
                                   </button>
                                   <button
-                                    onClick={() => { setIsoReqToDelete(clause); setShowDeleteIsoReqModal(true); }}
+                                    onClick={(e) => { e.stopPropagation(); setIsoReqToDelete(clause); setShowDeleteIsoReqModal(true); }}
                                     className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                                    title="Delete Clause"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
@@ -1023,7 +1141,7 @@ export const IsoTabContent = ({
                   <div className="flex justify-between items-center mb-4">
                     <div>
                       <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-[#DD7230]" /> 3-Day Internal Quality Audit (IQA) Program Schedule ({selectedIsoCycleYear})
+                        <Calendar className="h-4 w-4 text-[#DD7230]" /> Internal Quality Audit Schedule (IQA Form 1 & 2) ({selectedIsoCycleYear})
                       </h3>
                       <p className="text-xs text-gray-500">Annual audit cycle schedule for CTU Argao Campus offices.</p>
                     </div>
@@ -1096,7 +1214,7 @@ export const IsoTabContent = ({
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                       <div>
                         <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                          <FileCheck className="h-5 w-5 text-[#DD7230]" /> QMS Action Plans (MRC Form 6)
+                          <FileCheck className="h-5 w-5 text-[#DD7230]" /> Corrective Action Logsheet (CAR Form 3)
                         </h3>
                         <p className="text-xs text-gray-500">Corrective actions, opportunities for improvement, and risk registers across campus offices.</p>
                       </div>
@@ -1219,12 +1337,18 @@ export const IsoTabContent = ({
                                 <td className="p-3.5">
                                   <select
                                     value={plan.status}
-                                    onChange={(e) => handleUpdateQmsStatus(plan.id, e.target.value)}
-                                    className={`px-2.5 py-1 text-[10px] font-bold rounded-full border focus:outline-none cursor-pointer ${
-                                      plan.status === "Completed" ? "bg-emerald-100 text-emerald-800 border-emerald-300" :
-                                      plan.status === "In Progress" ? "bg-amber-100 text-amber-800 border-amber-300" :
-                                      plan.status === "Overdue" ? "bg-red-100 text-red-800 border-red-300" :
-                                      "bg-gray-100 text-gray-800 border-gray-300"
+                                    onChange={(e) => {
+                                      if (e.target.value === "Completed" && !(userRole === "ADMIN" || userIsIqaAuditor)) {
+                                        showToast("Only Admins and IQA Auditors can officially verify and close out Action Plans.", "warning");
+                                        return;
+                                      }
+                                      handleUpdateQmsStatus(plan.id, e.target.value);
+                                    }}
+                                    className={`px-2.5 py-1 text-[11px] font-medium rounded-md border focus:outline-none cursor-pointer transition-colors ${
+                                      plan.status === "Completed" ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                                      plan.status === "In Progress" ? "bg-amber-50 text-amber-800 border-amber-200" :
+                                      plan.status === "Overdue" ? "bg-rose-50 text-rose-800 border-rose-200" :
+                                      "bg-gray-50 text-gray-700 border-gray-200"
                                     }`}
                                   >
                                     <option value="Proposed">Proposed</option>
@@ -1236,7 +1360,7 @@ export const IsoTabContent = ({
                                 <td className="p-3.5 text-right space-x-1">
                                   <button
                                     onClick={() => { setTargetQmsPlanForEvidence(plan); setShowQmsEvidenceUploadModal(true); }}
-                                    className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-[#DD7230] border border-[#DD7230]/30 font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                                    className="px-2.5 py-1.5 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 font-medium rounded-lg text-xs transition-colors cursor-pointer shadow-2xs"
                                   >
                                     Attach Proof
                                   </button>
@@ -1281,18 +1405,62 @@ export const IsoTabContent = ({
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div>
-                <span className="text-xs font-bold text-[#DD7230] uppercase tracking-wider">{expandedIsoClause.iso_clause}</span>
-                <h2 className="text-xl font-bold text-gray-900">{expandedIsoClause.title}</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#DD7230] uppercase tracking-wider">{expandedIsoClause.iso_clause}</span>
+                  <span className={`px-2 py-0.5 text-[10px] font-medium rounded-md uppercase border ${
+                    expandedIsoClause.status === "Compliant" 
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200/60" 
+                      : expandedIsoClause.status === "Pending"
+                      ? "bg-amber-50 text-amber-800 border-amber-200/60"
+                      : "bg-rose-50 text-rose-800 border-rose-200/60"
+                  }`}>
+                    {expandedIsoClause.status || "Not Compliant"}
+                  </span>
+                  <span className="text-xs text-gray-400">•</span>
+                  <span className="text-xs text-gray-600 font-medium">{expandedIsoClause.auditee_office || "Campus-Wide"}</span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 mt-0.5">{expandedIsoClause.title}</h2>
               </div>
             </div>
-            {!isUnassignedFaculty && (
-              <button
-                onClick={() => { setSelectedIsoReqForUpload(expandedIsoClause); setShowIsoUploadEvidenceModal(true); }}
-                className="px-4 py-2.5 bg-[#DD7230] hover:bg-[#DD7230] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
-              >
-                <Upload className="h-4 w-4" /> Upload Clause Proof
-              </button>
-            )}
+
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {/* Quick Compliance Action Buttons for Admin & IQA Auditors */}
+              {(userRole === "ADMIN" || userIsIqaAuditor || userAdminOffice === "Quality Assurance") && (
+                <>
+                  <button
+                    onClick={() => confirmIsoStatusUpdate && confirmIsoStatusUpdate(expandedIsoClause.id, "Compliant", `${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}`)}
+                    disabled={!isClauseReadyForApproval}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 ${
+                      isClauseReadyForApproval 
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95" 
+                        : "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                    }`}
+                    title={isClauseReadyForApproval ? "Approve ISO clause as fully compliant" : "Cannot approve: All evidence files must be verified and approved first."}
+                  >
+                    <Check className="h-4 w-4" /> Approve Clause
+                  </button>
+                  
+                  {expandedIsoClause.status !== "Not Compliant" && (
+                    <button
+                      onClick={() => confirmIsoStatusUpdate && confirmIsoStatusUpdate(expandedIsoClause.id, "Not Compliant", `${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}`)}
+                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      title="Mark clause non-compliant and trigger Corrective Action Plan (CAR)"
+                    >
+                      <AlertTriangle className="h-4 w-4 text-rose-600" /> Decline / CAR
+                    </button>
+                  )}
+                </>
+              )}
+
+              {!isUnassignedFaculty && (
+                <button
+                  onClick={() => { setSelectedIsoReqForUpload(expandedIsoClause); setShowIsoUploadEvidenceModal(true); }}
+                  className="px-3.5 py-2 bg-[#DD7230] hover:bg-[#c45e22] text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+                >
+                  <Upload className="h-4 w-4" /> Upload Proof
+                </button>
+              )}
+            </div>
           </div>
 
           {isLoadingIsoEvidences ? (
@@ -1310,49 +1478,97 @@ export const IsoTabContent = ({
               ) : (
                 <div className="space-y-2.5">
                   {isoClauseEvidences.map((doc: any, idx: number) => (
-                    <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-white flex items-center justify-between gap-3 shadow-2xs">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <FileText className="h-5 w-5 text-[#DD7230] shrink-0" />
-                        <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-gray-900 truncate">{doc.document_name}</h4>
-                          <span className="text-[10px] text-gray-400">{doc.office || 'Campus-Wide'}</span>
+                    <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-white flex flex-col gap-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="p-2 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg shrink-0">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-semibold text-gray-900 truncate">{doc.document_name}</h4>
+                            <span className="text-[10px] text-gray-400">{doc.office || 'Campus-Wide'}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium uppercase border ${
+                            doc.status === "Approved" 
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" 
+                              : doc.status === "Needs Revision"
+                              ? "bg-rose-50 text-rose-700 border-rose-200/60"
+                              : "bg-amber-50 text-amber-800 border-amber-200/60"
+                          }`}>
+                            {doc.status || "Pending Verification"}
+                          </span>
+                          
+                          <div className="flex items-center gap-1 ml-2 border-l border-gray-200 pl-2">
+                            {(doc.file_url || doc.url) && (
+                              <a
+                                href={doc.file_url || doc.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-200"
+                                title="View Evidence Document"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </a>
+                            )}
+                            {(userRole === "ADMIN" || userIsIqaAuditor || userAdminOffice === "Quality Assurance") && (
+                              <>
+                                {doc.status !== "Approved" && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setIsoFeedbackDoc(doc);
+                                      setIsoPendingStatus("Approved");
+                                      setIsoFeedbackText(doc.admin_feedback || "");
+                                      setShowIsoFeedbackModal(true);
+                                    }}
+                                    disabled={isReviewing}
+                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                                    title="Approve Evidence"
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </button>
+                                )}
+                                {doc.status !== "Needs Revision" && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setIsoFeedbackDoc(doc);
+                                      setIsoPendingStatus("Needs Revision");
+                                      setIsoFeedbackText(doc.admin_feedback || "");
+                                      setShowIsoFeedbackModal(true);
+                                    }}
+                                    disabled={isReviewing}
+                                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                                    title="Decline Evidence / Request Revision"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                            {userRole === "ADMIN" && (
+                              <button
+                                onClick={() => { setIsoEvidenceToDelete(doc); setShowDeleteIsoEvidenceModal(true); }}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                                title="Delete Evidence"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                          doc.status === "Approved" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                        }`}>
-                          {doc.status}
-                        </span>
-                        {(doc.file_url || doc.url) && (
-                          <a
-                            href={doc.file_url || doc.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-1 text-gray-500 hover:text-[#DD7230] hover:bg-orange-50 rounded cursor-pointer"
-                            title="View Evidence Document"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                        {userRole === "ADMIN" && doc.status === "Pending Verification" && (
-                          <button
-                            onClick={() => handleReviewIsoEvidence(doc.id, "Approved")}
-                            disabled={isReviewing}
-                            className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {userRole === "ADMIN" && (
-                          <button
-                            onClick={() => { setIsoEvidenceToDelete(doc); setShowDeleteIsoEvidenceModal(true); }}
-                            className="p-1 text-gray-400 hover:text-red-600 rounded cursor-pointer"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
+                      {doc.admin_feedback && (
+                        <div className="mt-0.5 px-3 py-2 bg-amber-50/70 border border-amber-200/60 rounded-lg text-xs flex items-start gap-2">
+                          <MessageSquare className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <span className="font-bold text-amber-900 text-[11px] block">Auditor Verification Remarks:</span>
+                            <p className="text-gray-700 text-xs mt-0.5 leading-relaxed break-words">{doc.admin_feedback}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1446,7 +1662,7 @@ export const ResultsTabContent = ({
                       <div className="bg-gray-50/70 rounded-xl p-4 border border-gray-200 hover:border-[#DD7230]/40 transition-all shadow-2xs space-y-2">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                           <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 bg-[#FFF4E5] text-[#DD7230] border border-[#FFE0B2] font-bold text-xs rounded-md">
+                            <span className="px-2.5 py-0.5 bg-gray-100 text-gray-800 border border-gray-200 font-semibold text-xs rounded-md">
                               {levelName}
                             </span>
                             {validUntil && (
@@ -1736,8 +1952,9 @@ export function AccreditationSupport() {
   const userName = sessionStorage.getItem('userName') || 'Faculty User';
   const userAdminOffice = sessionStorage.getItem('userAdministrativeOffice') || '';
   const userIsIqaAuditor = sessionStorage.getItem('isIqaAuditor') === 'true';
-  const isOfficeRestricted = userRole !== 'ADMIN' && !userIsIqaAuditor && Boolean(userAdminOffice && ISO_OFFICES_16.includes(userAdminOffice));
-  const isUnassignedFaculty = userRole !== 'ADMIN' && !userIsIqaAuditor && (!userAdminOffice || !ISO_OFFICES_16.includes(userAdminOffice));
+  const isQualityAssuranceOrAuditor = userRole === 'ADMIN' || userIsIqaAuditor || userAdminOffice === 'Quality Assurance';
+  const isOfficeRestricted = !isQualityAssuranceOrAuditor && Boolean(userAdminOffice && ISO_OFFICES_16.includes(userAdminOffice));
+  const isUnassignedFaculty = !isQualityAssuranceOrAuditor && (!userAdminOffice || !ISO_OFFICES_16.includes(userAdminOffice));
 
   const [selectedProgram, setSelectedProgram] = useState(userRole === 'FACULTY' ? userDept : "BSIT");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1780,6 +1997,7 @@ export function AccreditationSupport() {
 
   const [isAdminQueueOpen, setIsAdminQueueOpen] = useState(false);
   const [pendingDocs, setPendingDocs] = useState<any[]>([]); // Handles AACCUP
+  const [pendingIsoDocs, setPendingIsoDocs] = useState<any[]>([]); // Handles ISO
   const [isReviewing, setIsReviewing] = useState(false);
   
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -1822,18 +2040,31 @@ export function AccreditationSupport() {
   const [chedEvidenceToDelete, setChedEvidenceToDelete] = useState<any>(null);
 
   // --- ISO 9001:2015 QMS STATES ---
-  const [isoRequirements, setIsoRequirements] = useState<any[]>([]);
-  const [isLoadingIso, setIsLoadingIso] = useState(false);
+  const [isoRequirements, setIsoRequirements] = useState<any[]>(() => {
+    return isoRequirementsCache.get("2026 Recertification") || [];
+  });
+  const [isLoadingIso, setIsLoadingIso] = useState(() => {
+    return !isoRequirementsCache.has("2026 Recertification");
+  });
   const [showIsoUploadModal, setShowIsoUploadModal] = useState(false);
   const [selectedIsoReq, setSelectedIsoReq] = useState<any>(null);
   const [isoOfficeFilter, setIsoOfficeFilter] = useState("all");
   const [isoFilterCategory, setIsoFilterCategory] = useState("all");
+  const [isoStatusFilter, setIsoStatusFilter] = useState("all");
   const [isoSearchQuery, setIsoSearchQuery] = useState("");
 
+  const availableIsoOffices = useMemo(() => {
+    return Array.from(
+      new Set(isoRequirements.map((r: any) => r.auditee_office).filter(Boolean))
+    ).sort();
+  }, [isoRequirements]);
+
   // ISO Audit Cycle Year & Expanded Clause States
-  const [selectedIsoCycleYear, setSelectedIsoCycleYear] = useState("2025 Surveillance");
+  const [selectedIsoCycleYear, setSelectedIsoCycleYear] = useState("2026 Recertification");
   const [showIsoYearFilter, setShowIsoYearFilter] = useState(false);
-  const [isoCycleOptions, setIsoCycleOptions] = useState<string[]>(["2026 Recertification", "2025 Surveillance", "2024 Initial Audit"]);
+  const [isoCycleOptions, setIsoCycleOptions] = useState<string[]>(() => {
+    return isoCyclesCache || ["2026 Recertification", "2025 Surveillance", "2024 Initial Audit"];
+  });
   const [showAddIsoCycleModal, setShowAddIsoCycleModal] = useState(false);
   const [newIsoCycleName, setNewIsoCycleName] = useState("");
   const [isCreatingCycle, setIsCreatingCycle] = useState(false);
@@ -1861,13 +2092,21 @@ export function AccreditationSupport() {
   const [showDeleteIsoEvidenceModal, setShowDeleteIsoEvidenceModal] = useState(false);
   const [isoEvidenceToDelete, setIsoEvidenceToDelete] = useState<any>(null);
 
+  // ISO evidence verification & feedback modal
+  const [showIsoFeedbackModal, setShowIsoFeedbackModal] = useState(false);
+  const [isoFeedbackDoc, setIsoFeedbackDoc] = useState<any>(null);
+  const [isoFeedbackText, setIsoFeedbackText] = useState("");
+  const [isoPendingStatus, setIsoPendingStatus] = useState("");
+
   // ISO status change confirm
   const [showIsoStatusModal, setShowIsoStatusModal] = useState(false);
   const [pendingIsoStatus, setPendingIsoStatus] = useState<{ reqId: string; status: string; title: string } | null>(null);
 
   // --- QMS ACTION PLAN STATES (MRC Form 6) ---
   const [isoSubTab, setIsoSubTab] = useState<"clauses" | "qms">("clauses");
-  const [qmsActionPlans, setQmsActionPlans] = useState<any[]>([]);
+  const [qmsActionPlans, setQmsActionPlans] = useState<any[]>(() => {
+    return qmsPlansCache.get("2026 Recertification") || [];
+  });
   const [isLoadingQmsPlans, setIsLoadingQmsPlans] = useState(false);
   const [qmsOfficeFilter, setQmsOfficeFilter] = useState("all");
   const [qmsTypeFilter, setQmsTypeFilter] = useState("all");
@@ -1876,6 +2115,7 @@ export function AccreditationSupport() {
 
   const [showAddQmsModal, setShowAddQmsModal] = useState(false);
   const [isAddingQms, setIsAddingQms] = useState(false);
+  const [isExtractingCar, setIsExtractingCar] = useState(false);
   const [newQmsPlan, setNewQmsPlan] = useState({
     auditee_office: "HRMO",
     process_area: "",
@@ -1926,7 +2166,9 @@ export function AccreditationSupport() {
   const [iqaFormData, setIqaFormData] = useState({ academic_year: "" });
   const [isSavingIqa, setIsSavingIqa] = useState(false);
 
-  const [iqaDays, setIqaDays] = useState<any[]>([]);
+  const [iqaDays, setIqaDays] = useState<any[]>(() => {
+    return iqaDaysCache.get("2026 Recertification") || [];
+  });
   const [isLoadingIqaDays, setIsLoadingIqaDays] = useState(false);
   const [showAddIqaDayModal, setShowAddIqaDayModal] = useState(false);
   const [showEditIqaDayModal, setShowEditIqaDayModal] = useState(false);
@@ -2001,7 +2243,7 @@ export function AccreditationSupport() {
         } catch (_) { /* non-critical pre-fetch, ignore errors */ }
       }
       
-      if (userRole === "ADMIN") fetchPendingQueue();
+      if (userRole === "ADMIN" || userIsIqaAuditor) fetchPendingQueue();
       fetchChedData(); 
       fetchIsoCycles();
       fetchIsoData(selectedIsoCycleYear);
@@ -2158,11 +2400,20 @@ export function AccreditationSupport() {
     }
   };
 
-  const fetchIqaDays = async (cycleYear = selectedIsoCycleYear) => {
-    setIsLoadingIqaDays(true);
+  const fetchIqaDays = async (cycleYear = selectedIsoCycleYear, force = false) => {
+    const cached = iqaDaysCache.get(cycleYear);
+    if (!force && cached && cached.length > 0) {
+      setIqaDays(cached);
+      return;
+    }
+    if (!cached || cached.length === 0) {
+      setIsLoadingIqaDays(true);
+    }
     try {
       const res = await axios.get(`http://localhost:8000/iso/schedule-days?cycle_year=${encodeURIComponent(cycleYear)}`);
-      setIqaDays(res.data || []);
+      const data = res.data || [];
+      iqaDaysCache.set(cycleYear, data);
+      setIqaDays(data);
     } catch (error) {
       console.error("Failed to fetch IQA schedule days", error);
     } finally {
@@ -2173,9 +2424,15 @@ export function AccreditationSupport() {
   const fetchPendingQueue = async () => {
     try {
       const res = await axios.get("http://localhost:8000/admin/accreditation-pending");
-      setPendingDocs(res.data);
+      setPendingDocs(res.data || []);
     } catch (error) {
       console.error("Failed to fetch pending queue", error);
+    }
+    try {
+      const isoRes = await axios.get("http://localhost:8000/iso/evidences/pending");
+      setPendingIsoDocs(isoRes.data || []);
+    } catch (error) {
+      console.error("Failed to fetch pending ISO queue", error);
     }
   };
 
@@ -2191,22 +2448,49 @@ export function AccreditationSupport() {
     }
   };
 
-  const fetchIsoCycles = async () => {
+  const fetchIsoCycles = async (force = false) => {
+    if (!force && isoCyclesCache && isoCyclesCache.length > 0) {
+      setIsoCycleOptions(isoCyclesCache);
+      return;
+    }
     try {
       const res = await axios.get("http://localhost:8000/iso/cycles");
       if (res.data && res.data.length > 0) {
+        isoCyclesCache = res.data;
         setIsoCycleOptions(res.data);
+        const currentYearStr = new Date().getFullYear().toString();
+        const matchingCurrentYear = res.data.find((c: string) => c.includes(currentYearStr)) || res.data.find((c: string) => c.includes("2026")) || res.data[0];
+        if (matchingCurrentYear) {
+          setSelectedIsoCycleYear((prev: string) => {
+            // Keep user selection if it already matches the current year/2026, otherwise switch to matchingCurrentYear
+            return (prev && (prev.includes(currentYearStr) || prev.includes("2026"))) ? prev : matchingCurrentYear;
+          });
+        }
       }
     } catch (error) {
       console.error("Failed to fetch ISO audit cycles");
     }
   };
 
-  const fetchIsoData = async (cycleYear = selectedIsoCycleYear) => {
-    setIsLoadingIso(true);
+  const fetchIsoData = async (cycleYear = selectedIsoCycleYear, force = false) => {
+    const cached = isoRequirementsCache.get(cycleYear);
+    if (!force && cached && cached.length > 0) {
+      setIsoRequirements(cached);
+      setExpandedIsoClause((prev: any) => {
+        if (!prev) return null;
+        const updated = cached.find((r: any) => r.id === prev.id);
+        return updated || null;
+      });
+      return;
+    }
+
+    if (!cached || cached.length === 0) {
+      setIsLoadingIso(true);
+    }
     try {
       const res = await axios.get(`http://localhost:8000/iso/requirements/GLOBAL?cycle_year=${encodeURIComponent(cycleYear)}`);
       const data = res.data || [];
+      isoRequirementsCache.set(cycleYear, data);
       setIsoRequirements(data);
       setExpandedIsoClause((prev: any) => {
         if (!prev) return null;
@@ -2230,24 +2514,25 @@ export function AccreditationSupport() {
 
     loadInitialData();
     setExpandedArea(null);
-    setExpandedIsoClause(null);
 
     return () => { isMounted = false; };
   }, [selectedProgram]);
 
-  useEffect(() => {
-    const userAdminOffice = sessionStorage.getItem('userAdministrativeOffice');
-    if (userAdminOffice && ISO_OFFICES_16.includes(userAdminOffice)) {
-      setIsoOfficeFilter(userAdminOffice);
-      setQmsOfficeFilter(userAdminOffice);
-    }
-  }, []);
 
-  const fetchQmsActionPlans = async (cycleYear = selectedIsoCycleYear) => {
-    setIsLoadingQmsPlans(true);
+  const fetchQmsActionPlans = async (cycleYear = selectedIsoCycleYear, force = false) => {
+    const cached = qmsPlansCache.get(cycleYear);
+    if (!force && cached && cached.length > 0) {
+      setQmsActionPlans(cached);
+      return;
+    }
+    if (!cached || cached.length === 0) {
+      setIsLoadingQmsPlans(true);
+    }
     try {
       const res = await axios.get(`http://localhost:8000/qms/action-plans?cycle_year=${encodeURIComponent(cycleYear)}`);
-      setQmsActionPlans(res.data || []);
+      const data = res.data || [];
+      qmsPlansCache.set(cycleYear, data);
+      setQmsActionPlans(data);
     } catch (error) {
       console.error("Failed to fetch QMS Action Plans", error);
     } finally {
@@ -2279,7 +2564,7 @@ export function AccreditationSupport() {
         personnel_responsible: "",
         status: "In Progress"
       });
-      fetchQmsActionPlans(selectedIsoCycleYear);
+      fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to create QMS Action Plan.", "error");
     } finally {
@@ -2299,7 +2584,7 @@ export function AccreditationSupport() {
       showToast("QMS Action Plan updated!", "success");
       setShowEditQmsModal(false);
       setEditingQmsPlan(null);
-      fetchQmsActionPlans(selectedIsoCycleYear);
+      fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to update QMS Action Plan.", "error");
     } finally {
@@ -2315,7 +2600,7 @@ export function AccreditationSupport() {
       showToast("QMS Action Plan deleted.", "success");
       setShowDeleteQmsModal(false);
       setQmsPlanToDelete(null);
-      fetchQmsActionPlans(selectedIsoCycleYear);
+      fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to delete QMS Action Plan.", "error");
     } finally {
@@ -2340,7 +2625,7 @@ export function AccreditationSupport() {
       }
       await axios.put(`http://localhost:8000/qms/action-plans/${planId}`, { status: newStatus });
       showToast(`Status updated to "${newStatus}"`, "success");
-      fetchQmsActionPlans(selectedIsoCycleYear);
+      fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to update status.", "error");
     }
@@ -2368,7 +2653,7 @@ export function AccreditationSupport() {
       setTargetQmsPlanForEvidence(null);
       setQmsEvidenceFile(null);
       setQmsEvidenceDocName("");
-      fetchQmsActionPlans(selectedIsoCycleYear);
+      fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to upload evidence.", "error");
     } finally {
@@ -2380,7 +2665,7 @@ export function AccreditationSupport() {
     try {
       await axios.delete(`http://localhost:8000/qms/action-plans/evidence/${evidenceId}`);
       showToast("Attached evidence removed.", "success");
-      fetchQmsActionPlans(selectedIsoCycleYear);
+      fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to remove evidence.", "error");
     }
@@ -2401,7 +2686,7 @@ export function AccreditationSupport() {
       showToast("Closeout verification details saved!", "success");
       setShowQmsCloseoutModal(false);
       setTargetQmsPlanForCloseout(null);
-      fetchQmsActionPlans(selectedIsoCycleYear);
+      fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to save closeout verification.", "error");
     } finally {
@@ -2439,11 +2724,12 @@ export function AccreditationSupport() {
         cycle_year: cycleName
       });
       showToast(`New Audit Cycle "${cycleName}" initialized!`, "success");
+      isoCyclesCache = Array.from(new Set([cycleName, ...(isoCyclesCache || [])]));
       setIsoCycleOptions(prev => Array.from(new Set([cycleName, ...prev])));
       setSelectedIsoCycleYear(cycleName);
       setShowAddIsoCycleModal(false);
       setNewIsoCycleName("");
-      await fetchIsoData(cycleName);
+      await fetchIsoData(cycleName, true);
     } catch (error) {
       showToast("Failed to initialize new audit cycle.", "error");
     } finally {
@@ -2779,7 +3065,8 @@ export function AccreditationSupport() {
       await axios.post("http://localhost:8000/iso/upload-evidence", submitData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      await fetchIsoData(selectedIsoCycleYear);
+      await fetchIsoData(selectedIsoCycleYear, true);
+      fetchPendingQueue();
       setUploadForm({ fileName: "", requirementTarget: "" });
       setSelectedFile(null); 
       setShowIsoUploadModal(false);
@@ -2804,7 +3091,7 @@ export function AccreditationSupport() {
       showToast(`ISO Clause marked as ${pendingIsoStatus.status}!`, "success");
       setShowIsoStatusModal(false);
       setPendingIsoStatus(null);
-      fetchIsoData(selectedIsoCycleYear);
+      fetchIsoData(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to update ISO clause status.", "error");
     } finally {
@@ -2825,7 +3112,8 @@ export function AccreditationSupport() {
       showToast("ISO evidence removed successfully.", "success");
       setShowDeleteIsoEvidenceModal(false);
       setIsoEvidenceToDelete(null);
-      fetchIsoData(selectedIsoCycleYear);
+      fetchIsoData(selectedIsoCycleYear, true);
+      fetchPendingQueue();
     } catch (error) {
       showToast("Failed to remove ISO evidence.", "error");
     } finally {
@@ -2833,13 +3121,34 @@ export function AccreditationSupport() {
     }
   };
 
-  const handleReviewIsoEvidence = async (evidenceId: string, status: string) => {
+  const handleReviewIsoEvidence = async (evidenceId: string, status: string, feedback: string = "") => {
     setIsReviewing(true);
     try {
-      await axios.put(`http://localhost:8000/iso/evidence/${evidenceId}/status`, { status });
+      const token = sessionStorage.getItem("userToken");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token && token !== "null" && token !== "undefined") {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      await axios.put(
+        `http://localhost:8000/iso/evidence/${evidenceId}/status`,
+        { status, feedback },
+        { headers, withCredentials: true }
+      );
       showToast(`ISO evidence marked as ${status}!`, "success");
-      fetchIsoData(selectedIsoCycleYear);
+      fetchIsoData(selectedIsoCycleYear, true);
+      fetchPendingQueue();
+      setExpandedIsoClause((prev: any) => {
+        if (!prev) return null;
+        const updatedEvidences = (prev.evidences || []).map((ev: any) =>
+          ev.id === evidenceId ? { ...ev, status, admin_feedback: feedback } : ev
+        );
+        return { ...prev, evidences: updatedEvidences };
+      });
+      setShowIsoFeedbackModal(false);
+      setIsoFeedbackText("");
+      setIsoFeedbackDoc(null);
     } catch (error) {
+      console.error("Failed to update ISO evidence status:", error);
       showToast("Failed to update ISO evidence status.", "error");
     } finally {
       setIsReviewing(false);
@@ -2871,7 +3180,7 @@ export function AccreditationSupport() {
         risk_level: "Medium"
       });
       setShowAddIsoReqModal(false);
-      fetchIsoData(selectedIsoCycleYear);
+      fetchIsoData(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to add ISO requirement.", "error");
     } finally {
@@ -2906,7 +3215,7 @@ export function AccreditationSupport() {
       showToast("ISO Clause requirement updated!", "success");
       setShowEditIsoModal(false);
       setEditingIsoReq(null);
-      fetchIsoData(selectedIsoCycleYear);
+      fetchIsoData(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to update ISO requirement.", "error");
     } finally {
@@ -2922,7 +3231,7 @@ export function AccreditationSupport() {
       showToast("ISO requirement deleted.", "success");
       setShowDeleteIsoReqModal(false);
       setIsoReqToDelete(null);
-      fetchIsoData(selectedIsoCycleYear);
+      fetchIsoData(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to delete ISO requirement.", "error");
     } finally {
@@ -2959,7 +3268,7 @@ export function AccreditationSupport() {
       showToast("New IQA Audit Day added!", "success");
       setShowAddIqaDayModal(false);
       setIqaDayForm({ day_number: iqaDays.length + 1, day_date: "", title: "", scope: "" });
-      fetchIqaDays(selectedIsoCycleYear);
+      fetchIqaDays(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to add IQA Audit Day.", "error");
     } finally {
@@ -2981,7 +3290,7 @@ export function AccreditationSupport() {
       showToast("IQA Audit Day updated!", "success");
       setShowEditIqaDayModal(false);
       setEditingIqaDay(null);
-      fetchIqaDays(selectedIsoCycleYear);
+      fetchIqaDays(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to update IQA Audit Day.", "error");
     } finally {
@@ -2997,7 +3306,7 @@ export function AccreditationSupport() {
       showToast("IQA Audit Day removed.", "success");
       setShowDeleteIqaDayModal(false);
       setDeletingIqaDay(null);
-      fetchIqaDays(selectedIsoCycleYear);
+      fetchIqaDays(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to remove IQA Audit Day.", "error");
     } finally {
@@ -3007,18 +3316,23 @@ export function AccreditationSupport() {
 
   // --- DYNAMIC ISO COMPLIANCE MATH & SEARCH FILTERING ---
   const filteredIsoReqs = isoRequirements.filter(req => {
-    const matchesOffice = isoOfficeFilter === "all" || req.auditee_office === isoOfficeFilter;
+    const matchesOffice = isOfficeMatch(req.auditee_office, isoOfficeFilter);
+    const matchesCategory = isoFilterCategory === "all" || getIsoProcessCategory(req) === isoFilterCategory;
+    const matchesStatus = isoStatusFilter === "all" || (req.status || "Not Compliant").toLowerCase() === isoStatusFilter.toLowerCase();
     const q = isoSearchQuery.toLowerCase().trim();
     const matchesQuery = !q ||
       (req.iso_clause && req.iso_clause.toLowerCase().includes(q)) ||
       (req.title && req.title.toLowerCase().includes(q)) ||
       (req.description && req.description.toLowerCase().includes(q)) ||
-      (req.auditee_office && req.auditee_office.toLowerCase().includes(q));
-    return matchesOffice && matchesQuery;
+      (req.auditee_office && req.auditee_office.toLowerCase().includes(q)) ||
+      (req.risk_level && req.risk_level.toLowerCase().includes(q));
+    return matchesOffice && matchesCategory && matchesStatus && matchesQuery;
   });
   const isoTotalCount = filteredIsoReqs.length;
   const isoCompliantCount = filteredIsoReqs.filter(r => r.status === 'Compliant').length;
   const isoCompliancePercentage = isoTotalCount === 0 ? 0 : Math.round((isoCompliantCount / isoTotalCount) * 100);
+  const cycleTotalCount = isoRequirements.length;
+  const cycleCompliantCount = isoRequirements.filter(r => r.status === 'Compliant').length;
 
   // --- DYNAMIC QMS ACTION PLANS FILTERING ---
   const filteredQmsPlans = qmsActionPlans.filter(p => {
@@ -3053,7 +3367,7 @@ export function AccreditationSupport() {
   const isoScore = isoCompliancePercentage || 0;
   const compositeQaScore = Math.round((aaccupScore * 0.40) + (chedScore * 0.30) + (isoScore * 0.30));
   
-  // COMBINE AACCUP AND CHED PENDING DOCS FOR THE TOP QUEUE
+  // COMBINE AACCUP, CHED, AND ISO PENDING DOCS FOR THE TOP QUEUE
   const chedPendingDocs = chedRequirements.filter(r => r.status === 'Pending').map(r => ({
     id: r.id,
     type: 'CHED',
@@ -3066,7 +3380,34 @@ export function AccreditationSupport() {
     url: r.evidences && r.evidences.length > 0 ? r.evidences[0].file_url : '#'
   }));
   
-  const allPendingReviews = [...pendingDocs.map(d => ({...d, type: 'AACCUP'})), ...chedPendingDocs];
+  // Derive any locally loaded ISO pending evidences as fallback or realtime sync
+  const localIsoPendingDocs = isoRequirements.flatMap((req: any) => 
+    (req.evidences || [])
+      .filter((ev: any) => ev.status === "Pending")
+      .map((ev: any) => ({
+        id: ev.id,
+        type: 'ISO',
+        name: ev.document_name,
+        target: `${req.iso_clause}: ${req.title}`,
+        program: 'Institutional QMS',
+        area_code: req.auditee_office || 'Global',
+        uploaded_by: ev.uploaded_by || 'Faculty / Staff',
+        date: ev.upload_date ? ev.upload_date.split('T')[0] : 'Recently',
+        url: ev.file_url
+      }))
+  );
+
+  // Combine fetched pending ISO docs with local ones, deduplicating by id
+  const combinedIsoPendingDocs = [
+    ...pendingIsoDocs.map((d: any) => ({ ...d, type: 'ISO' })),
+    ...localIsoPendingDocs
+  ].filter((item, index, self) => index === self.findIndex(t => t.id === item.id));
+
+  const allPendingReviews = [
+    ...pendingDocs.map(d => ({...d, type: 'AACCUP'})), 
+    ...chedPendingDocs,
+    ...combinedIsoPendingDocs
+  ];
 
   if (isLoading && currentData.areas.length === 0) {
     return <div className="flex justify-center items-center h-64 text-gray-500"><Loader2 className="h-8 w-8 animate-spin text-[#DD7230]" /></div>;
@@ -3099,106 +3440,151 @@ export function AccreditationSupport() {
       </div>
 
       {/* --- GLOBAL ADMIN REVIEW QUEUE --- */}
-      {userRole === "ADMIN" && (
-        <div className="bg-white rounded-xl shadow-sm border border-[#E5E7EB] overflow-hidden mb-6 transition-all duration-300">
+      {(userRole === "ADMIN" || userIsIqaAuditor) && (
+        <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden mb-6 transition-all duration-300">
           <button
             onClick={() => setIsAdminQueueOpen(!isAdminQueueOpen)}
-            className="w-full flex items-center justify-between p-5 bg-[#FFF4E5] hover:bg-[#FFB84D]/20 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between p-4 sm:p-5 bg-white hover:bg-gray-50/70 transition-colors cursor-pointer text-left"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-[#DD7230]">
-                <ShieldAlert className="h-5 w-5 text-white" />
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-100 text-gray-700 border border-gray-200 shrink-0">
+                <ShieldAlert className="h-5 w-5 text-gray-700" />
               </div>
-              <div className="text-left">
-                <h2 className="text-lg font-bold text-[#1F2937]">Admin Review Queue</h2>
-                <p className="text-xs text-[#6B7280]">
-                  {allPendingReviews.length} {allPendingReviews.length === 1 ? 'document requires' : 'documents require'} your approval
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm sm:text-base font-semibold text-gray-900">Admin Review Queue</h2>
+                  {allPendingReviews.length > 0 && (
+                    <span className="px-2 py-0.5 text-[11px] font-medium rounded-md border border-amber-200/80 bg-amber-50 text-amber-800">
+                      {allPendingReviews.length} pending
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {allPendingReviews.length} {allPendingReviews.length === 1 ? 'document requires' : 'documents require'} verification
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              {allPendingReviews.length > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full animate-pulse">
-                  {allPendingReviews.length} PENDING
-                </span>
-              )}
-              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-gray-200 shadow-sm">
-                {isAdminQueueOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 flex items-center justify-center border border-gray-200 text-gray-500 transition-colors">
+                {isAdminQueueOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </div>
             </div>
           </button>
 
           {isAdminQueueOpen && (
-            <div className="p-6 border-t border-[#E5E7EB] bg-gray-50/50 animate-in slide-in-from-top-2 fade-in duration-300">
+            <div className="p-4 sm:p-5 border-t border-gray-200 bg-gray-50/40 animate-in slide-in-from-top-2 fade-in duration-300">
               {allPendingReviews.length === 0 ? (
                 <div className="text-center py-8">
-                  <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-3 opacity-50" />
-                  <p className="text-gray-500 font-medium">All caught up! No pending documents in the queue.</p>
+                  <CheckCircle className="h-10 w-10 text-gray-400 mx-auto mb-2 opacity-50" />
+                  <p className="text-gray-500 font-medium text-xs">All caught up! No pending documents in the queue.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   {allPendingReviews.map((doc, idx) => (
-                    <div key={idx} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-1 bg-orange-100 text-[#DD7230] text-[10px] font-bold uppercase rounded tracking-wider">
-                            {doc.type} Pending
+                    <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-2xs hover:border-gray-300 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <span className="px-2 py-0.5 text-[11px] font-medium rounded-md border border-gray-200 bg-gray-50 text-gray-700">
+                            {doc.type} Verification
                           </span>
-                          <span className="text-xs text-gray-500">{doc.date}</span>
+                          <span className="text-[11px] text-gray-400">{doc.date}</span>
                         </div>
-                        <button onClick={() => handleViewDocument(doc.url, doc.name)} className="text-[#DD7230] hover:text-[#DD7230] text-xs font-bold flex items-center gap-1 cursor-pointer bg-orange-50 px-2 py-1 rounded">
-                          <Eye className="h-3.5 w-3.5" /> View
-                        </button>
-                      </div>
-                      
-                      <h4 className="font-bold text-gray-900 mb-1 line-clamp-1" title={doc.name}>{doc.name}</h4>
-                      <p className="text-xs font-medium text-[#DD7230] mb-3 line-clamp-2 leading-snug">Target: {doc.target}</p>
-                      
-                      <div className="mt-auto pt-3 border-t border-gray-100 space-y-1.5 mb-4">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Program:</span>
-                          <span className="font-semibold text-gray-900">{doc.program} ({doc.area_code})</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Uploaded by:</span>
-                          <span className="font-semibold text-gray-900">{doc.uploaded_by}</span>
-                        </div>
+                        
+                        <h4 className="text-xs font-semibold text-gray-900 mb-1 line-clamp-1" title={doc.name}>{doc.name}</h4>
+                        <p className="text-xs text-gray-500 mb-3 line-clamp-2 leading-snug">Target: <span className="text-gray-700 font-medium">{doc.target}</span></p>
                       </div>
 
-                      <div className="flex gap-2 mt-auto">
-                        {doc.type === 'AACCUP' ? (
-                          <>
-                            <button 
-                              onClick={() => { setFeedbackDoc(doc); setShowFeedbackModal(true); }}
-                              disabled={isReviewing}
-                              className="flex-1 py-2 bg-red-50 text-red-600 text-xs font-bold rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
-                            >
-                              Request Revision
-                            </button>
-                            <button 
-                              onClick={() => { setPendingAaccupApprove(doc); setShowAaccupApproveModal(true); }}
-                              disabled={isReviewing}
-                              className="flex-1 py-2 bg-[#DD7230] text-white text-xs font-bold rounded-lg hover:bg-[#DD7230] transition-colors cursor-pointer shadow-sm"
-                            >
-                              Approve
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button 
-                              onClick={() => confirmChedAdminReview(doc.id, "Not Compliant")}
-                              className="flex-1 py-2 bg-red-50 text-red-600 text-xs font-bold rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
-                            >
-                              Request Revision
-                            </button>
-                            <button 
-                              onClick={() => confirmChedAdminReview(doc.id, "Compliant")}
-                              className="flex-1 py-2 bg-[#DD7230] text-white text-xs font-bold rounded-lg hover:bg-[#DD7230] transition-colors cursor-pointer shadow-sm"
-                            >
-                              Approve
-                            </button>
-                          </>
-                        )}
+                      <div>
+                        <div className="pt-2.5 border-t border-gray-100 space-y-1 mb-3 text-[11px]">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">{doc.type === 'ISO' ? 'Scope / Office:' : 'Program:'}</span>
+                            <span className="font-medium text-gray-800 truncate max-w-[140px]">{doc.program} ({doc.area_code})</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Uploaded by:</span>
+                            <span className="font-medium text-gray-800 truncate max-w-[140px]">{doc.uploaded_by}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => handleViewDocument(doc.url, doc.name)}
+                            className="px-2.5 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-gray-900 text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                            title="View Document"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> View
+                          </button>
+                          {doc.type === 'AACCUP' ? (
+                            <>
+                              <button 
+                                onClick={() => { setFeedbackDoc(doc); setShowFeedbackModal(true); }}
+                                disabled={isReviewing}
+                                className="flex-1 py-1.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              >
+                                Revise
+                              </button>
+                              <button 
+                                onClick={() => { setPendingAaccupApprove(doc); setShowAaccupApproveModal(true); }}
+                                disabled={isReviewing}
+                                className="flex-1 py-1.5 bg-[#DD7230] hover:bg-[#c86324] text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              >
+                                Approve
+                              </button>
+                            </>
+                          ) : doc.type === 'CHED' ? (
+                            <>
+                              <button 
+                                onClick={() => confirmChedAdminReview(doc.id, "Not Compliant")}
+                                className="flex-1 py-1.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              >
+                                Revise
+                              </button>
+                              <button 
+                                onClick={() => confirmChedAdminReview(doc.id, "Compliant")}
+                                className="flex-1 py-1.5 bg-[#DD7230] hover:bg-[#c86324] text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              >
+                                Approve
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button 
+                                onClick={() => {
+                                  setIsoFeedbackDoc({
+                                    id: doc.id,
+                                    document_name: doc.name,
+                                    uploaded_by: doc.uploaded_by,
+                                    office: doc.area_code
+                                  });
+                                  setIsoPendingStatus("Declined");
+                                  setIsoFeedbackText("");
+                                  setShowIsoFeedbackModal(true);
+                                }}
+                                disabled={isReviewing}
+                                className="flex-1 py-1.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              >
+                                Revise
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setIsoFeedbackDoc({
+                                    id: doc.id,
+                                    document_name: doc.name,
+                                    uploaded_by: doc.uploaded_by,
+                                    office: doc.area_code
+                                  });
+                                  setIsoPendingStatus("Approved");
+                                  setIsoFeedbackText("");
+                                  setShowIsoFeedbackModal(true);
+                                }}
+                                disabled={isReviewing}
+                                className="flex-1 py-1.5 bg-[#DD7230] hover:bg-[#c86324] text-white text-xs font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              >
+                                Approve
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -3302,12 +3688,13 @@ export function AccreditationSupport() {
           </div>
         </div>
 
-        <TabsContent value="aaccup" className="space-y-6 mt-6">
+        <TabsContent value="aaccup" forceMount className={activeTab === 'aaccup' ? 'space-y-6 mt-6' : 'hidden'}>
           <AaccupTabContent
             currentData={currentData}
             filteredAreas={filteredAreas}
             selectedProgram={selectedProgram}
             userRole={userRole}
+            userIsIqaAuditor={userIsIqaAuditor}
             isUnassignedFaculty={isUnassignedFaculty}
             isAdminQueueOpen={isAdminQueueOpen}
             setIsAdminQueueOpen={setIsAdminQueueOpen}
@@ -3340,12 +3727,13 @@ export function AccreditationSupport() {
           />
         </TabsContent>
 
-        <TabsContent value="ched" className="mt-6 space-y-6">
+        <TabsContent value="ched" forceMount className={activeTab === 'ched' ? 'mt-6 space-y-6' : 'hidden'}>
           <ChedTabContent
             chedRequirements={chedRequirements}
             isLoadingChed={isLoadingChed}
             selectedProgram={selectedProgram}
             userRole={userRole}
+            userIsIqaAuditor={userIsIqaAuditor}
             isUnassignedFaculty={isUnassignedFaculty}
             setShowAddChedReqModal={setShowAddChedReqModal}
             setShowEditChedModal={setShowEditChedModal}
@@ -3361,7 +3749,7 @@ export function AccreditationSupport() {
           />
         </TabsContent>
 
-        <TabsContent value="iso" className="mt-6 space-y-6">
+        <TabsContent value="iso" forceMount className={activeTab === 'iso' ? 'mt-6 space-y-6' : 'hidden'}>
           <IsoTabContent
             isoClauseRequirements={isoRequirements}
             isLoadingIso={isLoadingIso}
@@ -3383,11 +3771,16 @@ export function AccreditationSupport() {
             setIsoFilterCategory={setIsoFilterCategory}
             isoFilterOffice={isoOfficeFilter}
             setIsoFilterOffice={setIsoOfficeFilter}
+            isoStatusFilter={isoStatusFilter}
+            setIsoStatusFilter={setIsoStatusFilter}
+            availableIsoOffices={availableIsoOffices}
             isoSearchQuery={isoSearchQuery}
             setIsoSearchQuery={setIsoSearchQuery}
             filteredIsoClauses={filteredIsoReqs}
             isoCompliantCount={isoCompliantCount}
             isoTotalCount={isoTotalCount}
+            cycleTotalCount={cycleTotalCount}
+            cycleCompliantCount={cycleCompliantCount}
             isoCompliancePercent={isoCompliancePercentage}
             iqaProgramSchedule={iqaSchedule}
             iqaAuditDays={iqaDays}
@@ -3431,11 +3824,17 @@ export function AccreditationSupport() {
             handleReviewIsoEvidence={handleReviewIsoEvidence}
             handleUpdateQmsStatus={handleQuickStatusChangeQms}
             isReviewing={isReviewing}
+            confirmIsoStatusUpdate={confirmIsoStatusUpdate}
+            userIsIqaAuditor={userIsIqaAuditor}
             showToast={showToast}
+            setIsoFeedbackDoc={setIsoFeedbackDoc}
+            setIsoPendingStatus={setIsoPendingStatus}
+            setShowIsoFeedbackModal={setShowIsoFeedbackModal}
+            setIsoFeedbackText={setIsoFeedbackText}
           />
         </TabsContent>
 
-        <TabsContent value="results" className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <TabsContent value="results" forceMount className={activeTab === 'results' ? 'mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500' : 'hidden'}>
           <ResultsTabContent
             currentData={currentData}
             selectedProgram={selectedProgram}
@@ -3856,6 +4255,111 @@ export function AccreditationSupport() {
         </div>
       )}
 
+      {/* --- ISO EVIDENCE AUDITOR VERIFICATION & FEEDBACK MODAL --- */}
+      {showIsoFeedbackModal && isoFeedbackDoc && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200">
+            <div className={`p-5 border-b flex items-center justify-between ${
+              isoPendingStatus === "Approved" ? "bg-emerald-50/90 border-emerald-100" : "bg-rose-50/90 border-rose-100"
+            }`}>
+              <div className="flex items-center gap-3">
+                {isoPendingStatus === "Approved" ? (
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700">
+                    <FileCheck className="h-5 w-5" />
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-700">
+                    <MessageSquareWarning className="h-5 w-5" />
+                  </div>
+                )}
+                <div>
+                  <h2 className={`text-base font-bold ${
+                    isoPendingStatus === "Approved" ? "text-emerald-900" : "text-rose-900"
+                  }`}>
+                    {isoPendingStatus === "Approved" ? "Approve ISO Evidence" : "Request Evidence Revision"}
+                  </h2>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    ISO 9001:2015 Auditor Verification Loop
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowIsoFeedbackModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-white/60 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="p-3 bg-gray-50 border border-gray-200/80 rounded-xl">
+                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">Target Document</span>
+                <p className="text-xs font-bold text-gray-900 mt-0.5 break-words">{isoFeedbackDoc.document_name}</p>
+                <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-500">
+                  <span>Uploaded by: <strong className="text-gray-700">{isoFeedbackDoc.uploaded_by || "Faculty / Staff"}</strong></span>
+                  {isoFeedbackDoc.office && <span>• Office: <strong className="text-gray-700">{isoFeedbackDoc.office}</strong></span>}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
+                  <span>Auditor Findings & Remarks</span>
+                  <span className="text-[10px] text-gray-400 font-normal">
+                    {isoPendingStatus === "Approved" ? "Optional verification notes" : "Required for revision request"}
+                  </span>
+                </label>
+                <textarea
+                  value={isoFeedbackText}
+                  onChange={(e) => setIsoFeedbackText(e.target.value)}
+                  placeholder={
+                    isoPendingStatus === "Approved"
+                      ? "e.g., 'Document verified compliant with ISO Clause 7.5 documented information requirements. Approved without condition.'"
+                      : "e.g., 'Missing document control number, or requires signature from unit head prior to audit acceptance'..."
+                  }
+                  rows={4}
+                  className="w-full px-3.5 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-xs transition-all resize-none font-medium text-gray-800 leading-relaxed"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-[#F9FAFB] flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowIsoFeedbackModal(false)}
+                disabled={isReviewing}
+                className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReviewIsoEvidence(isoFeedbackDoc.id, isoPendingStatus, isoFeedbackText)}
+                disabled={isReviewing || (isoPendingStatus !== "Approved" && !isoFeedbackText.trim())}
+                className={`px-4 py-2 text-xs font-bold text-white rounded-xl shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95 ${
+                  isoPendingStatus === "Approved"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-rose-600 hover:bg-rose-700"
+                }`}
+              >
+                {isReviewing ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...
+                  </>
+                ) : isoPendingStatus === "Approved" ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" /> Confirm Approval
+                  </>
+                ) : (
+                  <>
+                    <X className="h-3.5 w-3.5" /> Submit Revision Request
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- AACCUP DELETE/ARCHIVE MODAL --- */}
       <ReusableConfirmModal
         isOpen={showDeleteModal && !!docToDelete}
@@ -4046,27 +4550,6 @@ export function AccreditationSupport() {
                 </div>
               </div>
 
-              {/* Standard Preset Chips */}
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Preset Clause Templates (Click to insert):</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {Array.from(new Set(isoRequirements.map(r => r.iso_clause))).filter(Boolean).map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setNewIsoReq({ ...newIsoReq, iso_clause: preset })}
-                      className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                        newIsoReq.iso_clause === preset
-                          ? "bg-[#DD7230] text-white border-[#DD7230] shadow-2xs"
-                          : "bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200"
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div>
                 <label className="block text-xs font-semibold text-[#1F2937] mb-1.5 uppercase tracking-wider">
                   Auditee Office <span className="text-red-500">*</span>
@@ -4166,27 +4649,6 @@ export function AccreditationSupport() {
                     <option value="Medium">Medium Risk</option>
                     <option value="Low">Low Risk</option>
                   </select>
-                </div>
-              </div>
-
-              {/* Standard Preset Chips */}
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Preset Clause Templates (Click to insert):</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {Array.from(new Set(isoRequirements.map(r => r.iso_clause))).filter(Boolean).map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setEditingIsoReq({ ...editingIsoReq, iso_clause: preset })}
-                      className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                        editingIsoReq.iso_clause === preset
-                          ? "bg-[#DD7230] text-white border-[#DD7230] shadow-2xs"
-                          : "bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200"
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
                 </div>
               </div>
 
@@ -4809,6 +5271,51 @@ export function AccreditationSupport() {
             </div>
 
             <form onSubmit={handleCreateQmsSubmit} className="p-6 space-y-4">
+              {/* --- OCR AUTO-FILL SECTION --- */}
+              <div className="p-4 bg-orange-50/50 border border-[#DD7230]/30 rounded-xl">
+                <label className="text-xs font-bold text-[#DD7230] uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                  <Sparkles className="h-3.5 w-3.5" /> AI Auto-Fill from CAR Form
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    disabled={isExtractingCar}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setIsExtractingCar(true);
+                      try {
+                        const formData = new FormData();
+                        formData.append("file", file);
+                        const res = await axios.post("http://localhost:8000/api/extract-car-form", formData);
+                        const data = res.data;
+                        const combinedOpportunity = `FINDINGS:\n${data.findings}\n\nROOT CAUSE:\n${data.root_cause}`;
+                        const combinedAction = `IMMEDIATE ACTION:\n${data.immediate_action}\n\nPROPOSED CORRECTIVE MEASURE:\n${data.corrective_measure}`;
+                        setNewQmsPlan((prev: any) => ({
+                          ...prev,
+                          opportunity_type: "Process",
+                          opportunity_description: combinedOpportunity.trim(),
+                          action_plan: combinedAction.trim()
+                        }));
+                        showToast("CAR Form successfully extracted and populated!", "success");
+                      } catch {
+                        showToast("Failed to parse CAR form. Please fill manually.", "error");
+                      } finally {
+                        setIsExtractingCar(false);
+                        e.target.value = "";
+                      }
+                    }}
+                    className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#DD7230] file:text-white hover:file:bg-[#c45e22] file:cursor-pointer cursor-pointer disabled:opacity-50"
+                  />
+                  {isExtractingCar && <Loader2 className="h-4 w-4 animate-spin text-[#DD7230] shrink-0" />}
+                </div>
+                <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">
+                  Upload a scanned CAR Form 1 (PDF or image). The AI will automatically extract Findings, Root Causes, Immediate Actions, and Corrective Measures into the fields below.
+                </p>
+              </div>
+              {/* --- END OCR AUTO-FILL SECTION --- */}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
@@ -5187,8 +5694,8 @@ export function AccreditationSupport() {
       {/* --- OFFICIAL AACCUP ACCREDITATION LEVEL UPGRADE MODAL --- */}
       {showUpgradeModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 bg-[#FFF4E5]/40 flex justify-between items-center">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-gray-200">
+            <div className="p-6 border-b border-gray-100 bg-white flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <Award className="w-6 h-6 text-[#DD7230]" /> Officially Upgrade Accreditation Level
@@ -5197,7 +5704,7 @@ export function AccreditationSupport() {
                   Grant new official standing for <strong>{selectedProgram}</strong> & archive milestones to historical records
                 </p>
               </div>
-              <button onClick={() => setShowUpgradeModal(false)} className="p-2 hover:bg-orange-100 rounded-full transition-colors cursor-pointer text-gray-500">
+              <button onClick={() => setShowUpgradeModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer text-gray-500">
                 <X className="h-5 w-5" />
               </button>
             </div>

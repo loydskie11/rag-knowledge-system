@@ -10,8 +10,12 @@ load_dotenv()
 # Get the Supabase URL
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Create the SQLAlchemy Engine
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# Create the SQLAlchemy Engine with fast connection timeout to prevent startup hangs
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args={"connect_timeout": 2}
+)
 
 # Create a Session class for your API endpoints to use
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Search, UserPlus, Ban, UserX, CheckCircle, Clock, XCircle, AlertCircle, X, ShieldAlert, Unlock, Loader2, Award, GraduationCap, Building2 } from "lucide-react";
-import axios from "axios";
+import apiClient from "../api/client";
 
 export const CAMPUS_COLLEGES = [
   "College of Education (COEd)",
@@ -102,7 +102,7 @@ export function UsersRoles() {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get("http://localhost:8000/users");
+      const response = await apiClient.get("/users");
       setUsers(response.data);
     } catch (error) {
       console.error("Failed to fetch users:", error);
@@ -118,7 +118,7 @@ export function UsersRoles() {
 
   const handleApprove = async (userId: string) => {
     try {
-      await axios.put(`http://localhost:8000/users/${userId}/verify`);
+      await apiClient.put(`/users/${userId}/verify`);
       fetchUsers();
       showToast("Faculty account approved successfully!", "success");
     } catch (error) {
@@ -130,7 +130,7 @@ export function UsersRoles() {
     if (!userToReject) return;
     setIsRejecting(true);
     try {
-      await axios.delete(`http://localhost:8000/users/${userToReject.id}`);
+      await apiClient.delete(`/users/${userToReject.id}`);
       fetchUsers();
       setShowRejectModal(false);
       setUserToReject(null);
@@ -146,7 +146,7 @@ export function UsersRoles() {
     if (!userToDisable) return;
     setIsDisabling(true);
     try {
-      await axios.put(`http://localhost:8000/users/${userToDisable.id}/disable`);
+      await apiClient.put(`/users/${userToDisable.id}/disable`);
       fetchUsers();
       setShowDisableModal(false);
       setUserToDisable(null);
@@ -162,7 +162,7 @@ export function UsersRoles() {
     if (!userToEnable) return;
     setIsEnabling(true);
     try {
-      await axios.put(`http://localhost:8000/users/${userToEnable.id}/enable`);
+      await apiClient.put(`/users/${userToEnable.id}/enable`);
       fetchUsers();
       setShowEnableModal(false);
       setUserToEnable(null);
@@ -186,7 +186,7 @@ export function UsersRoles() {
     }
     setIsCreating(true);
     try {
-      await axios.post("http://localhost:8000/users", {
+      await apiClient.post("/users", {
         full_name: addUserData.name,
         email: addUserData.email,
         role: addUserData.role,
@@ -197,7 +197,7 @@ export function UsersRoles() {
 
       showToast(`${addUserData.role} ${addUserData.name} created successfully!`, "success");
       setShowAddUserModal(false);
-      setAddUserData({ name: "", email: "", role: "", password: "", administrative_office: "", is_iqa_auditor: false });
+      setAddUserData({ name: "", email: "", role: "", password: "", administrative_office: "", is_iqa_auditor: false, designation: "Faculty Member", designation_entity: "BSIT" });
       fetchUsers();
     } catch (error: any) {
       showToast(error.response?.data?.detail || "Failed to create user.", "error");
@@ -215,7 +215,7 @@ export function UsersRoles() {
     setIsUpdatingUser(true);
     try {
       const assignedEntity = editingUser.designation_entity || editingUser.department || "BSIT";
-      await axios.put("http://localhost:8000/users/profile", {
+      await apiClient.put("/users/profile", {
         email: editingUser.email,
         new_email: editingUser.email,
         full_name: editingUser.full_name,
@@ -225,7 +225,7 @@ export function UsersRoles() {
       });
 
       if (editingUser.id) {
-        await axios.put(`http://localhost:8000/users/${editingUser.id}/details`, {
+        await apiClient.put(`/users/${editingUser.id}/details`, {
           administrative_office: editingUser.administrative_office || null,
           is_iqa_auditor: Boolean(editingUser.is_iqa_auditor),
           designation: editingUser.designation || "Faculty Member",
@@ -241,6 +241,23 @@ export function UsersRoles() {
       showToast(error.response?.data?.detail || "Failed to update user.", "error");
     } finally {
       setIsUpdatingUser(false);
+    }
+  };
+
+  const handleToggleAuditor = async (user: any) => {
+    try {
+      const newStatus = !user.is_iqa_auditor;
+      await apiClient.put(`/users/${user.id}/details`, {
+        administrative_office: user.administrative_office || null,
+        is_iqa_auditor: newStatus,
+        designation: user.designation,
+        designation_entity: user.department
+      });
+
+      showToast(`Audit Officer status ${newStatus ? 'granted to' : 'revoked from'} ${user.full_name || user.email}.`, "success");
+      fetchUsers();
+    } catch (error: any) {
+      showToast("Failed to update Audit Officer status.", "error");
     }
   };
 
@@ -433,7 +450,7 @@ export function UsersRoles() {
                       <td className="px-4 py-3">
                         {user.role === 'FACULTY' ? (
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
                               user.designation === 'College Dean' 
                                 ? 'bg-purple-50 text-purple-700 border-purple-200' 
                                 : user.designation === 'Program Chair'
@@ -447,16 +464,24 @@ export function UsersRoles() {
                                 : 'Faculty Member'}
                             </span>
                             {user.is_iqa_auditor && (
-                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-orange-100 text-[#DD7230] rounded border border-orange-200">
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-orange-100 text-[#DD7230] rounded-md border border-orange-200">
                                 IQA Auditor
                               </span>
                             )}
                           </div>
+                        ) : user.role === 'ADMIN' ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-md border bg-orange-50 text-[#DD7230] border-[#DD7230]/30">
+                              ADMIN
+                            </span>
+                            {user.is_iqa_auditor && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-orange-100 text-[#DD7230] rounded-md border border-orange-200">
+                                Audit Officer
+                              </span>
+                            )}
+                          </div>
                         ) : (
-                          <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${
-                            user.role === 'ADMIN' ? 'bg-orange-50 text-[#DD7230] border-[#DD7230]/30' : 
-                            'bg-emerald-50 text-emerald-700 border-emerald-200/60'
-                          }`}>
+                          <span className="px-2 py-0.5 text-[10px] font-medium rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200/60">
                             {user.role}
                           </span>
                         )}
@@ -465,7 +490,7 @@ export function UsersRoles() {
                         {user.role === 'STUDENT' ? (
                           <span className="text-xs text-gray-400">—</span>
                         ) : (
-                          <span className={`px-2 py-0.5 text-[10px] font-medium rounded border ${
+                          <span className={`px-2 py-0.5 text-[10px] font-medium rounded-md border ${
                             user.administrative_office 
                               ? 'bg-slate-50 text-slate-700 border-slate-200'
                               : 'bg-gray-100 text-gray-400 border-gray-200'
@@ -475,7 +500,7 @@ export function UsersRoles() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
                           (user.status || 'Active') === 'Active' 
                           ? 'bg-emerald-50 border-emerald-200/60 text-emerald-700' 
                           : 'bg-gray-100 border-gray-200 text-gray-500'
@@ -492,6 +517,19 @@ export function UsersRoles() {
                               title="Edit User, Office, and Academic Leadership Designation"
                             >
                               Edit Office & Role
+                            </button>
+                          )}
+                          {user.role === 'ADMIN' && (
+                            <button
+                              onClick={() => handleToggleAuditor(user)}
+                              className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
+                                user.is_iqa_auditor 
+                                  ? 'bg-orange-50 text-[#DD7230] border-[#DD7230]/40 hover:bg-orange-100' 
+                                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                              }`}
+                              title={user.is_iqa_auditor ? "Revoke Lead Audit Officer Designation" : "Designate as Lead Audit Officer"}
+                            >
+                              {user.is_iqa_auditor ? "Audit Officer: Active" : "+ Audit Officer"}
                             </button>
                           )}
                           {user.role !== 'ADMIN' && (
@@ -626,7 +664,7 @@ export function UsersRoles() {
                 </div>
               )}
 
-              {addUserData.role === "FACULTY" && (
+              {(addUserData.role === "FACULTY" || addUserData.role === "ADMIN") && (
                 <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#DD7230]/30 rounded-lg">
                   <input
                     type="checkbox"
@@ -636,7 +674,7 @@ export function UsersRoles() {
                     className="h-3.5 w-3.5 mt-0.5 text-[#DD7230] focus:ring-[#DD7230] border-gray-300 rounded cursor-pointer"
                   />
                   <label htmlFor="add_is_iqa_auditor" className="text-xs text-gray-700 font-medium cursor-pointer">
-                    Designate as Internal Quality Auditor (IQA Auditor)
+                    Designate as Lead Audit Officer / Internal Quality Auditor (IQA Auditor)
                   </label>
                 </div>
               )}
@@ -762,7 +800,7 @@ export function UsersRoles() {
                 </div>
               )}
 
-              {editingUser.role === "FACULTY" && (
+              {(editingUser.role === "FACULTY" || editingUser.role === "ADMIN") && (
                 <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#DD7230]/30 rounded-lg">
                   <input
                     type="checkbox"
@@ -772,7 +810,7 @@ export function UsersRoles() {
                     className="h-3.5 w-3.5 mt-0.5 text-[#DD7230] focus:ring-[#DD7230] border-gray-300 rounded cursor-pointer"
                   />
                   <label htmlFor="edit_is_iqa_auditor" className="text-xs text-gray-700 font-medium cursor-pointer">
-                    Designate as Internal Quality Auditor (IQA Auditor) — Campus-wide audit access
+                    Designate as Lead Audit Officer / Internal Quality Auditor (IQA Auditor) — Campus-wide audit access
                   </label>
                 </div>
               )}

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react"
 import { Search, Filter, Upload, Download, Edit, Archive, Clock, Eye, CheckCircle, FileText, UploadCloud, X, Loader2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react"
 import axios from "axios"
 import { useRole } from "../contexts/RoleContext"
+import { ISO_OFFICES_16 } from "./UsersRoles"
 
 export interface BackgroundUploadTask {
   id: string
@@ -132,7 +133,12 @@ export function KnowledgeRepository() {
       doc.program === selectedProgram;
 
     const matchesCategory = selectedCategory === "all" || doc.category === selectedCategory;
-    const matchesOffice = selectedOffice === "all" || doc.office === selectedOffice;
+    const matchesOffice = selectedOffice === "all" || 
+      doc.office === selectedOffice ||
+      (selectedOffice === "Student Affairs & Services" && (doc.office === "Student Affairs" || doc.office === "SAS")) ||
+      (selectedOffice === "Quality Assurance & Management (QAU)" && (doc.office === "Quality Assurance" || doc.office === "QAU")) ||
+      (selectedOffice === "Research & Development" && (doc.office === "Research Office" || doc.office === "R&D")) ||
+      (selectedOffice === "HR & Records Management" && (doc.office === "HRMO" || doc.office === "HR"));
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = 
       doc.name.toLowerCase().includes(searchLower) ||
@@ -555,15 +561,16 @@ export function KnowledgeRepository() {
               </select>
               
               <select
-                className="sm:w-44 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-700 cursor-pointer transition-colors"
+                className="sm:w-56 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-700 cursor-pointer transition-colors"
                 value={selectedOffice}
                 onChange={(e) => setSelectedOffice(e.target.value)}
               >
                 <option value="all">All Offices</option>
-                <option value="Academic Affairs">Academic Affairs</option>
-                <option value="Student Affairs">Student Affairs</option>
-                <option value="Research Office">Research Office</option>
-                <option value="Quality Assurance">Quality Assurance</option>
+                {ISO_OFFICES_16.map((office) => (
+                  <option key={office} value={office}>
+                    {office}
+                  </option>
+                ))}
               </select>
 
               <select
@@ -621,8 +628,8 @@ export function KnowledgeRepository() {
                   </td>
                 </tr>
               ) : (
-                filteredDocuments.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-gray-50/60 transition-colors">
+                filteredDocuments.map((doc, idx) => (
+                  <tr key={doc.id || `${doc.name}-${doc.version || '1.0'}-${idx}`} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-4 py-3 overflow-hidden">
                       <div className="text-xs font-semibold text-gray-900 truncate" title={doc.name}>{doc.name}</div>
                       <div className="text-[10px] text-gray-400 mt-0.5 truncate">{doc.status === "Archived" ? "Historical Record" : "Active File"}</div>
@@ -835,10 +842,11 @@ export function KnowledgeRepository() {
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Office</label>
                     <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                      <option>Academic Affairs</option>
-                      <option>Student Affairs</option>
-                      <option>Research Office</option>
-                      <option>Quality Assurance</option>
+                      {ISO_OFFICES_16.map((office) => (
+                        <option key={office} value={office}>
+                          {office}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -965,10 +973,11 @@ export function KnowledgeRepository() {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Office</label>
                   <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                    <option>Academic Affairs</option>
-                    <option>Student Affairs</option>
-                    <option>Research Office</option>
-                    <option>Quality Assurance</option>
+                    {ISO_OFFICES_16.map((office) => (
+                      <option key={office} value={office}>
+                        {office}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

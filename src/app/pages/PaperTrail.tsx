@@ -398,7 +398,7 @@ export function PaperTrail() {
       <div className="flex-none space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[#1F2937]">Document Tracking System (DTS)</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-[#1F2937]">Document Tracking & Control (Digital DDC Form 3)</h1>
             <p className="text-xs sm:text-sm text-[#6B7280] mt-1">
               Multi-way office routing engine & physical / digital document location tracking
             </p>
@@ -580,7 +580,7 @@ export function PaperTrail() {
         ) : actionBoardRecords.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-gray-500 text-center">
             <FileCheck className="h-10 w-10 text-gray-300 mb-3 stroke-[1.5]" />
-            <h3 className="text-base font-semibold text-gray-900">No Paper Trail Records Found</h3>
+            <h3 className="text-base font-semibold text-gray-900">No Document Tracking Records Found</h3>
             <p className="text-sm text-gray-500 mt-1 max-w-md">
               There are no document movement logs matching your search or filter. Release a new document to start tracking!
             </p>

@@ -198,6 +198,8 @@ class ISOEvidenceResponse(BaseModel):
     file_url: str
     uploaded_by: str
     upload_date: datetime
+    status: Optional[str] = "Pending"
+    admin_feedback: Optional[str] = None
 
     class Config:
         from_attributes = True
