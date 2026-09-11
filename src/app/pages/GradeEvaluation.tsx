@@ -6,6 +6,8 @@ interface SubjectScratchpad {
   subject: string;
   units: number;
   grade: number;
+  midterm_grade?: number | null;
+  final_term_grade?: number | null;
   weighted_score: number;
 }
 
@@ -117,11 +119,14 @@ export function GradeEvaluation() {
 
     try {
       const response = await axios.post("http://localhost:8000/evaluate-grades", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 120000
       });
       setResult(response.data);
-    } catch (error) {
-      alert("Failed to evaluate grades. Ensure it is a valid PDF.");
+    } catch (error: any) {
+      console.error("Evaluation Error:", error);
+      const detail = error.response?.data?.detail || error.message || "Failed to evaluate grades. Ensure it is a valid PDF.";
+      alert(`Evaluation Error: ${detail}`);
     } finally {
       setIsEvaluating(false);
     }
@@ -303,33 +308,52 @@ export function GradeEvaluation() {
                           {expandedSemesters.includes(idx) && Array.isArray(sem.subjects_scratchpad) && (
                             <div className="border-t border-gray-200 bg-gray-50/50 p-4">
                               <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs">
+                                <table className="w-full text-left text-xs min-w-[560px]">
                                   <thead>
                                     <tr className="text-[11px] text-gray-500 border-b border-gray-200 uppercase tracking-wider font-medium">
                                       <th className="pb-2 font-medium">Subject</th>
                                       <th className="pb-2 font-medium text-center">Units</th>
-                                      <th className="pb-2 font-medium text-center">Grade</th>
+                                      <th className="pb-2 font-medium text-center">Midterm (1st Term)</th>
+                                      <th className="pb-2 font-medium text-center">Final Term (2nd Term)</th>
+                                      <th className="pb-2 font-medium text-center">Final Grade</th>
                                       <th className="pb-2 font-medium text-right">Weighted</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-gray-200/60">
                                     {sem.subjects_scratchpad.map((item, i) => (
                                       <tr key={i} className={`text-gray-700 hover:bg-white/60 transition-colors ${!item.grade || item.grade === 0 ? 'opacity-50' : ''}`}>
-                                        <td className="py-2.5 font-medium text-gray-900 truncate max-w-[180px]">{item.subject}</td>
+                                        <td className="py-2.5 font-medium text-gray-900 truncate max-w-[220px]" title={item.subject}>{item.subject}</td>
                                         <td className="py-2.5 text-center text-gray-600">{item.units}</td>
+                                        <td className="py-2.5 text-center text-gray-600 font-mono">
+                                          {item.midterm_grade != null && item.midterm_grade > 0 ? (
+                                            item.midterm_grade
+                                          ) : (
+                                            <span className="text-gray-400 font-normal">--</span>
+                                          )}
+                                        </td>
+                                        <td className="py-2.5 text-center text-gray-600 font-mono">
+                                          {item.final_term_grade != null && item.final_term_grade > 0 ? (
+                                            item.final_term_grade
+                                          ) : (
+                                            <span className="text-gray-400 font-normal">--</span>
+                                          )}
+                                        </td>
                                         <td className="py-2.5 text-center">
                                           {item.grade > 0 ? (
-                                            <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded text-[11px]">{item.grade}</span>
+                                            <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded text-[11px] font-mono">{item.grade}</span>
                                           ) : (
                                             <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200/60 px-1.5 py-0.5 rounded">INC</span>
                                           )}
                                         </td>
-                                        <td className="py-2.5 text-right font-medium text-gray-500">{(item.units * item.grade).toFixed(2)}</td>
+                                        <td className="py-2.5 text-right font-medium text-gray-500 font-mono">{(item.units * item.grade).toFixed(2)}</td>
                                       </tr>
                                     ))}
                                   </tbody>
                                 </table>
                               </div>
+                              <p className="mt-2.5 text-[10px] text-gray-400 italic">
+                                * CTU Policy: Periodic marks (Midterm/Final Term) may be omitted by instructors. Official course credit and semester GWA are computed strictly from the Final Grade column.
+                              </p>
                             </div>
                           )}
                         </div>
