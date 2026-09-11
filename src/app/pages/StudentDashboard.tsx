@@ -3,6 +3,7 @@ import { BookOpen, MessageSquare, Calendar, GraduationCap, Clock, Search, ArrowR
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import axios from "axios";
 import { useNavigate } from "react-router";
+import { apiClient } from "../api/client";
 
 export function StudentDashboard() {
   const navigate = useNavigate();
@@ -26,11 +27,11 @@ export function StudentDashboard() {
         const userEmail = sessionStorage.getItem('userEmail') || '';
 
         const [statsRes, historyRes, accessRes, queriesRes, announcementsRes] = await Promise.all([
-          axios.get("http://localhost:8000/system-stats?role=STUDENT"),
-          axios.get(`http://localhost:8000/chat-history?email=${userEmail}`),
-          axios.get("http://localhost:8000/audit/access"),
-          axios.get("http://localhost:8000/audit/queries"),
-          axios.get("http://localhost:8000/announcements")
+          apiClient.get("/system-stats?role=STUDENT"),
+          apiClient.get(`/chat-history?email=${userEmail}`),
+          apiClient.get("/audit/access"),
+          apiClient.get("/audit/queries"),
+          apiClient.get("/announcements")
         ]);
 
         // 1. Available Resources
@@ -115,7 +116,7 @@ export function StudentDashboard() {
   const handleOpenAnnouncement = (announcement: any) => {
     setSelectedAnnouncement(announcement);
     if (announcement?.id) {
-      axios.post(`http://localhost:8000/announcements/${announcement.id}/read`).catch((err) => {
+      apiClient.post(`/announcements/${announcement.id}/read`).catch((err) => {
         console.error("Failed to record announcement read:", err);
       });
     }

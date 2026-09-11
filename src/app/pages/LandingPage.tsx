@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Database, MessageSquare, Award, FileSearch, Shield, Users, ArrowRight, CheckCircle, Sparkles, X } from "lucide-react";
 import axios from "axios";
+import { apiClient } from "../api/client";
 
 export function LandingPage() {
   // --- States ---
@@ -29,7 +30,7 @@ export function LandingPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/system-stats");
+        const response = await apiClient.get("/system-stats");
         setStats({
           documents: response.data.documents || 0,
           queries: response.data.queries || 0,

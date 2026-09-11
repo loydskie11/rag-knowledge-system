@@ -23,8 +23,14 @@ import re
 from rate_limiter import limiter
 from sanitizer import sanitize_user_input, check_prompt_injection
 import traceback
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from PIL import Image as PILImage
+
+# Dedicated thread pool for CPU-bound OCR and embedding tasks
+# This prevents PaddleOCR from saturating the FastAPI event loop / default threadpool
+_bg_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="doc_worker")
 
 # Lazy-load PaddleOCR to avoid blocking at startup
 _ocr_instance = None
@@ -32,8 +38,10 @@ _ocr_instance = None
 def get_ocr():
     global _ocr_instance
     if _ocr_instance is None:
+        import logging
+        logging.getLogger("ppocr").setLevel(logging.INFO)
         from paddleocr import PaddleOCR
-        _ocr_instance = PaddleOCR(use_angle_cls=True, lang='en')
+        _ocr_instance = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
     return _ocr_instance
 
 def run_ocr(ocr_instance, img_array):
@@ -200,6 +208,11 @@ def process_document_background(
         print(f"[BG] process_document_background error for '{filename}': {e}")
         import traceback as _tb
         _tb.print_exc()
+
+
+def queue_document_processing(*args, **kwargs):
+    """Submits the heavy document processing task to a dedicated thread pool."""
+    _bg_executor.submit(process_document_background, *args, **kwargs)
 
 
 def supabase_query_with_retry(query_fn, retries=3, delay=1):
@@ -1231,9 +1244,9 @@ async def upload_document(
             "uploaded_by":      uploaded_by or "Unknown",
         }
 
-        # ── 2. Defer OCR + vector embedding to background ─────────────────
+        # ── 2. Defer OCR + vector embedding to dedicated worker pool ─────
         background_tasks.add_task(
-            process_document_background,
+            queue_document_processing,
             contents=contents,
             filename=file.filename,
             content_type=file.content_type or "application/pdf",
@@ -1330,9 +1343,9 @@ async def upload_new_version(
             "uploaded_by":      uploaded_by or "Unknown",
         }
 
-        # ── 5. Defer OCR + vector embedding to background ─────────────────
+        # ── 5. Defer OCR + vector embedding to dedicated worker pool ─────
         background_tasks.add_task(
-            process_document_background,
+            queue_document_processing,
             contents=contents,
             filename=file.filename,
             content_type=file.content_type or "application/pdf",
@@ -3911,7 +3924,7 @@ async def upload_ched_evidence(
         "req_id": str(requirement.id)
     }
     background_tasks.add_task(
-        process_document_background,
+        queue_document_processing,
         contents=contents,
         filename=file.filename,
         content_type=file.content_type or "application/pdf",
@@ -4571,7 +4584,7 @@ async def upload_iso_evidence(
             "file_url": public_url
         }
         background_tasks.add_task(
-            process_document_background,
+            queue_document_processing,
             contents=contents,
             filename=file.filename,
             content_type=file.content_type or "application/pdf",

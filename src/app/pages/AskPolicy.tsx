@@ -8,8 +8,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "../api/client";
 import { useRole } from "../contexts/RoleContext";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const MAX_QUESTION_LENGTH = 1000;
 
 interface Source {
@@ -148,7 +146,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
 
     const fetchHistory = async () => {
       try {
-        const res = await axios.get(`${API_BASE}/chat-history`, {
+        const res = await apiClient.get(`/chat-history`, {
           params: { email: userEmail },
         });
 

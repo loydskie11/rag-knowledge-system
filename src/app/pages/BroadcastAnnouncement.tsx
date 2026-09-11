@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Send, Users, Calendar, CheckCircle, Clock, Eye, Loader2, Save, Radio, Search, Filter, X, Trash2, BarChart3, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 import axios from "axios";
+import { apiClient } from "../api/client";
 
 interface Announcement {
   id: string;
@@ -62,7 +63,7 @@ export function BroadcastAnnouncement() {
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await axios.get("http://localhost:8000/announcements");
+      const response = await apiClient.get("/announcements");
       setAnnouncements(response.data);
     } catch (error) {
       console.error("Failed to fetch announcements:", error);
@@ -73,7 +74,7 @@ export function BroadcastAnnouncement() {
 
   const fetchUserCounts = async () => {
     try {
-      const response = await axios.get("http://localhost:8000/users/counts");
+      const response = await apiClient.get("/users/counts");
       setUserCounts(response.data);
     } catch (error) {
       console.error("Failed to fetch user counts:", error);
@@ -140,11 +141,11 @@ export function BroadcastAnnouncement() {
     };
 
     try {
-      await axios.post("http://localhost:8000/announcements", payload);
+      await apiClient.post("/announcements", payload);
 
       // Send live notifications to users only when broadcasting immediately
       if (isSending) {
-        await axios.post("http://localhost:8000/admin/broadcast", {
+        await apiClient.post("/admin/broadcast", {
           title,
           message: content,
           target_role: getTargetRole(selectedRecipients),
@@ -182,11 +183,11 @@ export function BroadcastAnnouncement() {
     };
 
     try {
-      await axios.put(`http://localhost:8000/announcements/${id}`, payload);
+      await apiClient.put(`/announcements/${id}`, payload);
 
       // Send live notifications when sending a draft/scheduled announcement now
       if (isSendingNow) {
-        await axios.post("http://localhost:8000/admin/broadcast", {
+        await apiClient.post("/admin/broadcast", {
           title: editingAnnouncement.title,
           message: editingAnnouncement.content,
           target_role: getTargetRole(editingAnnouncement.recipients.split(", ")),
@@ -208,7 +209,7 @@ export function BroadcastAnnouncement() {
     if (!confirm("Are you sure you want to delete this announcement? This cannot be undone.")) return;
     setIsModalLoading(true);
     try {
-      await axios.delete(`http://localhost:8000/announcements/${id}`);
+      await apiClient.delete(`/announcements/${id}`);
       setEditingAnnouncement(null);
       showToast("Announcement deleted.", "success");
       fetchAnnouncements();

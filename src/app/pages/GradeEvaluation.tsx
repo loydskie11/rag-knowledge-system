@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, AlertCircle, CheckCircle, TrendingUp, Loader2, Award, Calendar, BookOpen, AlertTriangle, Calculator, ChevronDown, ChevronUp, X } from "lucide-react";
 import axios from "axios";
+import { apiClient } from "../api/client";
 
 interface SubjectScratchpad {
   subject: string;
@@ -118,7 +119,7 @@ export function GradeEvaluation() {
     formData.append("file", selectedFile);
 
     try {
-      const response = await axios.post("http://localhost:8000/evaluate-grades", formData, {
+      const response = await apiClient.post("/evaluate-grades", formData, {
         headers: { "Content-Type": "multipart/form-data" },
         timeout: 120000
       });

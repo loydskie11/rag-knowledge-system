@@ -3,6 +3,7 @@ import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
 import { ISO_OFFICES_16 } from "./UsersRoles";
+import { apiClient } from "../api/client";
 
 export const MASTER_AACCUP_AREAS = [
   { code: "Area I", title: "Vision, Mission, Goals and Objectives" },
@@ -530,7 +531,7 @@ export const AaccupTabContent = ({
                               rel="noreferrer"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                axios.post("http://localhost:8000/audit/access", {
+                                apiClient.post("/audit/access", {
                                   document_name: doc.name,
                                   action_type: "View",
                                   user_email: sessionStorage.getItem('userEmail'),
@@ -2211,11 +2212,11 @@ export function AccreditationSupport() {
 
   const refreshData = async () => {
     try {
-      const response = await axios.get(`http://localhost:8000/accreditation-status/${selectedProgram}`);
+      const response = await apiClient.get(`/accreditation-status/${selectedProgram}`);
       setCurrentData(response.data);
 
       try {
-        const accRes = await axios.get(`http://localhost:8000/accreditation/program/${selectedProgram}`);
+        const accRes = await apiClient.get(`/accreditation/program/${selectedProgram}`);
         setProgramAccreditation(accRes.data);
         if (accRes.data?.active_areas) {
           const parsed = accRes.data.active_areas.split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -2230,7 +2231,7 @@ export function AccreditationSupport() {
       // Reload details for the currently expanded area (if any),
       // or eagerly fetch the first area so requirements paint correctly on first load
       if (expandedArea) {
-        const detailsRes = await axios.get(`http://localhost:8000/accreditation-details/${selectedProgram}/${expandedArea.code}`);
+        const detailsRes = await apiClient.get(`/accreditation-details/${selectedProgram}/${expandedArea.code}`);
         setAreaDetails(detailsRes.data);
         const updatedArea = response.data.areas.find((a: any) => a.code === expandedArea.code);
         if (updatedArea) setExpandedArea(updatedArea);
@@ -2239,7 +2240,7 @@ export function AccreditationSupport() {
         // so the DB-seeded requirements are ready the moment the user expands any area
         const firstArea = response.data.areas[0];
         try {
-          await axios.get(`http://localhost:8000/accreditation-details/${selectedProgram}/${firstArea.code}`);
+          await apiClient.get(`/accreditation-details/${selectedProgram}/${firstArea.code}`);
         } catch (_) { /* non-critical pre-fetch, ignore errors */ }
       }
       
@@ -2267,8 +2268,7 @@ export function AccreditationSupport() {
       if (token && token !== "null" && token !== "undefined") {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      await axios.put(
-        `http://localhost:8000/accreditation/program/${selectedProgram}`,
+      await apiClient.put(`/accreditation/program/${selectedProgram}`,
         { active_areas: activeAreas.join(",") },
         { headers, withCredentials: true }
       );
@@ -2297,8 +2297,7 @@ export function AccreditationSupport() {
       if (token && token !== "null" && token !== "undefined") {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      await axios.post(
-        `http://localhost:8000/accreditation/history/${targetHistoryId}/upload-certificate`,
+      await apiClient.post(`/accreditation/history/${targetHistoryId}/upload-certificate`,
         formData,
         { headers, withCredentials: true }
       );
@@ -2356,8 +2355,7 @@ export function AccreditationSupport() {
       if (token && token !== "null" && token !== "undefined") {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      await axios.put(
-        `http://localhost:8000/accreditation/program/${selectedProgram}`,
+      await apiClient.put(`/accreditation/program/${selectedProgram}`,
         editStandingForm,
         { headers, withCredentials: true }
       );
@@ -2384,8 +2382,7 @@ export function AccreditationSupport() {
       if (token && token !== "null" && token !== "undefined") {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      await axios.post(
-        `http://localhost:8000/accreditation/program/${selectedProgram}/upgrade`,
+      await apiClient.post(`/accreditation/program/${selectedProgram}/upgrade`,
         upgradeForm,
         { headers, withCredentials: true }
       );
@@ -2410,7 +2407,7 @@ export function AccreditationSupport() {
       setIsLoadingIqaDays(true);
     }
     try {
-      const res = await axios.get(`http://localhost:8000/iso/schedule-days?cycle_year=${encodeURIComponent(cycleYear)}`);
+      const res = await apiClient.get(`/iso/schedule-days?cycle_year=${encodeURIComponent(cycleYear)}`);
       const data = res.data || [];
       iqaDaysCache.set(cycleYear, data);
       setIqaDays(data);
@@ -2423,13 +2420,13 @@ export function AccreditationSupport() {
 
   const fetchPendingQueue = async () => {
     try {
-      const res = await axios.get("http://localhost:8000/admin/accreditation-pending");
+      const res = await apiClient.get("/admin/accreditation-pending");
       setPendingDocs(res.data || []);
     } catch (error) {
       console.error("Failed to fetch pending queue", error);
     }
     try {
-      const isoRes = await axios.get("http://localhost:8000/iso/evidences/pending");
+      const isoRes = await apiClient.get("/iso/evidences/pending");
       setPendingIsoDocs(isoRes.data || []);
     } catch (error) {
       console.error("Failed to fetch pending ISO queue", error);
@@ -2439,7 +2436,7 @@ export function AccreditationSupport() {
   const fetchChedData = async () => {
     setIsLoadingChed(true);
     try {
-      const res = await axios.get(`http://localhost:8000/ched/requirements/${selectedProgram}`);
+      const res = await apiClient.get(`/ched/requirements/${selectedProgram}`);
       setChedRequirements(res.data);
     } catch (error) {
       console.error("Failed to fetch CHED requirements");
@@ -2454,7 +2451,7 @@ export function AccreditationSupport() {
       return;
     }
     try {
-      const res = await axios.get("http://localhost:8000/iso/cycles");
+      const res = await apiClient.get("/iso/cycles");
       if (res.data && res.data.length > 0) {
         isoCyclesCache = res.data;
         setIsoCycleOptions(res.data);
@@ -2488,7 +2485,7 @@ export function AccreditationSupport() {
       setIsLoadingIso(true);
     }
     try {
-      const res = await axios.get(`http://localhost:8000/iso/requirements/GLOBAL?cycle_year=${encodeURIComponent(cycleYear)}`);
+      const res = await apiClient.get(`/iso/requirements/GLOBAL?cycle_year=${encodeURIComponent(cycleYear)}`);
       const data = res.data || [];
       isoRequirementsCache.set(cycleYear, data);
       setIsoRequirements(data);
@@ -2529,7 +2526,7 @@ export function AccreditationSupport() {
       setIsLoadingQmsPlans(true);
     }
     try {
-      const res = await axios.get(`http://localhost:8000/qms/action-plans?cycle_year=${encodeURIComponent(cycleYear)}`);
+      const res = await apiClient.get(`/qms/action-plans?cycle_year=${encodeURIComponent(cycleYear)}`);
       const data = res.data || [];
       qmsPlansCache.set(cycleYear, data);
       setQmsActionPlans(data);
@@ -2548,7 +2545,7 @@ export function AccreditationSupport() {
     }
     setIsAddingQms(true);
     try {
-      await axios.post("http://localhost:8000/qms/action-plans", {
+      await apiClient.post("/qms/action-plans", {
         ...newQmsPlan,
         cycle_year: selectedIsoCycleYear
       });
@@ -2580,7 +2577,7 @@ export function AccreditationSupport() {
     }
     setIsEditingQms(true);
     try {
-      await axios.put(`http://localhost:8000/qms/action-plans/${editingQmsPlan.id}`, editingQmsPlan);
+      await apiClient.put(`/qms/action-plans/${editingQmsPlan.id}`, editingQmsPlan);
       showToast("QMS Action Plan updated!", "success");
       setShowEditQmsModal(false);
       setEditingQmsPlan(null);
@@ -2596,7 +2593,7 @@ export function AccreditationSupport() {
     if (!qmsPlanToDelete) return;
     setIsDeletingQms(true);
     try {
-      await axios.delete(`http://localhost:8000/qms/action-plans/${qmsPlanToDelete.id}`);
+      await apiClient.delete(`/qms/action-plans/${qmsPlanToDelete.id}`);
       showToast("QMS Action Plan deleted.", "success");
       setShowDeleteQmsModal(false);
       setQmsPlanToDelete(null);
@@ -2623,7 +2620,7 @@ export function AccreditationSupport() {
           return;
         }
       }
-      await axios.put(`http://localhost:8000/qms/action-plans/${planId}`, { status: newStatus });
+      await apiClient.put(`/qms/action-plans/${planId}`, { status: newStatus });
       showToast(`Status updated to "${newStatus}"`, "success");
       fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
@@ -2644,7 +2641,7 @@ export function AccreditationSupport() {
       formData.append("document_name", qmsEvidenceDocName.trim());
       formData.append("uploaded_by", userName);
 
-      await axios.post(`http://localhost:8000/qms/action-plans/${targetQmsPlanForEvidence.id}/upload-evidence`, formData, {
+      await apiClient.post(`/qms/action-plans/${targetQmsPlanForEvidence.id}/upload-evidence`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
@@ -2663,7 +2660,7 @@ export function AccreditationSupport() {
 
   const handleDeleteQmsEvidence = async (evidenceId: string) => {
     try {
-      await axios.delete(`http://localhost:8000/qms/action-plans/evidence/${evidenceId}`);
+      await apiClient.delete(`/qms/action-plans/evidence/${evidenceId}`);
       showToast("Attached evidence removed.", "success");
       fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
@@ -2676,7 +2673,7 @@ export function AccreditationSupport() {
     if (!targetQmsPlanForCloseout) return;
     setIsSavingCloseout(true);
     try {
-      await axios.put(`http://localhost:8000/qms/action-plans/${targetQmsPlanForCloseout.id}`, {
+      await apiClient.put(`/qms/action-plans/${targetQmsPlanForCloseout.id}`, {
         status: "Completed",
         actual_completion_date: closeoutForm.actual_completion_date || new Date().toISOString().split("T")[0],
         assessment_date: closeoutForm.assessment_date || null,
@@ -2720,7 +2717,7 @@ export function AccreditationSupport() {
     setIsCreatingCycle(true);
     try {
       const cycleName = newIsoCycleName.trim();
-      await axios.post("http://localhost:8000/iso/cycles/init", {
+      await apiClient.post("/iso/cycles/init", {
         cycle_year: cycleName
       });
       showToast(`New Audit Cycle "${cycleName}" initialized!`, "success");
@@ -2741,7 +2738,7 @@ export function AccreditationSupport() {
     setExpandedArea(area);
     setIsLoadingDetails(true);
     try {
-      const response = await axios.get(`http://localhost:8000/accreditation-details/${selectedProgram}/${area.code}`);
+      const response = await apiClient.get(`/accreditation-details/${selectedProgram}/${area.code}`);
       setAreaDetails(response.data);
     } catch (error) {
       showToast("Failed to load area details.", "error");
@@ -2793,7 +2790,7 @@ export function AccreditationSupport() {
     submitData.append("uploaded_by", userName);
 
     try {
-      await axios.post("http://localhost:8000/upload-accreditation-evidence", submitData, {
+      await apiClient.post("/upload-accreditation-evidence", submitData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
       await refreshData();
@@ -2811,7 +2808,7 @@ export function AccreditationSupport() {
     if (!docToDelete) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:8000/documents/${encodeURIComponent(docToDelete)}`);
+      await apiClient.delete(`/documents/${encodeURIComponent(docToDelete)}`);
       await refreshData();
       setShowDeleteModal(false); setDocToDelete(null);
       showToast("Document archived successfully!", "success");
@@ -2823,7 +2820,7 @@ export function AccreditationSupport() {
   };
 
   const handleViewDocument = (fileUrl: string, fileName: string) => {
-    axios.post("http://localhost:8000/audit/access", {
+    apiClient.post("/audit/access", {
       document_name: fileName, action_type: "View", user_email: sessionStorage.getItem('userEmail'), user_role: userRole
     }).catch(() => {});
     window.open(fileUrl, "_blank");
@@ -2832,7 +2829,7 @@ export function AccreditationSupport() {
   const handleAdminReview = async (docName: string, status: "Approved" | "Needs Revision", feedbackText: string = "") => {
     setIsReviewing(true);
     try {
-      await axios.post("http://localhost:8000/admin/accreditation-review", {
+      await apiClient.post("/admin/accreditation-review", {
         document_name: docName,
         status: status,
         feedback: feedbackText
@@ -2863,7 +2860,7 @@ export function AccreditationSupport() {
     submitData.append("program", selectedProgram);
 
     try {
-      await axios.post("http://localhost:8000/ched/upload-evidence", submitData, {
+      await apiClient.post("/ched/upload-evidence", submitData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
       await fetchChedData();
@@ -2882,7 +2879,7 @@ export function AccreditationSupport() {
     e.preventDefault();
     setIsAddingReq(true);
     try {
-      await axios.post("http://localhost:8000/ched/requirements", {
+      await apiClient.post("/ched/requirements", {
         program: selectedProgram,
         cmo_name: newChedReq.cmo_name,
         description: newChedReq.description
@@ -2902,7 +2899,7 @@ export function AccreditationSupport() {
     e.preventDefault();
     setIsEditingReq(true);
     try {
-      await axios.put(`http://localhost:8000/ched/requirements/${editingChedReq.id}`, {
+      await apiClient.put(`/ched/requirements/${editingChedReq.id}`, {
         program: selectedProgram,
         cmo_name: editingChedReq.cmo_name,
         description: editingChedReq.description
@@ -2926,7 +2923,7 @@ export function AccreditationSupport() {
     if (!chedReqToDelete) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:8000/ched/requirements/${chedReqToDelete}`);
+      await apiClient.delete(`/ched/requirements/${chedReqToDelete}`);
       showToast("Requirement deleted.", "success");
       setShowDeleteChedReqModal(false);
       setChedReqToDelete(null);
@@ -2946,7 +2943,7 @@ export function AccreditationSupport() {
     }
     setIsAddingAaccupReq(true);
     try {
-      await axios.post("http://localhost:8000/aaccup/requirements", newAaccupReq);
+      await apiClient.post("/aaccup/requirements", newAaccupReq);
       showToast("New AACCUP requirement created successfully!", "success");
       setShowAddAaccupReqModal(false);
       setNewAaccupReq({ area_code: "Area I", area_title: "Vision, Mission, Goals and Objectives", description: "" });
@@ -2963,7 +2960,7 @@ export function AccreditationSupport() {
     if (!editingAaccupReq || !editingAaccupReq.description.trim()) return;
     setIsEditingAaccupReq(true);
     try {
-      await axios.put(`http://localhost:8000/aaccup/requirements/${editingAaccupReq.id}`, editingAaccupReq);
+      await apiClient.put(`/aaccup/requirements/${editingAaccupReq.id}`, editingAaccupReq);
       showToast("AACCUP requirement updated successfully!", "success");
       setShowEditAaccupReqModal(false);
       setEditingAaccupReq(null);
@@ -2979,7 +2976,7 @@ export function AccreditationSupport() {
     if (!aaccupReqToDelete) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:8000/aaccup/requirements/${aaccupReqToDelete.id}`);
+      await apiClient.delete(`/aaccup/requirements/${aaccupReqToDelete.id}`);
       showToast("AACCUP requirement deleted.", "success");
       setShowDeleteAaccupReqModal(false);
       setAaccupReqToDelete(null);
@@ -3000,7 +2997,7 @@ export function AccreditationSupport() {
     if (!chedEvidenceToDelete) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:8000/ched/evidence/${chedEvidenceToDelete.id}`);
+      await apiClient.delete(`/ched/evidence/${chedEvidenceToDelete.id}`);
       showToast("Evidence removed.", "success");
       setShowDeleteChedEvidenceModal(false);
       setChedEvidenceToDelete(null);
@@ -3021,7 +3018,7 @@ export function AccreditationSupport() {
     if (!pendingChedReview) return;
     setIsReviewing(true);
     try {
-      await axios.put(`http://localhost:8000/ched/requirements/${pendingChedReview.reqId}/status`, { status: pendingChedReview.status });
+      await apiClient.put(`/ched/requirements/${pendingChedReview.reqId}/status`, { status: pendingChedReview.status });
       showToast(`Requirement marked as ${pendingChedReview.status}!`, "success");
       setShowChedReviewModal(false);
       setPendingChedReview(null);
@@ -3036,7 +3033,7 @@ export function AccreditationSupport() {
   const handleReviewChedEvidence = async (evidenceId: string, status: string) => {
     setIsReviewing(true);
     try {
-      await axios.put(`http://localhost:8000/ched/evidence/${evidenceId}/status`, { status });
+      await apiClient.put(`/ched/evidence/${evidenceId}/status`, { status });
       showToast(`CHED evidence marked as ${status}!`, "success");
       fetchChedData();
     } catch (error) {
@@ -3062,7 +3059,7 @@ export function AccreditationSupport() {
     submitData.append("program", "GLOBAL");
 
     try {
-      await axios.post("http://localhost:8000/iso/upload-evidence", submitData, {
+      await apiClient.post("/iso/upload-evidence", submitData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
       await fetchIsoData(selectedIsoCycleYear, true);
@@ -3087,7 +3084,7 @@ export function AccreditationSupport() {
     if (!pendingIsoStatus) return;
     setIsDeleting(true);
     try {
-      await axios.put(`http://localhost:8000/iso/requirements/${pendingIsoStatus.reqId}/status`, { status: pendingIsoStatus.status });
+      await apiClient.put(`/iso/requirements/${pendingIsoStatus.reqId}/status`, { status: pendingIsoStatus.status });
       showToast(`ISO Clause marked as ${pendingIsoStatus.status}!`, "success");
       setShowIsoStatusModal(false);
       setPendingIsoStatus(null);
@@ -3108,7 +3105,7 @@ export function AccreditationSupport() {
     if (!isoEvidenceToDelete) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:8000/iso/evidence/${isoEvidenceToDelete.id}`);
+      await apiClient.delete(`/iso/evidence/${isoEvidenceToDelete.id}`);
       showToast("ISO evidence removed successfully.", "success");
       setShowDeleteIsoEvidenceModal(false);
       setIsoEvidenceToDelete(null);
@@ -3129,8 +3126,7 @@ export function AccreditationSupport() {
       if (token && token !== "null" && token !== "undefined") {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      await axios.put(
-        `http://localhost:8000/iso/evidence/${evidenceId}/status`,
+      await apiClient.put(`/iso/evidence/${evidenceId}/status`,
         { status, feedback },
         { headers, withCredentials: true }
       );
@@ -3162,7 +3158,7 @@ export function AccreditationSupport() {
     }
     setIsAddingIsoReq(true);
     try {
-      await axios.post("http://localhost:8000/iso/requirements", {
+      await apiClient.post("/iso/requirements", {
         program: "GLOBAL",
         iso_clause: newIsoReq.iso_clause.trim(),
         title: newIsoReq.title.trim(),
@@ -3203,7 +3199,7 @@ export function AccreditationSupport() {
     }
     setIsEditingIsoReq(true);
     try {
-      await axios.put(`http://localhost:8000/iso/requirements/${editingIsoReq.id}`, {
+      await apiClient.put(`/iso/requirements/${editingIsoReq.id}`, {
         program: "GLOBAL",
         iso_clause: editingIsoReq.iso_clause.trim(),
         title: editingIsoReq.title.trim(),
@@ -3227,7 +3223,7 @@ export function AccreditationSupport() {
     if (!isoReqToDelete) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:8000/iso/requirements/${isoReqToDelete.id}`);
+      await apiClient.delete(`/iso/requirements/${isoReqToDelete.id}`);
       showToast("ISO requirement deleted.", "success");
       setShowDeleteIsoReqModal(false);
       setIsoReqToDelete(null);
@@ -3243,7 +3239,7 @@ export function AccreditationSupport() {
     e.preventDefault();
     setIsSavingIqa(true);
     try {
-      await axios.put(`http://localhost:8000/iso/schedule/GLOBAL`, iqaFormData);
+      await apiClient.put(`/iso/schedule/GLOBAL`, iqaFormData);
       showToast("IQA Audit Schedule updated for upcoming cycle!", "success");
       setShowEditIqaModal(false);
       fetchIqaSchedule();
@@ -3261,7 +3257,7 @@ export function AccreditationSupport() {
     }
     setIsSavingIqaDay(true);
     try {
-      await axios.post("http://localhost:8000/iso/schedule-days", {
+      await apiClient.post("/iso/schedule-days", {
         ...iqaDayForm,
         cycle_year: selectedIsoCycleYear
       });
@@ -3283,7 +3279,7 @@ export function AccreditationSupport() {
     }
     setIsSavingIqaDay(true);
     try {
-      await axios.put(`http://localhost:8000/iso/schedule-days/${editingIqaDay.id}`, {
+      await apiClient.put(`/iso/schedule-days/${editingIqaDay.id}`, {
         ...editingIqaDay,
         cycle_year: selectedIsoCycleYear
       });
@@ -3302,7 +3298,7 @@ export function AccreditationSupport() {
     if (!deletingIqaDay) return;
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:8000/iso/schedule-days/${deletingIqaDay.id}`);
+      await apiClient.delete(`/iso/schedule-days/${deletingIqaDay.id}`);
       showToast("IQA Audit Day removed.", "success");
       setShowDeleteIqaDayModal(false);
       setDeletingIqaDay(null);
@@ -5288,7 +5284,7 @@ export function AccreditationSupport() {
                       try {
                         const formData = new FormData();
                         formData.append("file", file);
-                        const res = await axios.post("http://localhost:8000/api/extract-car-form", formData);
+                        const res = await apiClient.post("/api/extract-car-form", formData);
                         const data = res.data;
                         const combinedOpportunity = `FINDINGS:\n${data.findings}\n\nROOT CAUSE:\n${data.root_cause}`;
                         const combinedAction = `IMMEDIATE ACTION:\n${data.immediate_action}\n\nPROPOSED CORRECTIVE MEASURE:\n${data.corrective_measure}`;

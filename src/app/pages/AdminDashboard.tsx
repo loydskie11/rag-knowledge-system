@@ -3,6 +3,7 @@ import { FileText, MessageSquare, CheckCircle, Clock, Users, Shield, AlertCircle
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
 import axios from "axios";
 import { useNavigate } from "react-router";
+import { apiClient } from "../api/client";
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -30,13 +31,13 @@ export function AdminDashboard() {
       setIsLoading(true);
       try {
         const [statsRes, userCountsRes, docsRes, queriesRes, versionsRes, popularRes, pendingRes] = await Promise.all([
-          axios.get("http://localhost:8000/system-stats?role=ADMIN"),
-          axios.get("http://localhost:8000/users/counts"),
-          axios.get("http://localhost:8000/documents"),
-          axios.get("http://localhost:8000/audit/queries"),
-          axios.get("http://localhost:8000/audit/versions"),
-          axios.get("http://localhost:8000/analytics/popular"),
-          axios.get("http://localhost:8000/admin/accreditation-pending")
+          apiClient.get("/system-stats?role=ADMIN"),
+          apiClient.get("/users/counts"),
+          apiClient.get("/documents"),
+          apiClient.get("/audit/queries"),
+          apiClient.get("/audit/versions"),
+          apiClient.get("/analytics/popular"),
+          apiClient.get("/admin/accreditation-pending")
         ]);
 
         setGlobalStats({

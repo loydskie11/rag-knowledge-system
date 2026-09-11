@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search, Download, Loader2, X, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import axios from "axios";
+import { apiClient } from "../api/client";
 
 type TabType = "queries" | "access" | "versions" | "system";
 
@@ -31,10 +32,10 @@ export function AuditTrail() {
       setIsLoading(true);
       try {
         const [queriesRes, accessRes, versionsRes, systemRes] = await Promise.all([
-          axios.get("http://localhost:8000/audit/queries"),
-          axios.get("http://localhost:8000/audit/access"),
-          axios.get("http://localhost:8000/audit/versions"),
-          axios.get("http://localhost:8000/audit/system") 
+          apiClient.get("/audit/queries"),
+          apiClient.get("/audit/access"),
+          apiClient.get("/audit/versions"),
+          apiClient.get("/audit/system") 
         ]);
 
         setQueryLogs(queriesRes.data);

@@ -7,9 +7,7 @@ import {
 import axios from "axios";
 import { useRole } from "../contexts/RoleContext";
 import { ISO_OFFICES_16, CAMPUS_COLLEGES, CAMPUS_PROGRAMS } from "./UsersRoles";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
+import { apiClient } from "../api/client";
 interface PaperTrailLog {
   id: string;
   record_id: string;
@@ -124,7 +122,7 @@ export function PaperTrail() {
   const fetchPaperTrails = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/paper-trail`, {
+      const res = await apiClient.get(`/paper-trail`, {
         params: {
           role: currentRole,
           email: userEmail,
@@ -153,7 +151,7 @@ export function PaperTrail() {
 
     setIsSubmittingRequest(true);
     try {
-      await axios.post(`${API_BASE}/paper-trail/request`, {
+      await apiClient.post(`/paper-trail/request`, {
         title: requestFormData.title,
         document_type: requestFormData.document_type,
         office: requestFormData.office,
@@ -193,12 +191,12 @@ export function PaperTrail() {
     try {
       const fileForm = new FormData();
       fileForm.append("file", fulfillFile);
-      const uploadRes = await axios.post(`${API_BASE}/paper-trail/upload`, fileForm, {
+      const uploadRes = await apiClient.post(`/paper-trail/upload`, fileForm, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const uploadedUrl = uploadRes.data.file_url;
 
-      await axios.put(`${API_BASE}/paper-trail/${selectedRecordForFulfill.id}/fulfill`, {
+      await apiClient.put(`/paper-trail/${selectedRecordForFulfill.id}/fulfill`, {
         file_url: uploadedUrl,
         remarks: fulfillRemarks || undefined,
       });
@@ -232,13 +230,13 @@ export function PaperTrail() {
       if (attachedFile) {
         const fileForm = new FormData();
         fileForm.append("file", attachedFile);
-        const uploadRes = await axios.post(`${API_BASE}/paper-trail/upload`, fileForm, {
+        const uploadRes = await apiClient.post(`/paper-trail/upload`, fileForm, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         uploadedUrl = uploadRes.data.file_url;
       }
 
-      await axios.post(`${API_BASE}/paper-trail`, {
+      await apiClient.post(`/paper-trail`, {
         title: formData.title,
         document_type: formData.document_type,
         office: formData.office,
@@ -289,7 +287,7 @@ export function PaperTrail() {
 
     setIsUpdatingStatus(true);
     try {
-      await axios.put(`${API_BASE}/paper-trail/${selectedRecordForStatus.id}/status`, {
+      await apiClient.put(`/paper-trail/${selectedRecordForStatus.id}/status`, {
         status: computedStatus,
         action_type: actionType,
         target_office: targetOffice || undefined,
