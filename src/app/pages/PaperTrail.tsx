@@ -7,9 +7,7 @@ import {
 import axios from "axios";
 import { useRole } from "../contexts/RoleContext";
 import { ISO_OFFICES_16, CAMPUS_COLLEGES, CAMPUS_PROGRAMS } from "./UsersRoles";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
+import { apiClient } from "../api/client";
 interface PaperTrailLog {
   id: string;
   record_id: string;
@@ -124,7 +122,7 @@ export function PaperTrail() {
   const fetchPaperTrails = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/paper-trail`, {
+      const res = await apiClient.get(`/paper-trail`, {
         params: {
           role: currentRole,
           email: userEmail,
@@ -153,7 +151,7 @@ export function PaperTrail() {
 
     setIsSubmittingRequest(true);
     try {
-      await axios.post(`${API_BASE}/paper-trail/request`, {
+      await apiClient.post(`/paper-trail/request`, {
         title: requestFormData.title,
         document_type: requestFormData.document_type,
         office: requestFormData.office,
@@ -193,12 +191,12 @@ export function PaperTrail() {
     try {
       const fileForm = new FormData();
       fileForm.append("file", fulfillFile);
-      const uploadRes = await axios.post(`${API_BASE}/paper-trail/upload`, fileForm, {
+      const uploadRes = await apiClient.post(`/paper-trail/upload`, fileForm, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const uploadedUrl = uploadRes.data.file_url;
 
-      await axios.put(`${API_BASE}/paper-trail/${selectedRecordForFulfill.id}/fulfill`, {
+      await apiClient.put(`/paper-trail/${selectedRecordForFulfill.id}/fulfill`, {
         file_url: uploadedUrl,
         remarks: fulfillRemarks || undefined,
       });
@@ -232,13 +230,13 @@ export function PaperTrail() {
       if (attachedFile) {
         const fileForm = new FormData();
         fileForm.append("file", attachedFile);
-        const uploadRes = await axios.post(`${API_BASE}/paper-trail/upload`, fileForm, {
+        const uploadRes = await apiClient.post(`/paper-trail/upload`, fileForm, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         uploadedUrl = uploadRes.data.file_url;
       }
 
-      await axios.post(`${API_BASE}/paper-trail`, {
+      await apiClient.post(`/paper-trail`, {
         title: formData.title,
         document_type: formData.document_type,
         office: formData.office,
@@ -289,7 +287,7 @@ export function PaperTrail() {
 
     setIsUpdatingStatus(true);
     try {
-      await axios.put(`${API_BASE}/paper-trail/${selectedRecordForStatus.id}/status`, {
+      await apiClient.put(`/paper-trail/${selectedRecordForStatus.id}/status`, {
         status: computedStatus,
         action_type: actionType,
         target_office: targetOffice || undefined,
@@ -398,7 +396,7 @@ export function PaperTrail() {
       <div className="flex-none space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-[#1F2937]">Document Tracking System (DTS)</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-[#1F2937]">Document Tracking & Control (Digital DDC Form 3)</h1>
             <p className="text-xs sm:text-sm text-[#6B7280] mt-1">
               Multi-way office routing engine & physical / digital document location tracking
             </p>
@@ -580,7 +578,7 @@ export function PaperTrail() {
         ) : actionBoardRecords.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-gray-500 text-center">
             <FileCheck className="h-10 w-10 text-gray-300 mb-3 stroke-[1.5]" />
-            <h3 className="text-base font-semibold text-gray-900">No Paper Trail Records Found</h3>
+            <h3 className="text-base font-semibold text-gray-900">No Document Tracking Records Found</h3>
             <p className="text-sm text-gray-500 mt-1 max-w-md">
               There are no document movement logs matching your search or filter. Release a new document to start tracking!
             </p>

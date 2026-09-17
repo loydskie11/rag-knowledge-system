@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Save, ShieldCheck, Building2, Server, Lock, Bot, Sliders, Loader2, CheckCircle } from "lucide-react";
 import axios from "axios";
+import { apiClient } from "../api/client";
 
 type TabType = "profile" | "security" | "ai_engine";
 
@@ -21,7 +22,7 @@ export function Settings() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/settings");
+        const response = await apiClient.get("/settings");
         setSettings(response.data);
       } catch (error) {
         console.error("Failed to fetch settings");
@@ -39,7 +40,7 @@ export function Settings() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await axios.put("http://localhost:8000/settings", settings);
+      await apiClient.put("/settings", settings);
       setToast({ message: "System configurations successfully updated!", type: "success" });
       setTimeout(() => setToast(null), 3000);
     } catch (error) {

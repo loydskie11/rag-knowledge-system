@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from "react"
 import { Search, Filter, Upload, Download, Edit, Archive, Clock, Eye, CheckCircle, FileText, UploadCloud, X, Loader2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react"
 import axios from "axios"
 import { useRole } from "../contexts/RoleContext"
+import { ISO_OFFICES_16 } from "./UsersRoles"
+import { useUploadQueue } from "../contexts/UploadQueueContext"
+import { apiClient } from "../api/client";
 
 export interface BackgroundUploadTask {
   id: string
@@ -27,9 +30,8 @@ export function KnowledgeRepository() {
 
   const [documents, setDocuments] = useState<any[]>([])
   
-  // Background Upload Queue State
-  const [activeUploads, setActiveUploads] = useState<BackgroundUploadTask[]>([])
-  const [isQueueMinimized, setIsQueueMinimized] = useState(false)
+  // Upload queue is now global (survives navigation) — managed by UploadQueueContext
+  const { enqueueUpload } = useUploadQueue()
   
   // --- TOAST NOTIFICATION STATE ---
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
@@ -85,7 +87,7 @@ export function KnowledgeRepository() {
   useEffect(() => {
     const loadDocs = async () => {
       try {
-        const res = await axios.get("http://localhost:8000/documents");
+        const res = await apiClient.get("/documents");
         setDocuments(res.data);
       } catch (error) {
         console.error("Failed to fetch documents", error);
@@ -132,7 +134,12 @@ export function KnowledgeRepository() {
       doc.program === selectedProgram;
 
     const matchesCategory = selectedCategory === "all" || doc.category === selectedCategory;
-    const matchesOffice = selectedOffice === "all" || doc.office === selectedOffice;
+    const matchesOffice = selectedOffice === "all" || 
+      doc.office === selectedOffice ||
+      (selectedOffice === "Student Affairs & Services" && (doc.office === "Student Affairs" || doc.office === "SAS")) ||
+      (selectedOffice === "Quality Assurance & Management (QAU)" && (doc.office === "Quality Assurance" || doc.office === "QAU")) ||
+      (selectedOffice === "Research & Development" && (doc.office === "Research Office" || doc.office === "R&D")) ||
+      (selectedOffice === "HR & Records Management" && (doc.office === "HRMO" || doc.office === "HR"));
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = 
       doc.name.toLowerCase().includes(searchLower) ||
@@ -149,7 +156,7 @@ export function KnowledgeRepository() {
       const userEmail = sessionStorage.getItem('userEmail') || 'Unknown';
       const userRole = sessionStorage.getItem('userRole') || 'STUDENT';
 
-      axios.post("http://localhost:8000/audit/access", {
+      apiClient.post("/audit/access", {
         document_name: doc.name,
         action_type: "View",
         user_email: userEmail,
@@ -170,7 +177,7 @@ export function KnowledgeRepository() {
       const userEmail = sessionStorage.getItem('userEmail') || 'Unknown';
       const userRole = sessionStorage.getItem('userRole') || 'STUDENT';
 
-      axios.post("http://localhost:8000/audit/access", {
+      apiClient.post("/audit/access", {
         document_name: doc.name,
         action_type: "Download",
         user_email: userEmail,
@@ -214,7 +221,7 @@ export function KnowledgeRepository() {
     }
     setIsEditing(true)
     try {
-      await axios.put("http://localhost:8000/documents/update", {
+      await apiClient.put("/documents/update", {
         old_name: editingDocName,
         new_name: formData.name,
         category: formData.category,
@@ -224,7 +231,7 @@ export function KnowledgeRepository() {
       })
       setShowEditModal(false)
       setFormData({ name: "", category: "Policy", office: "Academic Affairs", version: "", effectivityDate: "" })
-      const res = await axios.get("http://localhost:8000/documents")
+      const res = await apiClient.get("/documents")
       setDocuments(res.data)
       showToast("Metadata successfully updated!", "success")
     } catch (error) {
@@ -244,11 +251,11 @@ export function KnowledgeRepository() {
     if (!docToDelete) return
     setIsArchiving(true)
     try {
-      await axios.delete(`http://localhost:8000/documents/${encodeURIComponent(docToDelete.name)}`)
+      await apiClient.delete(`/documents/${encodeURIComponent(docToDelete.name)}`)
       setShowDeleteModal(false)
       setDocToDelete(null)
       setDeleteConfirmText("")
-      const res = await axios.get("http://localhost:8000/documents")
+      const res = await apiClient.get("/documents")
       setDocuments(res.data)
       showToast("Document successfully archived!", "success")
     } catch (error) {
@@ -266,92 +273,8 @@ export function KnowledgeRepository() {
   }
 
   // --- BACKGROUND UPLOAD QUEUE HANDLERS ---
-  const cancelUploadTask = (taskId: string) => {
-    setActiveUploads(prev => prev.map(t => {
-      if (t.id === taskId) {
-        t.abortController.abort()
-        return { ...t, status: 'cancelled', statusText: 'Upload cancelled by user', progress: 0 }
-      }
-      return t
-    }))
-  }
-
-  const removeUploadTask = (taskId: string) => {
-    setActiveUploads(prev => prev.filter(t => t.id !== taskId))
-  }
-
-  const startBackgroundUpload = async (
-    taskId: string,
-    endpoint: string,
-    submitData: FormData,
-    controller: AbortController,
-    docName: string,
-    isVersionUpdate = false
-  ) => {
-    try {
-      await axios.post(endpoint, submitData, {
-        signal: controller.signal,
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (progressEvent) => {
-          const loaded = progressEvent.loaded || 0
-          const total = progressEvent.total || 1
-          const uploadPercentage = Math.min(50, Math.round((loaded * 50) / total))
-          
-          setActiveUploads(prev => prev.map(t => {
-            if (t.id === taskId && t.status !== 'cancelled') {
-              const statusText = uploadPercentage < 50 
-                ? `Transferring document file (${uploadPercentage * 2}%)...` 
-                : 'Analyzing document content & indexing...'
-              const status = uploadPercentage < 50 ? 'uploading' : 'vectorizing'
-              return { ...t, progress: uploadPercentage, statusText, status }
-            }
-            return t
-          }))
-        }
-      })
-
-      // Update to processing step
-      setActiveUploads(prev => prev.map(t => {
-        if (t.id === taskId && t.status !== 'cancelled') {
-          return { ...t, progress: 85, status: 'vectorizing', statusText: 'Finalizing document record...' }
-        }
-        return t
-      }))
-
-      // Complete task
-      setTimeout(() => {
-        setActiveUploads(prev => prev.map(t => {
-          if (t.id === taskId && t.status !== 'cancelled') {
-            return { ...t, progress: 100, status: 'completed', statusText: 'Document active & searchable!' }
-          }
-          return t
-        }))
-
-        // Refresh documents list
-        axios.get("http://localhost:8000/documents").then(res => setDocuments(res.data)).catch(console.error)
-        showToast(isVersionUpdate ? `New version of "${docName}" successfully published!` : `"${docName}" successfully added to repository!`, 'success')
-      }, 600)
-
-    } catch (error: any) {
-      if (axios.isCancel(error) || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
-        setActiveUploads(prev => prev.map(t => {
-          if (t.id === taskId) {
-            return { ...t, status: 'cancelled', statusText: 'Upload cancelled by user', progress: 0 }
-          }
-          return t
-        }))
-        showToast(`Upload of "${docName}" was cancelled.`, 'error')
-      } else {
-        setActiveUploads(prev => prev.map(t => {
-          if (t.id === taskId) {
-            return { ...t, status: 'error', statusText: 'Document processing failed.', progress: 0 }
-          }
-          return t
-        }))
-        showToast(`Upload of "${docName}" failed. Please check network.`, 'error')
-      }
-    }
-  }
+  // These now delegate to the global UploadQueueContext so the panel
+  // survives navigation away from this page.
 
   const handleUpdateVersionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -360,38 +283,34 @@ export function KnowledgeRepository() {
       return;
     }
 
-    const taskId = "update_" + Date.now()
-    const controller = new AbortController()
-
     const submitData = new FormData();
     submitData.append("file", updateFile);
     submitData.append("old_document_name", docToUpdate.name);
     submitData.append("new_version", updateFormData.version);
     submitData.append("new_effectivity_date", updateFormData.effectivityDate);
 
-    const newTask: BackgroundUploadTask = {
-      id: taskId,
-      docName: docToUpdate.name,
+    const docName = docToUpdate.name
+
+    enqueueUpload({
+      docName,
       category: docToUpdate.category || "Document",
       office: docToUpdate.office || "",
       version: updateFormData.version,
       fileName: updateFile.name,
-      progress: 5,
-      status: 'uploading',
-      statusText: 'Initializing version update...',
-      abortController: controller,
-      isVersionUpdate: true
-    }
-
-    setActiveUploads(prev => [...prev, newTask])
+      endpoint: "http://localhost:8000/upload-new-version",
+      formData: submitData,
+      isVersionUpdate: true,
+      onComplete: (name, isVersionUpdate) => {
+        apiClient.get("/documents").then(res => setDocuments(res.data)).catch(console.error)
+        showToast(`New version of "${name}" successfully published!`, 'success')
+      },
+    })
 
     // Immediately close modal & reset fields so user can navigate away
     setShowUpdateModal(false);
     setUpdateFile(null);
     setDocToUpdate(null);
-    showToast(`Version update for "${docToUpdate.name}" started in background!`, 'success')
-
-    startBackgroundUpload(taskId, "http://localhost:8000/upload-new-version", submitData, controller, newTask.docName, true)
+    showToast(`Version update for "${docName}" started in background!`, 'success')
   }
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }
@@ -423,9 +342,6 @@ export function KnowledgeRepository() {
       return
     }
 
-    const taskId = "task_" + Date.now()
-    const controller = new AbortController()
-
     const submitData = new FormData()
     submitData.append("file", selectedFile)
     submitData.append("name", formData.name)
@@ -434,28 +350,28 @@ export function KnowledgeRepository() {
     submitData.append("version", formData.version)
     submitData.append("effectivity_date", formData.effectivityDate)
 
-    const newTask: BackgroundUploadTask = {
-      id: taskId,
-      docName: formData.name,
+    const docName = formData.name
+
+    enqueueUpload({
+      docName,
       category: formData.category,
       office: formData.office,
       version: formData.version,
       fileName: selectedFile.name,
-      progress: 5,
-      status: 'uploading',
-      statusText: 'Initializing upload...',
-      abortController: controller
-    }
+      endpoint: "http://localhost:8000/upload-document",
+      formData: submitData,
+      isVersionUpdate: false,
+      onComplete: (name) => {
+        apiClient.get("/documents").then(res => setDocuments(res.data)).catch(console.error)
+        showToast(`"${name}" successfully added to repository!`, 'success')
+      },
+    })
 
-    setActiveUploads(prev => [...prev, newTask])
-    
     // Immediately close modal & reset fields so user can leave
     setShowUploadModal(false)
     setSelectedFile(null)
     setFormData({ name: "", category: "Policy", office: "Academic Affairs", version: "", effectivityDate: "" })
-    showToast(`Upload of "${newTask.docName}" started in background!`, 'success')
-
-    startBackgroundUpload(taskId, "http://localhost:8000/upload-document", submitData, controller, newTask.docName)
+    showToast(`Upload of "${docName}" started in background!`, 'success')
   }
 
   return (
@@ -502,16 +418,7 @@ export function KnowledgeRepository() {
               </button>
             )}
 
-            {activeUploads.some(t => t.status === 'uploading' || t.status === 'vectorizing') && (
-              <button
-                onClick={() => setIsQueueMinimized(false)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-[#DD7230] border border-[#DD7230]/30 rounded-lg text-xs font-semibold cursor-pointer shadow-2xs"
-                title="View active ingestion progress"
-              >
-                <UploadCloud className="h-3.5 w-3.5 text-[#DD7230] animate-bounce" />
-                <span>Ingesting ({activeUploads.filter(t => t.status === 'uploading' || t.status === 'vectorizing').length})</span>
-              </button>
-            )}
+            {/* Ingestion badge is shown globally in DashboardLayout — no local state needed */}
 
             {canUpload && (
               <button
@@ -555,15 +462,16 @@ export function KnowledgeRepository() {
               </select>
               
               <select
-                className="sm:w-44 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-700 cursor-pointer transition-colors"
+                className="sm:w-56 px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-700 cursor-pointer transition-colors"
                 value={selectedOffice}
                 onChange={(e) => setSelectedOffice(e.target.value)}
               >
                 <option value="all">All Offices</option>
-                <option value="Academic Affairs">Academic Affairs</option>
-                <option value="Student Affairs">Student Affairs</option>
-                <option value="Research Office">Research Office</option>
-                <option value="Quality Assurance">Quality Assurance</option>
+                {ISO_OFFICES_16.map((office) => (
+                  <option key={office} value={office}>
+                    {office}
+                  </option>
+                ))}
               </select>
 
               <select
@@ -621,8 +529,8 @@ export function KnowledgeRepository() {
                   </td>
                 </tr>
               ) : (
-                filteredDocuments.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-gray-50/60 transition-colors">
+                filteredDocuments.map((doc, idx) => (
+                  <tr key={doc.id || `${doc.name}-${doc.version || '1.0'}-${idx}`} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-4 py-3 overflow-hidden">
                       <div className="text-xs font-semibold text-gray-900 truncate" title={doc.name}>{doc.name}</div>
                       <div className="text-[10px] text-gray-400 mt-0.5 truncate">{doc.status === "Archived" ? "Historical Record" : "Active File"}</div>
@@ -835,10 +743,11 @@ export function KnowledgeRepository() {
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Office</label>
                     <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                      <option>Academic Affairs</option>
-                      <option>Student Affairs</option>
-                      <option>Research Office</option>
-                      <option>Quality Assurance</option>
+                      {ISO_OFFICES_16.map((office) => (
+                        <option key={office} value={office}>
+                          {office}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -965,10 +874,11 @@ export function KnowledgeRepository() {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Office</label>
                   <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                    <option>Academic Affairs</option>
-                    <option>Student Affairs</option>
-                    <option>Research Office</option>
-                    <option>Quality Assurance</option>
+                    {ISO_OFFICES_16.map((office) => (
+                      <option key={office} value={office}>
+                        {office}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1076,102 +986,7 @@ export function KnowledgeRepository() {
         </div>
       )}
 
-      {/* --- BACKGROUND INGESTION TASK MANAGER FLOATING PANEL --- */}
-      {activeUploads.length > 0 && (
-        <div className="fixed top-20 right-6 z-50 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden animate-in slide-in-from-top-3 fade-in duration-200">
-          {/* Header */}
-          <div className="px-4 py-2.5 bg-gray-900 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <UploadCloud className="h-4 w-4 text-[#DD7230] animate-bounce" />
-              <span className="text-xs font-semibold">
-                Ingestion Queue ({activeUploads.filter(t => t.status === 'uploading' || t.status === 'vectorizing').length} Active)
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setIsQueueMinimized(!isQueueMinimized)}
-                className="p-1 text-gray-400 hover:text-white rounded transition-colors cursor-pointer"
-                title={isQueueMinimized ? "Expand Queue" : "Minimize Queue"}
-              >
-                {isQueueMinimized ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Body */}
-          {!isQueueMinimized && (
-            <div className="p-3.5 max-h-72 overflow-y-auto divide-y divide-gray-100 space-y-2.5">
-              {activeUploads.map((task) => (
-                <div key={task.id} className="pt-2 first:pt-0 space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-gray-900 text-xs truncate max-w-[180px]" title={task.docName}>
-                          {task.docName}
-                        </span>
-                        <span className="px-1.5 py-0.2 bg-gray-100 text-gray-700 text-[9px] font-medium uppercase rounded">
-                          v{task.version}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-gray-400 truncate mt-0.5" title={task.fileName}>{task.fileName}</p>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      {(task.status === 'uploading' || task.status === 'vectorizing') && (
-                        <button
-                          onClick={() => cancelUploadTask(task.id)}
-                          className="px-2 py-0.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-[10px] font-medium rounded transition-colors cursor-pointer flex items-center gap-1"
-                          title="Cancel Upload Task"
-                        >
-                          <X className="h-3 w-3" /> Cancel
-                        </button>
-                      )}
-
-                      {(task.status === 'completed' || task.status === 'error' || task.status === 'cancelled') && (
-                        <button
-                          onClick={() => removeUploadTask(task.id)}
-                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors cursor-pointer"
-                          title="Dismiss Task"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="space-y-1">
-                    <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-300 ${
-                          task.status === 'completed'
-                            ? 'bg-emerald-600'
-                            : task.status === 'error' || task.status === 'cancelled'
-                            ? 'bg-rose-500'
-                            : 'bg-[#DD7230]'
-                        }`}
-                        style={{ width: `${task.status === 'completed' ? 100 : task.progress}%` }}
-                      ></div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
-                      <span className="flex items-center gap-1">
-                        {(task.status === 'uploading' || task.status === 'vectorizing') && (
-                          <Loader2 className="h-3 w-3 animate-spin text-[#DD7230]" />
-                        )}
-                        {task.status === 'completed' && <CheckCircle className="h-3 w-3 text-emerald-600" />}
-                        {task.status === 'cancelled' && <AlertCircle className="h-3 w-3 text-rose-500" />}
-                        {task.statusText}
-                      </span>
-                      <span className="font-semibold text-gray-700">{task.status === 'completed' ? '100%' : `${task.progress}%`}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Floating upload queue panel is now rendered globally in DashboardLayout */}
       
     </div>
   )

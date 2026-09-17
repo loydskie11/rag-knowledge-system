@@ -1,6 +1,7 @@
 import { RouterProvider } from "react-router";
 import { router } from "./routes";
 import { RoleProvider } from "./contexts/RoleContext";
+import { UploadQueueProvider } from "./contexts/UploadQueueContext";
 import { useEffect, useState } from "react";
 import ResetPasswordModal from "./components/ResetPasswordModal"; 
 
@@ -33,13 +34,15 @@ export default function App() {
 
   return (
     <RoleProvider>
-      <RouterProvider router={router} />
+      <UploadQueueProvider>
+        <RouterProvider router={router} />
 
-      <ResetPasswordModal 
-        isOpen={isResetModalOpen} 
-        email={resetEmail} 
-        onClose={() => setIsResetModalOpen(false)} 
-      />
+        <ResetPasswordModal 
+          isOpen={isResetModalOpen} 
+          email={resetEmail} 
+          onClose={() => setIsResetModalOpen(false)} 
+        />
+      </UploadQueueProvider>
     </RoleProvider>
   );
 }

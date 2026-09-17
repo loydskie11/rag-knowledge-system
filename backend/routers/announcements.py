@@ -51,15 +51,38 @@ def create_announcement(announcement: schemas.AnnouncementCreate, db: Session = 
 @router.get("/announcements", response_model=List[schemas.AnnouncementResponse])
 def get_announcements(db: Session = Depends(get_db)):
     """Fetches all broadcast announcements, newest first."""
-    return db.query(models.Announcement).order_by(models.Announcement.sent_date.desc()).all()
+    try:
+        return db.query(models.Announcement).order_by(models.Announcement.sent_date.desc()).all()
+    except Exception:
+        if supabase:
+            try:
+                res = supabase.table("announcements").select("*").order("sent_date", desc=True).execute()
+                return res.data or []
+            except Exception:
+                pass
+        return []
 
 @router.get("/users/counts")
 def get_user_counts(db: Session = Depends(get_db)):
     """Fetches real-time counts of active accounts for broadcast distribution."""
-    students = db.query(models.User).filter(models.User.role == "STUDENT", models.User.status == "Active").count()
-    faculty = db.query(models.User).filter(models.User.role == "FACULTY", models.User.status == "Active").count()
-    admins = db.query(models.User).filter(models.User.role == "ADMIN", models.User.status == "Active").count()
-    
+    try:
+        students = db.query(models.User).filter(models.User.role == "STUDENT", models.User.status == "Active").count()
+        faculty = db.query(models.User).filter(models.User.role == "FACULTY", models.User.status == "Active").count()
+        admins = db.query(models.User).filter(models.User.role == "ADMIN", models.User.status == "Active").count()
+    except Exception:
+        students, faculty, admins = 0, 0, 0
+        if supabase:
+            try:
+                res = supabase.table("users").select("role, status").eq("status", "Active").execute()
+                if res.data:
+                    for u in res.data:
+                        r = u.get("role", "").upper()
+                        if r == "STUDENT": students += 1
+                        elif r == "FACULTY": faculty += 1
+                        elif r == "ADMIN": admins += 1
+            except Exception:
+                pass
+
     total = students + faculty + admins
     return {
         "all": total,

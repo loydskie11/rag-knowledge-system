@@ -44,12 +44,33 @@ def extract_token_from_request(request: Request, bearer_token: Optional[str] = N
             return cookie_clean
     return None
 
+def _get_user_by_email(email: str, db: Session):
+    try:
+        user = db.query(models.User).filter(models.User.email == email).first()
+        if user:
+            return user
+    except Exception:
+        pass
+    if supabase:
+        try:
+            res = supabase.table("users").select("*").eq("email", email).execute()
+            if res.data and len(res.data) > 0:
+                from types import SimpleNamespace
+                user_dict = dict(res.data[0])
+                user_dict.setdefault("student_profile", None)
+                user_dict.setdefault("administrative_office", "")
+                user_dict.setdefault("is_iqa_auditor", False)
+                return SimpleNamespace(**user_dict)
+        except Exception:
+            pass
+    return None
+
 def get_current_user(
     request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> models.User:
-    """Verifies incoming JWT access token from Header or HttpOnly Cookie."""
+    """Enforces user authentication across Header and Cookie strategies with Supabase REST fallback."""
     extracted_token = extract_token_from_request(request, token)
     if not extracted_token:
         raise HTTPException(
@@ -73,7 +94,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.query(models.User).filter(models.User.email == email).first()
+    user = _get_user_by_email(email, db)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account not found.")
 
@@ -95,7 +116,7 @@ def get_optional_user(
         payload = utils.decode_access_token(extracted_token)
         email = payload.get("sub")
         if email:
-            return db.query(models.User).filter(models.User.email == email).first()
+            return _get_user_by_email(email, db)
     except Exception:
         pass
     return None

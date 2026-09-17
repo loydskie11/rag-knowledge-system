@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from "react";
 import { createBrowserRouter, Outlet } from "react-router";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { RoleProvider } from "./contexts/RoleContext";
+import { UploadQueueProvider } from "./contexts/UploadQueueContext";
 import { PageLoader } from "./components/PageLoader";
 
 // Lazy-loaded layouts & pages for code-splitting and performance
@@ -33,11 +34,13 @@ const withSuspense = (Component: React.ComponentType) => (
   </Suspense>
 );
 
-// Root layout that wraps everything in RoleProvider
+// Root layout that wraps everything in RoleProvider and UploadQueueProvider
 function RootLayout() {
   return (
     <RoleProvider>
-      <Outlet />
+      <UploadQueueProvider>
+        <Outlet />
+      </UploadQueueProvider>
     </RoleProvider>
   );
 }

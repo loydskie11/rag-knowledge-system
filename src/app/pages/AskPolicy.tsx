@@ -8,8 +8,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "../api/client";
 import { useRole } from "../contexts/RoleContext";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const MAX_QUESTION_LENGTH = 1000;
 
 interface Source {
@@ -148,7 +146,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
 
     const fetchHistory = async () => {
       try {
-        const res = await axios.get(`${API_BASE}/chat-history`, {
+        const res = await apiClient.get(`/chat-history`, {
           params: { email: userEmail },
         });
 
@@ -188,16 +186,21 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
       if (!textToSend || isLoading) return;
 
       if (textToSend.length > MAX_QUESTION_LENGTH) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            type: "ai",
-            content: `Question exceeds the limit (${textToSend.length} characters). Please shorten it under ${MAX_QUESTION_LENGTH} characters.`,
-            timestamp: nowLabel(),
-            isError: true,
-          },
-        ]);
+        const userMsg: Message = {
+          id: nextId(),
+          type: "user",
+          content: textToSend,
+          timestamp: nowLabel(),
+        };
+        const errorMsg: Message = {
+          id: nextId(),
+          type: "ai",
+          content: `⚠️ **Character Limit Exceeded**: Your question contains **${textToSend.length} characters**, which exceeds the maximum allowed limit of **${MAX_QUESTION_LENGTH} characters**.\n\nPlease shorten your question to focus on a specific policy or procedure and try again.`,
+          timestamp: nowLabel(),
+          isError: true,
+        };
+        setMessages((prev) => [...prev, userMsg, errorMsg]);
+        setQuery("");
         return;
       }
 
@@ -255,6 +258,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
           sources: formattedSources.length > 0 ? formattedSources : undefined,
           followUps: response.data?.follow_ups,
           isRestricted: response.data?.restricted || false,
+          isError: response.data?.is_error || false,
           timestamp: nowLabel(),
         };
 
@@ -595,7 +599,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
               onKeyDown={handleKeyDown}
               placeholder="Ask a policy, syllabus, grading, or ISO question..."
               disabled={isLoading}
-              maxLength={MAX_QUESTION_LENGTH + 50}
+              maxLength={5000}
               className={`w-full px-3 py-2 bg-gray-50/50 border rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:bg-white transition-all resize-none min-h-[38px] max-h-[120px] disabled:opacity-60 disabled:cursor-not-allowed ${
                 isOverLimit
                   ? "border-rose-300 focus:ring-rose-500"
@@ -609,13 +613,13 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                   isOverLimit ? "text-rose-600 font-medium" : "text-gray-400"
                 }`}
               >
-                {charCount}/{MAX_QUESTION_LENGTH}
+                {charCount}/{MAX_QUESTION_LENGTH} {isOverLimit && "(Exceeds 1000 character limit)"}
               </span>
             )}
           </div>
           <button
             onClick={() => handleSendMessage()}
-            disabled={isLoading || !query.trim() || isOverLimit}
+            disabled={isLoading || !query.trim()}
             aria-label="Send question"
             className="p-2 bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center h-[38px] w-[38px] shrink-0 active:scale-95 shadow-2xs cursor-pointer"
           >

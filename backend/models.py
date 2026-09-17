@@ -160,6 +160,8 @@ class ISOEvidence(Base):
     file_url = Column(String, nullable=False)
     uploaded_by = Column(String(255), nullable=False)
     upload_date = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(50), default="Pending")
+    admin_feedback = Column(Text, nullable=True) # NEW: Auditor assessment remarks
 
     requirement = relationship("ISORequirement", back_populates="evidences")
 

@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Database, MessageSquare, Award, FileText,
   Clock, Users, Settings, Search, Bell, ChevronLeft, ChevronRight,
   GraduationCap, LogOut, Shield, BookOpen, Radio, ClipboardCheck, Sparkles, X, FileCheck, Menu,
-  HeartHandshake, ExternalLink, MessageSquareHeart
+  HeartHandshake, ExternalLink, MessageSquareHeart,
+  UploadCloud, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp
 } from "lucide-react";
 import { useRole } from "../contexts/RoleContext";
 import { hasPermission } from "../utils/rolePermissions";
@@ -12,7 +13,9 @@ import { RoleSwitcher } from "../components/RoleSwitcher";
 import { NotificationSidebar } from "../components/NotificationSidebar";
 import { useNotifications } from "../utils/useNotifications";
 import { AskPolicy } from "../pages/AskPolicy"; 
+import { useUploadQueue } from "../contexts/UploadQueueContext";
 import axios from "axios";
+import { apiClient } from "../api/client";
 
 export function DashboardLayout() {
   const location = useLocation();
@@ -30,6 +33,7 @@ export function DashboardLayout() {
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifs = useNotifications();
+  const { tasks: uploadTasks, isQueueMinimized, setIsQueueMinimized, cancelTask, removeTask } = useUploadQueue();
 
   const currentRole = userRole || "STUDENT";
   const userProfile = {
@@ -96,8 +100,7 @@ export function DashboardLayout() {
 
   const handleLogout = async () => {
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
-      await axios.post(`${API_BASE}/logout`, {}, { withCredentials: true });
+await apiClient.post(`/logout`, {}, { withCredentials: true });
     } catch (e) {
       console.error("Logout warning:", e);
     } finally {
@@ -355,6 +358,103 @@ export function DashboardLayout() {
           >
             {isAIChatOpen ? <X className="h-6 w-6" /> : <Sparkles className="h-6 w-6 animate-pulse" />}
           </button>
+        </div>
+      )}
+
+      {/* ── GLOBAL UPLOAD QUEUE FLOATING PANEL ──────────────────────────────
+          Rendered here (in DashboardLayout) so it survives page navigation.
+          KnowledgeRepository just calls enqueueUpload() on the context.       */}
+      {uploadTasks.length > 0 && (
+        <div className="fixed top-20 right-6 z-[60] w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-2.5 bg-gray-900 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UploadCloud className={`h-4 w-4 text-[#DD7230] ${uploadTasks.some(t => t.status === 'uploading' || t.status === 'vectorizing') ? 'animate-bounce' : ''}`} />
+              <span className="text-xs font-semibold">
+                Ingestion Queue ({uploadTasks.filter(t => t.status === 'uploading' || t.status === 'vectorizing').length} Active)
+              </span>
+            </div>
+            <button
+              onClick={() => setIsQueueMinimized(!isQueueMinimized)}
+              className="p-1 text-gray-400 hover:text-white rounded transition-colors cursor-pointer"
+              title={isQueueMinimized ? "Expand Queue" : "Minimize Queue"}
+            >
+              {isQueueMinimized ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          </div>
+
+          {/* Body */}
+          {!isQueueMinimized && (
+            <div className="p-3.5 max-h-72 overflow-y-auto divide-y divide-gray-100 space-y-2.5">
+              {uploadTasks.map((task) => (
+                <div key={task.id} className="pt-2 first:pt-0 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-gray-900 text-xs truncate max-w-[180px]" title={task.docName}>
+                          {task.docName}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-gray-100 text-gray-700 text-[9px] font-medium uppercase rounded">
+                          v{task.version}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 truncate mt-0.5" title={task.fileName}>{task.fileName}</p>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {(task.status === 'uploading' || task.status === 'vectorizing') && (
+                        <button
+                          onClick={() => cancelTask(task.id)}
+                          className="px-2 py-0.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-[10px] font-medium rounded transition-colors cursor-pointer flex items-center gap-1"
+                          title="Cancel Upload Task"
+                        >
+                          <X className="h-3 w-3" /> Cancel
+                        </button>
+                      )}
+                      {(task.status === 'completed' || task.status === 'error' || task.status === 'cancelled') && (
+                        <button
+                          onClick={() => removeTask(task.id)}
+                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors cursor-pointer"
+                          title="Dismiss Task"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="space-y-1">
+                    <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          task.status === 'completed'
+                            ? 'bg-emerald-600'
+                            : task.status === 'error' || task.status === 'cancelled'
+                            ? 'bg-rose-500'
+                            : 'bg-[#DD7230]'
+                        }`}
+                        style={{ width: `${task.status === 'completed' ? 100 : task.progress}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                      <span className="flex items-center gap-1">
+                        {(task.status === 'uploading' || task.status === 'vectorizing') && (
+                          <Loader2 className="h-3 w-3 animate-spin text-[#DD7230]" />
+                        )}
+                        {task.status === 'completed' && <CheckCircle className="h-3 w-3 text-emerald-600" />}
+                        {(task.status === 'cancelled' || task.status === 'error') && <AlertCircle className="h-3 w-3 text-rose-500" />}
+                        {task.statusText}
+                      </span>
+                      <span className="font-semibold text-gray-700">
+                        {task.status === 'completed' ? '100%' : `${task.progress}%`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

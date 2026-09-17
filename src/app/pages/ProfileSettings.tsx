@@ -18,7 +18,7 @@ import {
   ChevronRight,
   KeyRound,
 } from "lucide-react";
-import axios from "axios";
+import { apiClient } from "../api/client";
 import { useNavigate } from "react-router";
 
 // Updated Academic Programs List (Includes CAFES & CTM)
@@ -132,7 +132,7 @@ export function ProfileSettings() {
     const originalEmail = sessionStorage.getItem("userEmail") || "";
 
     try {
-      const response = await axios.put("http://localhost:8000/users/profile", {
+      const response = await apiClient.put("/users/profile", {
         email: originalEmail,
         new_email: profileData.email,
         full_name: profileData.fullName,
@@ -205,7 +205,7 @@ export function ProfileSettings() {
     setIsUpdatingPassword(true);
 
     try {
-      await axios.post("http://localhost:8000/users/change-password", {
+      await apiClient.post("/users/change-password", {
         email: sessionStorage.getItem("userEmail"),
         current_password: passwords.current,
         new_password: passwords.new,

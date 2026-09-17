@@ -3,6 +3,7 @@ import { FileText, MessageSquare, BookOpen, Award, TrendingUp, Clock, UploadClou
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import axios from "axios";
 import { useNavigate } from "react-router";
+import { apiClient } from "../api/client";
 
 export function FacultyDashboard() {
   const navigate = useNavigate();
@@ -32,10 +33,10 @@ export function FacultyDashboard() {
         setUserDepartment(userDept); 
 
         const [statsRes, historyRes, accessRes, accredRes] = await Promise.all([
-          axios.get("http://localhost:8000/system-stats?role=FACULTY"),
-          axios.get(`http://localhost:8000/chat-history?email=${userEmail}`),
-          axios.get("http://localhost:8000/audit/access"),
-          axios.get(`http://localhost:8000/accreditation-status/${userDept}`) 
+          apiClient.get("/system-stats?role=FACULTY"),
+          apiClient.get(`/chat-history?email=${userEmail}`),
+          apiClient.get("/audit/access"),
+          apiClient.get(`/accreditation-status/${userDept}`) 
         ]);
 
         setTotalDocs(statsRes.data.documents || 0);
