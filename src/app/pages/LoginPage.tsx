@@ -114,30 +114,27 @@ export function LoginPage() {
       {/* Split View Container */}
       <div className="w-full min-h-screen flex">
         
-        {/* Left Branding Panel */}
-        <div className="hidden lg:flex lg:w-1/2 bg-white flex-col items-center justify-center p-12 relative border-r border-gray-200/80">
-          <div className="relative z-10 text-center max-w-md">
-            <div className="flex justify-center mb-6">
-              <img 
-                src="/ctu-logo.png" 
-                alt="CTU Logo" 
-                className="h-28 w-28 object-contain" 
-              />
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-[#DD7230] mb-3 leading-tight">
-              CTU-Argao Knowledge System
-            </h1>
-            <p className="text-base text-gray-700 font-medium">Cebu Technological University</p>
-            <p className="text-sm text-gray-500 mt-0.5">Argao Campus</p>
-            
-            <div className="mt-8 p-4 bg-[#FFF4E5] border border-[#FFE0B2] rounded-xl inline-block">
-              <p className="text-[#DD7230] text-sm font-semibold">
-                RAG-Powered Knowledge Management System
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Left Branding View */}
+<div className="hidden lg:flex w-1/2 bg-white flex-col items-center justify-center text-center pr-6">
+  <img
+    src="/ctu-logo.png"
+    alt="CTU Logo"
+    className="h-28 w-28 object-contain mb-6 drop-shadow-xs"
+  />
+  <h1 className="text-4xl font-extrabold text-[#DD7230] mb-2 tracking-tight">
+    CTU-Argao Knowledge System
+  </h1>
+  <p className="text-lg text-[#DD7230] font-medium">
+    Cebu Technological University
+  </p>
+  <p className="text-sm text-[#DD7230]/70 mt-0.5">Argao Campus</p>
 
+  <div className="mt-8 px-6 py-3 bg-[#FFF4E5] border border-[#FFE0B2] rounded-2xl shadow-2xs">
+    <p className="text-[#DD7230] text-xs font-bold uppercase tracking-wider">
+      RAG-Powered Knowledge Management System
+    </p>
+  </div>
+</div>
         {/* Right Login Form Panel */}
         <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-white overflow-y-auto">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 p-8 sm:p-10 my-auto">

@@ -33,14 +33,11 @@ export function StudentDashboard() {
           axios.get("http://localhost:8000/announcements")
         ]);
 
-        // 1. Available Resources
         setTotalDocs(statsRes.data.documents || 0);
 
-        // 2. My Queries
         const userQueries = historyRes.data.filter((msg: any) => msg.role === 'user');
         setWeeklyQueries(userQueries.length);
 
-        // 3. Process Access Logs
         const myAccessLogs = accessRes.data.filter((log: any) => log.user === userEmail);
         setRecentViewsCount(myAccessLogs.length);
 
@@ -51,7 +48,6 @@ export function StudentDashboard() {
         }));
         setRecentDocs(formattedRecentDocs);
 
-        // 4. Process Chart Data
         const myAllTimeQueries = queriesRes.data.filter((log: any) => log.user === userEmail);
         const monthCounts: Record<string, number> = { 
           "Jan": 0, "Feb": 0, "Mar": 0, "Apr": 0, "May": 0, "Jun": 0, 
@@ -82,7 +78,6 @@ export function StudentDashboard() {
         
         setChartData(finalChartData);
 
-        // Process Live Announcements
         const validAnnouncements = announcementsRes.data
           .filter((a: any) => 
             a.status === "Sent" && 
@@ -126,7 +121,8 @@ export function StudentDashboard() {
       label: "University Policies & Guides",
       value: totalDocs,
       icon: BookOpen,
-      color: "#DD7230", // Base Amber
+      iconColor: "#DD7230",
+      bgColor: "#FFF4E5",
       subtitle: "Active in Knowledge Base",
       path: "/app/knowledge-repository"
     },
@@ -134,7 +130,8 @@ export function StudentDashboard() {
       label: "My AI Inquiries",
       value: weeklyQueries,
       icon: MessageSquare,
-      color: "#DD7230", // Medium Amber
+      iconColor: "#DD7230",
+      bgColor: "#FFF4E5",
       subtitle: "Interactive Chat Sessions",
       path: "/app/ask-policy"
     },
@@ -142,7 +139,8 @@ export function StudentDashboard() {
       label: "Recent Document Activity",
       value: recentViewsCount,
       icon: Clock,
-      color: "#DD7230", // Dark Amber
+      iconColor: "#DD7230",
+      bgColor: "#FFF4E5",
       subtitle: "Policies Accessed & Viewed",
       path: "/app/knowledge-repository"
     }
@@ -158,7 +156,7 @@ export function StudentDashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 relative pb-10">
+    <div className="space-y-6 animate-in fade-in duration-200 relative pb-10 font-sans">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -186,13 +184,13 @@ export function StudentDashboard() {
                 <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-[#DD7230] transition-colors">{stat.label}</span>
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
-                  style={{ backgroundColor: `${stat.color}15` }}
+                  style={{ backgroundColor: stat.bgColor }}
                 >
-                  <Icon className="h-4 w-4" style={{ color: stat.color }} />
+                  <Icon className="h-4 w-4" style={{ color: stat.iconColor }} />
                 </div>
               </div>
               <div className="flex items-baseline justify-between mt-1">
-                <h3 className="text-2xl font-bold" style={{ color: stat.color }}>
+                <h3 className="text-2xl font-bold text-gray-900">
                   {stat.value}
                 </h3>
                 <span className="text-[11px] font-medium text-gray-500 group-hover:text-gray-700">{stat.subtitle}</span>
@@ -205,7 +203,7 @@ export function StudentDashboard() {
       {/* Middle Row: Chart & Announcements */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         
-        {/* Query Activity Chart */}
+        {/* CTU Orange Bar Graph */}
         <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-2xs lg:col-span-2">
           <h2 className="text-xs font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-[#DD7230]" />
@@ -217,17 +215,16 @@ export function StudentDashboard() {
               <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip 
-                cursor={{ fill: '#F9FAFB' }}
+                cursor={{ fill: '#FFF4E5', opacity: 0.5 }}
                 contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '11px'
+                  borderRadius: '8px', 
+                  border: '1px solid #FFE0B2', 
+                  backgroundColor: '#FFFFFF',
+                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', 
+                  fontSize: '11px' 
                 }}
-                itemStyle={{ color: '#DD7230' }}
               />
-              <Bar dataKey="queries" fill="#DD7230" radius={[3, 3, 0, 0]} barSize={36} name="AI Queries" />
+              <Bar dataKey="queries" fill="#DD7230" radius={[4, 4, 0, 0]} maxBarSize={36} name="AI Queries" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -269,7 +266,7 @@ export function StudentDashboard() {
         </div>
       </div>
 
-      {/* Bottom Row: Recently Viewed Docs & Quick Actions */}
+      {/* Bottom Row: Recently Access Docs & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         
         {/* Recently Viewed Docs */}
@@ -281,7 +278,7 @@ export function StudentDashboard() {
             </h2>
             <button
               onClick={() => navigate('/app/knowledge-repository')}
-              className="text-[11px] text-[#DD7230] hover:text-[#DD7230] font-medium cursor-pointer"
+              className="text-[11px] text-[#DD7230] hover:text-[#c66224] font-medium cursor-pointer"
             >
               Browse All &rarr;
             </button>
@@ -320,30 +317,30 @@ export function StudentDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <button 
             onClick={() => navigate('/app/knowledge-repository')} 
-            className="bg-gradient-to-br from-[#DD7230] to-[#DD7230] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
+            className="bg-white rounded-xl border border-gray-200/80 p-4 text-left hover:border-[#DD7230] hover:shadow-xs transition-all group flex flex-col justify-between relative overflow-hidden active:scale-98 cursor-pointer shadow-2xs"
           >
-            <div className="w-9 h-9 bg-white/20 backdrop-blur-xs rounded-lg flex items-center justify-center mb-4">
-              <Search className="h-5 w-5 text-white" />
+            <div className="w-9 h-9 bg-[#FFF4E5] rounded-lg flex items-center justify-center mb-4">
+              <Search className="h-5 w-5 text-[#DD7230]" />
             </div>
             <div className="relative z-10">
-              <h3 className="text-sm font-bold text-white mb-0.5">Browse Repository</h3>
-              <p className="text-[11px] text-white/90 font-normal">Search student policies & manuals</p>
+              <h3 className="text-sm font-bold text-gray-900 mb-0.5 group-hover:text-[#DD7230] transition-colors">Browse Repository</h3>
+              <p className="text-[11px] text-gray-500 font-normal">Search student policies & manuals</p>
             </div>
-            <ArrowRight className="absolute bottom-4 right-4 h-4 w-4 text-white/60 group-hover:text-white group-hover:translate-x-1 transition-all" />
+            <ArrowRight className="absolute bottom-4 right-4 h-4 w-4 text-gray-400 group-hover:text-[#DD7230] group-hover:translate-x-0.5 transition-all" />
           </button>
 
           <button 
             onClick={() => navigate('/app/ask-policy')} 
-            className="bg-gradient-to-br from-[#DD7230] to-[#DD7230] rounded-xl p-4 text-left hover:shadow-md transition-all group flex flex-col justify-between relative overflow-hidden active:scale-95 cursor-pointer text-white shadow-2xs"
+            className="bg-white rounded-xl border border-gray-200/80 p-4 text-left hover:border-[#DD7230] hover:shadow-xs transition-all group flex flex-col justify-between relative overflow-hidden active:scale-98 cursor-pointer shadow-2xs"
           >
-            <div className="w-9 h-9 bg-white/20 backdrop-blur-xs rounded-lg flex items-center justify-center mb-4">
-              <MessageSquare className="h-5 w-5 text-white" />
+            <div className="w-9 h-9 bg-[#FFF4E5] rounded-lg flex items-center justify-center mb-4">
+              <MessageSquare className="h-5 w-5 text-[#DD7230]" />
             </div>
             <div className="relative z-10">
-              <h3 className="text-sm font-bold text-white mb-0.5">Ask AskPolicy AI</h3>
-              <p className="text-[11px] text-white/90 font-normal">Get instant policy answers</p>
+              <h3 className="text-sm font-bold text-gray-900 mb-0.5 group-hover:text-[#DD7230] transition-colors">Ask Policy AI</h3>
+              <p className="text-[11px] text-gray-500 font-normal">Get instant policy answers</p>
             </div>
-            <ArrowRight className="absolute bottom-4 right-4 h-4 w-4 text-white/60 group-hover:text-white group-hover:translate-x-1 transition-all" />
+            <ArrowRight className="absolute bottom-4 right-4 h-4 w-4 text-gray-400 group-hover:text-[#DD7230] group-hover:translate-x-0.5 transition-all" />
           </button>
         </div>
       </div>
@@ -352,7 +349,6 @@ export function StudentDashboard() {
       {selectedAnnouncement && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-150">
-            
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/60">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center border border-rose-200/60">
@@ -370,19 +366,16 @@ export function StudentDashboard() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            
             <div className="p-5">
               <h4 className="text-sm font-bold text-gray-900 mb-3 leading-tight">{selectedAnnouncement.title}</h4>
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200/70 text-xs text-gray-700 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto custom-scrollbar">
                 {selectedAnnouncement.content}
               </div>
-              
               <div className="mt-4 flex items-center justify-between text-[11px] text-gray-500 font-medium pt-3 border-t border-gray-100">
                 <span>Issued by: <span className="text-gray-900 font-semibold">{selectedAnnouncement.sent_by}</span></span>
                 <span>CTU Argao Campus</span>
               </div>
             </div>
-
             <div className="p-3.5 border-t border-gray-100 bg-gray-50/40 flex justify-end">
               <button 
                 onClick={() => setSelectedAnnouncement(null)} 
@@ -394,7 +387,6 @@ export function StudentDashboard() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
