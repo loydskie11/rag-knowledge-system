@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from datetime import datetime
+from datetime import datetime, date
 import uuid
 from typing import Optional, List
 
@@ -391,7 +391,7 @@ class AaccupRequirementResponse(BaseModel):
 # --- CLIENT SATISFACTION SURVEY SCHEMAS ---
 class CssResponseCreate(BaseModel):
     client_type: Optional[str] = None
-    date_of_service: Optional[str] = None
+    date_of_service: Optional[date] = None
     gender: Optional[str] = None
     age: Optional[int] = None
     region: Optional[str] = None
@@ -419,7 +419,7 @@ class CssResponseOut(BaseModel):
     id: uuid.UUID
     created_at: datetime
     client_type: Optional[str] = None
-    date_of_service: Optional[str] = None
+    date_of_service: Optional[date] = None
     gender: Optional[str] = None
     age: Optional[int] = None
     region: Optional[str] = None
@@ -444,4 +444,4 @@ class CssResponseOut(BaseModel):
     email: Optional[str] = None
 
     class Config:
-        from_attributes = True
+        from_attributes = True

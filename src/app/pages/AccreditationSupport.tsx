@@ -2420,13 +2420,15 @@ export function AccreditationSupport() {
 
   const fetchPendingQueue = async () => {
     try {
-      const res = await apiClient.get("/admin/accreditation-pending");
+      const ts = new Date().getTime();
+      const res = await apiClient.get(`/admin/accreditation-pending?_t=${ts}`);
       setPendingDocs(res.data || []);
     } catch (error) {
       console.error("Failed to fetch pending queue", error);
     }
     try {
-      const isoRes = await apiClient.get("/iso/evidences/pending");
+      const ts = new Date().getTime();
+      const isoRes = await apiClient.get(`/iso/evidences/pending?_t=${ts}`);
       setPendingIsoDocs(isoRes.data || []);
     } catch (error) {
       console.error("Failed to fetch pending ISO queue", error);
@@ -2436,7 +2438,8 @@ export function AccreditationSupport() {
   const fetchChedData = async () => {
     setIsLoadingChed(true);
     try {
-      const res = await apiClient.get(`/ched/requirements/${selectedProgram}`);
+      const ts = new Date().getTime();
+      const res = await apiClient.get(`/ched/requirements/${selectedProgram}?_t=${ts}`);
       setChedRequirements(res.data);
     } catch (error) {
       console.error("Failed to fetch CHED requirements");
@@ -2485,7 +2488,8 @@ export function AccreditationSupport() {
       setIsLoadingIso(true);
     }
     try {
-      const res = await apiClient.get(`/iso/requirements/GLOBAL?cycle_year=${encodeURIComponent(cycleYear)}`);
+      const ts = new Date().getTime();
+      const res = await apiClient.get(`/iso/requirements/GLOBAL?cycle_year=${encodeURIComponent(cycleYear)}&_t=${ts}`);
       const data = res.data || [];
       isoRequirementsCache.set(cycleYear, data);
       setIsoRequirements(data);
@@ -2526,7 +2530,8 @@ export function AccreditationSupport() {
       setIsLoadingQmsPlans(true);
     }
     try {
-      const res = await apiClient.get(`/qms/action-plans?cycle_year=${encodeURIComponent(cycleYear)}`);
+      const ts = new Date().getTime();
+      const res = await apiClient.get(`/qms/action-plans?cycle_year=${encodeURIComponent(cycleYear)}&_t=${ts}`);
       const data = res.data || [];
       qmsPlansCache.set(cycleYear, data);
       setQmsActionPlans(data);
@@ -3020,6 +3025,12 @@ export function AccreditationSupport() {
     try {
       await apiClient.put(`/ched/requirements/${pendingChedReview.reqId}/status`, { status: pendingChedReview.status });
       showToast(`Requirement marked as ${pendingChedReview.status}!`, "success");
+      
+      // Optimistic update
+      setChedRequirements((prev: any[]) => prev.map(req => 
+        req.id === pendingChedReview.reqId ? { ...req, status: pendingChedReview.status } : req
+      ));
+
       setShowChedReviewModal(false);
       setPendingChedReview(null);
       fetchChedData();
@@ -3035,6 +3046,19 @@ export function AccreditationSupport() {
     try {
       await apiClient.put(`/ched/evidence/${evidenceId}/status`, { status });
       showToast(`CHED evidence marked as ${status}!`, "success");
+      
+      // Optimistic update
+      setChedRequirements((prev: any[]) => prev.map(req => {
+        const hasEvidence = (req.evidences || []).some((ev: any) => ev.id === evidenceId);
+        if (hasEvidence) {
+          const updatedEvidences = (req.evidences || []).map((ev: any) => 
+            ev.id === evidenceId ? { ...ev, status } : ev
+          );
+          return { ...req, evidences: updatedEvidences };
+        }
+        return req;
+      }));
+
       fetchChedData();
     } catch (error) {
       showToast("Failed to update CHED evidence status.", "error");
@@ -3086,9 +3110,20 @@ export function AccreditationSupport() {
     try {
       await apiClient.put(`/iso/requirements/${pendingIsoStatus.reqId}/status`, { status: pendingIsoStatus.status });
       showToast(`ISO Clause marked as ${pendingIsoStatus.status}!`, "success");
+      
+      // Optimistic update
+      setIsoRequirements((prev: any[]) => prev.map(r => r.id === pendingIsoStatus.reqId ? { ...r, status: pendingIsoStatus.status } : r));
+      setExpandedIsoClause((prev: any) => prev && prev.id === pendingIsoStatus.reqId ? { ...prev, status: pendingIsoStatus.status } : prev);
+
+      const wasRevoked = pendingIsoStatus.status === 'Not Compliant';
+
       setShowIsoStatusModal(false);
       setPendingIsoStatus(null);
       fetchIsoData(selectedIsoCycleYear, true);
+      
+      if (wasRevoked) {
+        fetchQmsActionPlans(selectedIsoCycleYear, true);
+      }
     } catch (error) {
       showToast("Failed to update ISO clause status.", "error");
     } finally {
@@ -3131,8 +3166,8 @@ export function AccreditationSupport() {
         { headers, withCredentials: true }
       );
       showToast(`ISO evidence marked as ${status}!`, "success");
-      fetchIsoData(selectedIsoCycleYear, true);
-      fetchPendingQueue();
+      
+      // Optimistic update for the modal
       setExpandedIsoClause((prev: any) => {
         if (!prev) return null;
         const updatedEvidences = (prev.evidences || []).map((ev: any) =>
@@ -3140,12 +3175,27 @@ export function AccreditationSupport() {
         );
         return { ...prev, evidences: updatedEvidences };
       });
+
+      // Optimistic update for the main list
+      setIsoRequirements((prev: any[]) => prev.map(r => {
+        const hasEvidence = (r.evidences || []).some((ev: any) => ev.id === evidenceId);
+        if (hasEvidence) {
+          const updatedEvidences = (r.evidences || []).map((ev: any) =>
+            ev.id === evidenceId ? { ...ev, status, admin_feedback: feedback } : ev
+          );
+          return { ...r, evidences: updatedEvidences };
+        }
+        return r;
+      }));
+
+      fetchIsoData(selectedIsoCycleYear, true);
+      fetchPendingQueue();
+      
       setShowIsoFeedbackModal(false);
       setIsoFeedbackText("");
       setIsoFeedbackDoc(null);
     } catch (error) {
-      console.error("Failed to update ISO evidence status:", error);
-      showToast("Failed to update ISO evidence status.", "error");
+      showToast("Failed to update evidence status.", "error");
     } finally {
       setIsReviewing(false);
     }

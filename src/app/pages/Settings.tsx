@@ -237,16 +237,16 @@ export function Settings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Active Model Endpoint</label>
-                    <select 
-                      value={settings.ai_model} 
-                      onChange={(e) => handleChange("ai_model", e.target.value)} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer text-gray-900"
-                    >
-                      <option value="qwen2.5">Ollama: Qwen 2.5 (Local Server)</option>
-                      <option value="qwen-2.5-32b">Groq Cloud: Qwen 2.5 32B</option>
-                      <option value="llama-3.1-8b-instant">Groq Cloud: Llama 3.1 8B Instant</option>
-                      <option value="llama-3.3-70b-versatile">Groq Cloud: Llama 3.3 70B Versatile</option>
-                    </select>
+                      <select 
+                        value={settings.ai_model || "llama3.1"} 
+                        onChange={(e) => handleChange("ai_model", e.target.value)} 
+                        className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer text-gray-900"
+                      >
+                        <option value="llama3.1">Ollama: Llama 3.1 (Local Server)</option>
+                        <option value="qwen-2.5-32b">Groq Cloud: Qwen 2.5 32B</option>
+                        <option value="llama-3.1-8b-instant">Groq Cloud: Llama 3.1 8B Instant</option>
+                        <option value="llama-3.3-70b-versatile">Groq Cloud: Llama 3.3 70B Versatile</option>
+                      </select>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1.5">

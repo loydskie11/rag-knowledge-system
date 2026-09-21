@@ -137,7 +137,7 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-24 overflow-hidden">
+      <section className="relative pt-20 pb-12 overflow-hidden">
         <div className="container mx-auto px-8">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             {/* Left Column */}
@@ -200,13 +200,13 @@ export function LandingPage() {
             {/* Right Column */}
             <div className="relative hidden lg:block">
               <div className="relative">
-                <div className="rounded-3xl overflow-hidden shadow-2xl">
-                  <img 
-                    src="/ctuac-bg.png" 
-                    alt="CTU Knowledge System"
-                    className="w-full h-auto object-cover"
-                  />
-                </div>
+                  <div className="rounded-3xl overflow-hidden shadow-2xl">
+                    <img 
+                      src="/ctuac-bg.png" 
+                      alt="CTU Knowledge System"
+                      className="w-full h-[400px] lg:h-[600px] object-cover"
+                    />
+                  </div>
 
                 <div className="absolute -bottom-8 -left-8 bg-white rounded-2xl shadow-xl p-6 border border-[#E5E7EB]">
                   <div className="flex items-center gap-4">

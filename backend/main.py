@@ -1661,8 +1661,8 @@ def ask_policy(
     settings = db.query(models.SystemSettings).filter(models.SystemSettings.id == 1).first()
     
     # Fallbacks in case settings aren't set yet or cloud model name stored
-    raw_model = settings.ai_model if settings else "qwen2.5"
-    ai_model = "qwen2.5" if raw_model in ["qwen-2.5-32b", "qwen-2.5-7b-instruct", "llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b"] else raw_model
+    raw_model = settings.ai_model if settings else "llama3.1"
+    ai_model = "llama3.1" if raw_model in ["qwen-2.5-32b", "qwen-2.5-7b-instruct", "llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b"] else raw_model
     ai_temp = settings.ai_temperature if settings else 0.3
     base_prompt = settings.ai_system_prompt if settings else "You are the friendly and professional AI Policy Assistant for Cebu Technological University (CTU) Argao Campus."
 
@@ -3139,7 +3139,7 @@ async def evaluate_grades(file: UploadFile = File(...)):
         # Use fast Groq Cloud if available, otherwise local Ollama
         groq_key = os.getenv("GROQ_API_KEY")
         client_to_use = groq_client
-        model_to_use = "qwen2.5"
+        model_to_use = "llama3.1"
 
         if groq_key:
             try:
@@ -3235,7 +3235,7 @@ async def extract_car_form(file: UploadFile = File(...)):
         """
 
         response = groq_client.chat.completions.create(
-            model="qwen2.5",
+            model="llama3.1",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user",   "content": f"Here is the raw OCR text extracted from the CAR Form 1:\n\n{raw_text}"}
@@ -3767,7 +3767,7 @@ def get_system_settings(db: Session = Depends(get_db)):
         "admin_email": "admin@ctu.edu.ph",
         "jwt_expiration": 30,
         "otp_expiration": 10,
-        "ai_model": "qwen-2.5-7b-instruct",
+        "ai_model": "llama3.1",
         "ai_temperature": 0.2,
         "ai_system_prompt": "",
         "rag_max_chunks": 5
@@ -3987,12 +3987,15 @@ def delete_ched_evidence(evidence_id: str, db: Session = Depends(get_db)):
     
     # Delete from SQL
     db.delete(evidence)
+    db.commit()
     
     # Auto-revert requirement status to Not Compliant if empty
     req = db.query(models.ChedRequirement).filter(models.ChedRequirement.id == req_id).first()
-    if req and len(req.evidences) == 0:
-        req.status = "Not Compliant"
-        
+    if req:
+        db.refresh(req)
+        if len(req.evidences) == 0:
+            req.status = "Not Compliant"
+            db.commit()
     db.commit()
     
     # Archive from Vector DB
@@ -4718,11 +4721,12 @@ def delete_iso_evidence(
     req = ev.requirement
     db.delete(ev)
     db.commit()
-
     # Re-evaluate requirement status if no evidences remain
-    if req and len(req.evidences) == 0:
-        req.status = "Not Compliant"
-        db.commit()
+    if req:
+        db.refresh(req)
+        if len(req.evidences) == 0:
+            req.status = "Not Compliant"
+            db.commit()
 
     return {"message": "ISO evidence removed successfully."}
 
@@ -4731,7 +4735,8 @@ def delete_iso_evidence(
 def update_iso_status(
     req_id: str,
     payload: schemas.ISOStatusUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin)
 ):
     """Updates ISO clause compliance status (e.g. Compliant, Pending, Not Compliant).
     BRIDGING NON-CONFORMITIES TO ACTION PLANS (CAR WORKFLOW):
@@ -4757,6 +4762,7 @@ def update_iso_status(
 
         if not existing_car:
             car_plan = models.QMSActionPlan(
+                cycle_year=req.cycle_year,
                 process_area=f"CAR: {req.iso_clause} ({req.title})",
                 opportunity_type="Paper",
                 opportunity_description=f"Audit Non-Conformity under {req.iso_clause}: {req.description}",
@@ -4764,7 +4770,8 @@ def update_iso_status(
                 personnel_responsible=f"{req.auditee_office} Head / Designated Quality Officer",
                 target_date=target_date_str,
                 auditee_office=req.auditee_office,
-                status="In Progress"
+                status="In Progress",
+                created_by=current_user.email
             )
             db.add(car_plan)
             db.commit()
@@ -5301,7 +5308,7 @@ async def upload_historical_certificate(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AI DOCUMENT GENERATOR (Supports Local Qwen2.5 / Groq)
+# AI DOCUMENT GENERATOR (Supports Local Llama3.1 / Groq)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class GenerateDocRequest(BaseModel):
@@ -5312,7 +5319,7 @@ class GenerateDocRequest(BaseModel):
 @app.post("/generate-document")
 def generate_document_endpoint(req: GenerateDocRequest):
     """
-    Generates professional document body content using local Qwen2.5 (via Ollama) or Groq.
+    Generates professional document body content using local Llama3.1 (via Ollama) or Groq.
     Outputs structured markdown formatted for DOCX/PDF export.
     """
     if not req.prompt.strip():
@@ -5336,7 +5343,7 @@ def generate_document_endpoint(req: GenerateDocRequest):
 
     try:
         response = groq_client.chat.completions.create(
-            model="qwen2.5",
+            model="llama3.1",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": req.prompt.strip()}
@@ -5430,17 +5437,37 @@ def submit_css_response(req: schemas.CssResponseCreate, db: Session = Depends(ge
 @app.get("/css-responses", response_model=List[schemas.CssResponseOut])
 def get_css_responses(
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_current_admin)
+    user: models.User = Depends(get_current_user)
 ):
-    """Fetches all Client Satisfaction Survey responses (Admin only)."""
-    try:
-        return db.query(models.CssResponse).order_by(models.CssResponse.created_at.desc()).all()
-    except Exception:
+    """Fetches Client Satisfaction Survey responses based on Two-Tiered RBAC."""
+    role = (user.role or "").upper()
+    office = user.administrative_office or ""
+    is_auditor = getattr(user, 'is_iqa_auditor', False)
+    
+    # 1. Global Access
+    if role == "ADMIN" or is_auditor or office in ["Quality Assurance", "Management"]:
         try:
-            res = supabase.table("css_responses").select("*").order("created_at", desc=True).execute()
-            return res.data or []
-        except Exception as sb_err:
-            raise HTTPException(status_code=500, detail=f"Failed to retrieve survey responses: {str(sb_err)}")
+            return db.query(models.CssResponse).order_by(models.CssResponse.created_at.desc()).all()
+        except Exception:
+            try:
+                res = supabase.table("css_responses").select("*").order("created_at", desc=True).execute()
+                return res.data or []
+            except Exception as sb_err:
+                raise HTTPException(status_code=500, detail=f"Failed to retrieve survey responses: {str(sb_err)}")
+                
+    # 2. Scoped Access (Frontline Offices)
+    if role == "FACULTY" and office:
+        try:
+            return db.query(models.CssResponse).filter(models.CssResponse.office_visited == office).order_by(models.CssResponse.created_at.desc()).all()
+        except Exception:
+            try:
+                res = supabase.table("css_responses").select("*").eq("office_visited", office).order("created_at", desc=True).execute()
+                return res.data or []
+            except Exception as sb_err:
+                raise HTTPException(status_code=500, detail=f"Failed to retrieve survey responses: {str(sb_err)}")
+                
+    # 3. Restricted
+    raise HTTPException(status_code=403, detail="Restricted Access. You do not have permission to view the CSS Dashboard.")
 
 
 

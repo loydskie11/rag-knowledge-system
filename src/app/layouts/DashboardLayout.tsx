@@ -69,7 +69,7 @@ export function DashboardLayout() {
     { path: "/app/document-generator",     label: "Document Generator",         icon: FileText,           permission: "canAccessDocumentGenerator"      },
     { path: "/app/grade-evaluation",       label: "Grade Evaluation",           icon: ClipboardCheck,     permission: "canAccessGradeEvaluation"        },
     { path: "/app/client-survey",          label: "Client Satisfaction Survey", icon: MessageSquareHeart, permission: "canAccessClientSurvey"        },
-    { path: "https://ctu-client-satisfaction-survey-dash.vercel.app/", label: "Survey Analytics",          icon: HeartHandshake,     permission: "canAccessServiceSatisfaction", isExternal: true },
+    { path: "/app/client-survey-dashboard", label: "Survey Analytics",          icon: HeartHandshake,     permission: "canAccessServiceSatisfaction" },
     { path: "/app/settings",               label: "Settings",                   icon: Settings,           permission: "canAccessSettings"              },
   ];
 

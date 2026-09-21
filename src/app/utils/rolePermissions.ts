@@ -36,7 +36,7 @@ export const rolePermissions = {
     canAccessPaperTrail: true,
     canAccessGradeEvaluation: true,
     canAccessClientSurvey: true,
-    canAccessServiceSatisfaction: false,
+    canAccessServiceSatisfaction: true,
     canUploadDocuments: true,
     canDeleteDocuments: false,
     canEditDocuments: true,
@@ -86,6 +86,8 @@ export function getAccessibleRoutes(role: UserRole) {
   if (permissions.canAccessDocumentGenerator) routes.push("/app/document-generator");
   if (permissions.canAccessPaperTrail) routes.push("/app/paper-trail");
   if (permissions.canAccessGradeEvaluation) routes.push("/app/grade-evaluation");
+  if (permissions.canAccessClientSurvey) routes.push("/app/client-survey");
+  if (permissions.canAccessServiceSatisfaction) routes.push("/app/client-survey-dashboard");
 
   return routes;
 }

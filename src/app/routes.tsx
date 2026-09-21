@@ -26,6 +26,7 @@ const AIDocumentGenerator = lazy(() => import("./pages/AIDocumentGenerator").the
 const GradeEvaluation = lazy(() => import("./pages/GradeEvaluation").then(m => ({ default: m.GradeEvaluation })));
 const StudentRecords = lazy(() => import("./pages/StudentRecords").then(m => ({ default: m.StudentRecords })));
 const ClientSatisfactionSurvey = lazy(() => import("./pages/ClientSatisfactionSurvey").then(m => ({ default: m.ClientSatisfactionSurvey })));
+const CssDashboard = lazy(() => import("./pages/CssDashboard/Dashboard").then(m => ({ default: m.Dashboard })));
 
 // Helper to wrap components in Suspense
 const withSuspense = (Component: React.ComponentType) => (
@@ -183,6 +184,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute permission="canAccessClientSurvey">
                 {withSuspense(ClientSatisfactionSurvey)}
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "client-survey-dashboard",
+            element: (
+              <ProtectedRoute permission="canAccessServiceSatisfaction">
+                {withSuspense(CssDashboard)}
               </ProtectedRoute>
             ),
           },
