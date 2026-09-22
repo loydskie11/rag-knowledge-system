@@ -143,34 +143,20 @@ function NotifRow({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        {/* Type badge + time */}
-        <div className="flex items-center justify-between gap-1.5 mb-1">
-          <div className="flex items-center gap-1.5">
-            <span className={`
-              text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded border
-              ${notif.is_read ? "bg-gray-100 text-gray-400 border-gray-200/60" : colors.badge}
-            `}>
-              {typeLabel[notif.type] || notif.type}
-            </span>
-            {!notif.is_read && (
-              <span className="w-1.5 h-1.5 rounded-full bg-[#DD7230]" title="Unread" />
-            )}
-          </div>
-          <time className="text-[10px] text-gray-400 font-normal shrink-0">
+        <div className="flex items-start justify-between gap-2 mb-0.5">
+          <p className={`
+            text-xs leading-snug pr-2
+            ${notif.is_read ? "text-gray-700 font-medium" : "text-gray-900 font-semibold"}
+          `}>
+            {notif.title}
+          </p>
+          <time className="text-[10px] text-gray-400 font-normal shrink-0 mt-0.5">
             {timeAgo(notif.created_at)}
           </time>
         </div>
 
-        {/* Title */}
-        <p className={`
-          text-xs leading-snug
-          ${notif.is_read ? "text-gray-700 font-medium" : "text-gray-900 font-semibold"}
-        `}>
-          {notif.title}
-        </p>
-
         {/* Message */}
-        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">
+        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed whitespace-pre-wrap">
           {notif.message}
         </p>
       </div>
