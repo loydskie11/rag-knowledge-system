@@ -32,6 +32,7 @@ export function DashboardLayout() {
   const [isAIChatOpen,      setIsAIChatOpen]       = useState(false); 
 
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const aiWidgetRef = useRef<HTMLDivElement>(null);
   const notifs = useNotifications();
   const { tasks: uploadTasks, isQueueMinimized, setIsQueueMinimized, cancelTask, removeTask } = useUploadQueue();
 
@@ -47,10 +48,13 @@ export function DashboardLayout() {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
+      if (isAIChatOpen && aiWidgetRef.current && !aiWidgetRef.current.contains(event.target as Node)) {
+        setIsAIChatOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [isAIChatOpen]);
 
   useEffect(() => {
     setShowUserMenu(false);
@@ -68,7 +72,13 @@ export function DashboardLayout() {
     { path: "/app/broadcast-announcement", label: "Broadcast Announcement",     icon: Radio,              permission: "canAccessBroadcastAnnouncement"  },
     { path: "/app/document-generator",     label: "Document Generator",         icon: FileText,           permission: "canAccessDocumentGenerator"      },
     { path: "/app/grade-evaluation",       label: "Grade Evaluation",           icon: ClipboardCheck,     permission: "canAccessGradeEvaluation"        },
-    { path: "/app/client-survey",          label: "Client Satisfaction Survey", icon: MessageSquareHeart, permission: "canAccessClientSurvey"        },
+    { 
+      path: "https://ctu-client-satisfaction-survey.vercel.app/", 
+      label: "Client Satisfaction Survey", 
+      icon: MessageSquareHeart, 
+      permission: "canAccessClientSurvey",
+      isExternal: true 
+    },
     { path: "/app/client-survey-dashboard", label: "Survey Analytics",          icon: HeartHandshake,     permission: "canAccessServiceSatisfaction" },
     { path: "/app/settings",               label: "Settings",                   icon: Settings,           permission: "canAccessSettings"              },
   ];
@@ -325,9 +335,9 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
         {...notifs}
       />
 
-      {/* ══ FLOATING ON-DISPLAY AI WIDGET SYSTEM ═════════════════════ */}
+      {/* ✨ FLOATING ON-DISPLAY AI WIDGET SYSTEM ✨ */}
       {!isAskPolicy && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 select-none">
+        <div ref={aiWidgetRef} className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 select-none">
           {isAIChatOpen && (
             <div className="w-[360px] sm:w-[420px] h-[550px] bg-white rounded-2xl shadow-2xl border border-[#E5E7EB] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
               
