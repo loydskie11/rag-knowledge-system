@@ -1155,12 +1155,6 @@ export const IsoTabContent = ({
                         >
                           <Plus className="h-3.5 w-3.5" /> Add Audit Day
                         </button>
-                        <button
-                          onClick={() => setShowEditIqaModal(true)}
-                          className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border border-gray-300"
-                        >
-                          <Edit className="h-3.5 w-3.5" /> Edit Full Schedule
-                        </button>
                       </div>
                     )}
                   </div>
@@ -1172,13 +1166,10 @@ export const IsoTabContent = ({
                           <span className="px-2.5 py-1 bg-[#DD7230] text-white font-bold text-[10px] rounded-md uppercase tracking-wider">
                             Day {day.day_number}
                           </span>
-                          <span className="text-xs font-semibold text-gray-500">{day.date_label}</span>
+                          <span className="text-xs font-semibold text-gray-500">{day.day_date}</span>
                         </div>
                         <h4 className="font-bold text-gray-900 text-sm mb-1">{day.title}</h4>
-                        <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{day.focus_area}</p>
-                        <div className="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                          Offices: <span className="text-gray-700">{day.audited_offices}</span>
-                        </div>
+                        <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{day.scope}</p>
                         {userRole === "ADMIN" && (
                           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/90 backdrop-blur-xs p-1 rounded-lg border border-gray-200 shadow-2xs">
                             <button
