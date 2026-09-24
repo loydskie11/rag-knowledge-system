@@ -1,8 +1,8 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { useState, useEffect, useRef } from "react";
 import {
-  LayoutDashboard, Database, MessageSquare, Award, FileText,
-  Clock, Users, Settings, Search, Bell, ChevronLeft, ChevronRight,
+  LayoutDashboard, Database, Award, FileText,
+  Clock, Users, Settings, Bell, ChevronLeft, ChevronRight,
   GraduationCap, LogOut, Shield, BookOpen, Radio, ClipboardCheck, Sparkles, X, FileCheck, Menu,
   HeartHandshake, ExternalLink, MessageSquareHeart,
   UploadCloud, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp
@@ -14,7 +14,6 @@ import { NotificationSidebar } from "../components/NotificationSidebar";
 import { useNotifications } from "../utils/useNotifications";
 import { AskPolicy } from "../pages/AskPolicy"; 
 import { useUploadQueue } from "../contexts/UploadQueueContext";
-import axios from "axios";
 import { apiClient } from "../api/client";
 
 export function DashboardLayout() {
