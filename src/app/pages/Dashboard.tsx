@@ -1,5 +1,53 @@
-import { FileText, MessageSquare, CheckCircle, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, MessageSquare, CheckCircle, Clock, Radio, AlertCircle, Calendar } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { apiClient } from "../api/client";
+
+function DashboardAnnouncements() {
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiClient.get("/announcements")
+      .then(res => {
+        setAnnouncements((res.data || []).slice(0, 3)); // Show top 3
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to load announcements:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading || announcements.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl shadow-xs border border-[#DD7230]/20 overflow-hidden mb-6">
+      <div className="bg-gradient-to-r from-[#DD7230]/10 to-transparent px-5 py-3 border-b border-[#DD7230]/10 flex items-center gap-2">
+        <Radio className="h-4 w-4 text-[#DD7230]" />
+        <h2 className="text-sm font-bold text-[#DD7230] uppercase tracking-wider">Latest University Announcements</h2>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {announcements.map((ann) => (
+          <div key={ann.id} className="p-5 hover:bg-orange-50/30 transition-colors">
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <h3 className="text-base font-bold text-gray-900">{ann.title}</h3>
+              <div className="flex items-center gap-1.5 text-xs text-gray-400 font-medium shrink-0 bg-gray-50 px-2 py-1 rounded-md">
+                <Calendar className="h-3 w-3" />
+                {new Date(ann.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{ann.content}</p>
+            <div className="mt-3 text-[11px] font-medium text-gray-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              Posted by {ann.author_name} ({ann.author_role})
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function Dashboard() {
   const stats = [
@@ -65,6 +113,8 @@ export function Dashboard() {
         <h1 className="text-3xl text-gray-900 mb-2">Dashboard</h1>
         <p className="text-gray-600">Welcome back! Here's an overview of your institutional knowledge system.</p>
       </div>
+
+      <DashboardAnnouncements />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

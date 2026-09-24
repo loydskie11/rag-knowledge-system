@@ -2,6 +2,7 @@ import os
 import io
 import json
 import time
+import uuid
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -5009,6 +5010,21 @@ def update_qms_action_plan(
     return plan
 
 
+
+@app.delete("/qms/action-plans/evidence/{evidence_id}")
+def delete_qms_evidence(
+    evidence_id: str,
+    db: Session = Depends(get_db)
+):
+    """Deletes an evidence file attached to a QMS Action Plan."""
+    evidence = db.query(models.QMSEvidence).filter(models.QMSEvidence.id == evidence_id).first()
+    if not evidence:
+        raise HTTPException(status_code=404, detail="QMS Evidence file not found.")
+    db.delete(evidence)
+    db.commit()
+    return {"message": "Attached evidence file removed."}
+
+
 @app.delete("/qms/action-plans/{plan_id}")
 def delete_qms_action_plan(
     plan_id: str,
@@ -5043,8 +5059,12 @@ def upload_qms_action_plan_evidence(
     file_url = f"http://localhost:8000/uploads/{file_path}"
     try:
         if supabase:
-            supabase.storage.from_("repository").upload(file_path, contents)
-            file_url = supabase.storage.from_("repository").get_public_url(file_path)
+            supabase.storage.from_("documents").upload(
+                path=file_path,
+                file=contents,
+                file_options={"content-type": file.content_type}
+            )
+            file_url = supabase.storage.from_("documents").get_public_url(file_path)
     except Exception as e:
         print(f"Supabase upload notice: {e}")
 
@@ -5059,20 +5079,6 @@ def upload_qms_action_plan_evidence(
     db.refresh(evidence)
 
     return {"message": "Evidence file attached to Action Plan successfully!", "evidence_id": str(evidence.id), "file_url": file_url}
-
-
-@app.delete("/qms/action-plans/evidence/{evidence_id}")
-def delete_qms_evidence(
-    evidence_id: str,
-    db: Session = Depends(get_db)
-):
-    """Deletes an evidence file attached to a QMS Action Plan."""
-    evidence = db.query(models.QMSEvidence).filter(models.QMSEvidence.id == evidence_id).first()
-    if not evidence:
-        raise HTTPException(status_code=404, detail="QMS Evidence file not found.")
-    db.delete(evidence)
-    db.commit()
-    return {"message": "Attached evidence file removed."}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

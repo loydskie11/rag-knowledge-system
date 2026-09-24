@@ -813,7 +813,8 @@ export const IsoTabContent = ({
   setIsoFeedbackDoc,
   setIsoPendingStatus,
   setShowIsoFeedbackModal,
-  setIsoFeedbackText
+  setIsoFeedbackText,
+  handleDeleteQmsEvidence
 }: any) => {
   // Strict ISO Rule: Clause can only be approved if it has evidence, and ALL evidence is approved.
   const evidenceList = (expandedIsoClause?.evidences && expandedIsoClause.evidences.length > 0)
@@ -1320,6 +1321,7 @@ export const IsoTabContent = ({
                               <th className="p-3.5 rounded-l-xl">Auditee Office</th>
                               <th className="p-3.5">Opportunity / Finding</th>
                               <th className="p-3.5">Action Plan</th>
+                              <th className="p-3.5">Proofs / Evidences</th>
                               <th className="p-3.5">Target Date</th>
                               <th className="p-3.5">Status</th>
                               <th className="p-3.5 text-right rounded-r-xl">Actions</th>
@@ -1334,6 +1336,38 @@ export const IsoTabContent = ({
                                 </td>
                                 <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.opportunity_description}</td>
                                 <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.action_plan}</td>
+                                <td className="p-3.5 text-gray-700 max-w-xs align-top">
+                                  {plan.evidences && plan.evidences.length > 0 ? (
+                                    <div className="flex flex-col gap-1.5">
+                                      {plan.evidences.map((ev: any, idx: number) => (
+                                        <div key={idx} className="flex items-center gap-1 group">
+                                          <a 
+                                            href={ev.file_url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1.5 text-[10px] bg-orange-50 text-[#DD7230] px-2 py-1 rounded border border-orange-200/50 hover:bg-orange-100 flex-1 min-w-0 cursor-pointer transition-colors"
+                                            title={ev.document_name}
+                                          >
+                                            <FileText className="h-3 w-3 shrink-0" />
+                                            <span className="truncate font-medium">{ev.document_name}</span>
+                                          </a>
+                                          {(userRole === "ADMIN" || userIsIqaAuditor || plan.auditee_office === userAdminOffice) && (
+                                            <button 
+                                              type="button"
+                                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteQmsEvidence(ev); }}
+                                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded bg-white border border-gray-100 transition-all cursor-pointer shadow-sm"
+                                              title="Delete Evidence"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-400 italic">No proofs attached</span>
+                                  )}
+                                </td>
                                 <td className="p-3.5 text-gray-600 font-semibold">{plan.target_completion_date || 'N/A'}</td>
                                 <td className="p-3.5">
                                   <select
@@ -2136,6 +2170,11 @@ export function AccreditationSupport() {
   const [qmsPlanToDelete, setQmsPlanToDelete] = useState<any>(null);
   const [isDeletingQms, setIsDeletingQms] = useState(false);
 
+  // QMS Evidence Delete state
+  const [showDeleteQmsEvidenceModal, setShowDeleteQmsEvidenceModal] = useState(false);
+  const [qmsEvidenceToDelete, setQmsEvidenceToDelete] = useState<any>(null);
+  const [isDeletingQmsEvidence, setIsDeletingQmsEvidence] = useState(false);
+
   // QMS Evidence Upload state
   const [showQmsEvidenceUploadModal, setShowQmsEvidenceUploadModal] = useState(false);
   const [targetQmsPlanForEvidence, setTargetQmsPlanForEvidence] = useState<any>(null);
@@ -2663,13 +2702,24 @@ export function AccreditationSupport() {
     }
   };
 
-  const handleDeleteQmsEvidence = async (evidenceId: string) => {
+  const handleDeleteQmsEvidence = (evidence: any) => {
+    setQmsEvidenceToDelete(evidence);
+    setShowDeleteQmsEvidenceModal(true);
+  };
+
+  const confirmDeleteQmsEvidence = async () => {
+    if (!qmsEvidenceToDelete) return;
+    setIsDeletingQmsEvidence(true);
     try {
-      await apiClient.delete(`/qms/action-plans/evidence/${evidenceId}`);
+      await apiClient.delete(`/qms/action-plans/evidence/${qmsEvidenceToDelete.id}`);
       showToast("Attached evidence removed.", "success");
+      setShowDeleteQmsEvidenceModal(false);
+      setQmsEvidenceToDelete(null);
       fetchQmsActionPlans(selectedIsoCycleYear, true);
-    } catch (error) {
+    } catch (error: any) {
       showToast("Failed to remove evidence.", "error");
+    } finally {
+      setIsDeletingQmsEvidence(false);
     }
   };
 
@@ -3873,6 +3923,7 @@ export function AccreditationSupport() {
             confirmIsoStatusUpdate={confirmIsoStatusUpdate}
             userIsIqaAuditor={userIsIqaAuditor}
             showToast={showToast}
+            handleDeleteQmsEvidence={handleDeleteQmsEvidence}
             setIsoFeedbackDoc={setIsoFeedbackDoc}
             setIsoPendingStatus={setIsoPendingStatus}
             setShowIsoFeedbackModal={setShowIsoFeedbackModal}
@@ -5602,6 +5653,30 @@ export function AccreditationSupport() {
             {qmsPlanToDelete && (
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2">
                 "{qmsPlanToDelete.opportunity_description}"
+              </div>
+            )}
+          </>
+        }
+      />
+
+      {/* --- DELETE QMS EVIDENCE MODAL --- */}
+      <ReusableConfirmModal
+        isOpen={showDeleteQmsEvidenceModal && !!qmsEvidenceToDelete}
+        onClose={() => { setShowDeleteQmsEvidenceModal(false); setQmsEvidenceToDelete(null); }}
+        onConfirm={confirmDeleteQmsEvidence}
+        isProcessing={isDeletingQmsEvidence}
+        title="Delete Evidence"
+        confirmText="Yes, Delete"
+        icon={Trash2}
+        description={
+          <>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to remove this attached evidence?
+            </p>
+            {qmsEvidenceToDelete && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-[#DD7230] shrink-0" />
+                <span className="font-semibold text-gray-900">{qmsEvidenceToDelete.document_name}</span>
               </div>
             )}
           </>
