@@ -4454,17 +4454,20 @@ export function AccreditationSupport() {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={executeDelete}
         isProcessing={isDeleting}
-        title="Archive Evidence"
-        confirmText="Yes, Archive File"
-        icon={ShieldAlert}
+        title="Delete Evidence"
+        confirmText="Yes, Delete"
+        icon={Trash2}
         description={
           <>
-            <p className="text-sm text-gray-600 leading-relaxed font-medium">
-              Are you sure you want to remove <span className="font-bold text-gray-900">"{docToDelete}"</span>?
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to remove this attached evidence?
             </p>
-            <p className="text-xs text-gray-500 leading-relaxed italic mt-2">
-              This document will be archived and will no longer count towards compliance, though it remains in the system for audit.
-            </p>
+            {docToDelete && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-[#DD7230] shrink-0" />
+                <span className="font-semibold text-gray-900">{docToDelete}</span>
+              </div>
+            )}
           </>
         }
       />
@@ -4476,16 +4479,18 @@ export function AccreditationSupport() {
         onConfirm={executeDeleteChedRequirement}
         isProcessing={isDeleting}
         title="Delete Requirement"
-        confirmText="Yes, Delete Requirement"
-        icon={ShieldAlert}
+        confirmText="Yes, Delete"
+        icon={Trash2}
         description={
           <>
-            <p className="text-sm text-gray-600 leading-relaxed font-medium">
-              Are you sure you want to permanently delete this requirement?
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to remove this requirement?
             </p>
-            <p className="text-xs text-red-500 leading-relaxed italic font-bold mt-2">
-              Warning: This will also permanently delete any evidence documents attached to this requirement.
-            </p>
+            {chedReqToDelete && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2">
+                <span className="font-semibold text-gray-900">{chedReqToDelete.indicator}: {chedReqToDelete.title}</span>
+              </div>
+            )}
           </>
         }
       />
@@ -4496,17 +4501,20 @@ export function AccreditationSupport() {
         onClose={() => setShowDeleteChedEvidenceModal(false)}
         onConfirm={executeDeleteChedEvidence}
         isProcessing={isDeleting}
-        title="Remove Attached Evidence"
-        confirmText="Yes, Remove Evidence"
-        icon={Archive}
+        title="Delete Evidence"
+        confirmText="Yes, Delete"
+        icon={Trash2}
         description={
           <>
-            <p className="text-sm text-gray-600 leading-relaxed font-medium">
-              Are you sure you want to remove <span className="font-bold text-gray-900">"{chedEvidenceToDelete?.document_name}"</span>?
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to remove this attached evidence?
             </p>
-            <p className="text-xs text-gray-500 leading-relaxed italic mt-2">
-              If this is the only evidence attached, the requirement status will automatically revert to "Not Compliant".
-            </p>
+            {chedEvidenceToDelete && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-[#DD7230] shrink-0" />
+                <span className="font-semibold text-gray-900">{chedEvidenceToDelete.document_name}</span>
+              </div>
+            )}
           </>
         }
       />
@@ -4800,17 +4808,19 @@ export function AccreditationSupport() {
         onClose={() => setShowDeleteIsoReqModal(false)}
         onConfirm={executeDeleteIsoRequirement}
         isProcessing={isDeleting}
-        title="Delete ISO Clause Requirement"
-        confirmText="Yes, Delete Requirement"
-        icon={Archive}
+        title="Delete Requirement"
+        confirmText="Yes, Delete"
+        icon={Trash2}
         description={
           <>
-            <p className="text-sm text-gray-600 leading-relaxed font-medium">
-              Are you sure you want to delete <span className="font-bold text-gray-900">"{isoReqToDelete?.iso_clause}: {isoReqToDelete?.title}"</span>?
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to delete this requirement?
             </p>
-            <p className="text-xs text-gray-500 leading-relaxed italic mt-2">
-              This action will remove the clause requirement and all associated evidence uploads for {selectedProgram}.
-            </p>
+            {isoReqToDelete && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2">
+                <span className="font-semibold text-gray-900">{isoReqToDelete.iso_clause}: {isoReqToDelete.title}</span>
+              </div>
+            )}
           </>
         }
       />
@@ -5153,13 +5163,20 @@ export function AccreditationSupport() {
         onClose={() => setShowDeleteIqaDayModal(false)}
         onConfirm={executeDeleteIqaDay}
         isProcessing={isDeleting}
-        title="Delete IQA Audit Day"
-        confirmText="Yes, Delete Day"
-        icon={Archive}
+        title="Delete Audit Day"
+        confirmText="Yes, Delete"
+        icon={Trash2}
         description={
-          <p className="text-sm text-gray-600 leading-relaxed font-medium">
-            Are you sure you want to delete <span className="font-bold text-gray-900">"Day {deletingIqaDay?.day_number}: {deletingIqaDay?.title}"</span>?
-          </p>
+          <>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to delete this audit day?
+            </p>
+            {deletingIqaDay && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex items-center gap-2">
+                <span className="font-semibold text-gray-900">Day {deletingIqaDay.day_number}: {deletingIqaDay.title}</span>
+              </div>
+            )}
+          </>
         }
       />
 
@@ -5280,21 +5297,20 @@ export function AccreditationSupport() {
         onClose={() => { setShowDeleteIsoEvidenceModal(false); setIsoEvidenceToDelete(null); }}
         onConfirm={executeDeleteIsoEvidence}
         isProcessing={isDeleting}
-        title="Remove ISO Evidence"
-        confirmText="Yes, Remove"
-        icon={Archive}
+        title="Delete Evidence"
+        confirmText="Yes, Delete"
+        icon={Trash2}
         description={
           <>
             <p className="text-sm text-gray-700 leading-relaxed">
-              Are you sure you want to permanently remove this evidence file?
+              Are you sure you want to remove this attached evidence?
             </p>
             {isoEvidenceToDelete && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-2 mt-2">
-                <FileText className="h-4 w-4 text-red-500 shrink-0" />
-                <span className="text-sm font-bold text-gray-900 truncate">{isoEvidenceToDelete.document_name}</span>
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-[#DD7230] shrink-0" />
+                <span className="font-semibold text-gray-900">{isoEvidenceToDelete.document_name}</span>
               </div>
             )}
-            <p className="text-xs text-gray-400 leading-relaxed mt-2">The file will be removed from the ISO evidence repository and the Knowledge Base. The clause compliance status may be affected.</p>
           </>
         }
       />
@@ -5639,11 +5655,12 @@ export function AccreditationSupport() {
         description={
           <>
             <p className="text-sm text-gray-700 leading-relaxed">
-              Are you sure you want to delete the QMS Action Plan for <span className="font-bold text-gray-900">{qmsPlanToDelete?.auditee_office}</span>?
+              Are you sure you want to delete this action plan?
             </p>
             {qmsPlanToDelete && (
-              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2">
-                "{qmsPlanToDelete.opportunity_description}"
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex flex-col gap-1">
+                <span className="font-bold text-gray-900">{qmsPlanToDelete.auditee_office}</span>
+                <span>{qmsPlanToDelete.opportunity_description}</span>
               </div>
             )}
           </>
