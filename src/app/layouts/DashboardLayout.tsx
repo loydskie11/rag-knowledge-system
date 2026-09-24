@@ -21,7 +21,7 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { userRole } = useRole();
 
-  const isProfileSettings = location.pathname === '/app/profile-settings';
+
   const isAskPolicy = location.pathname === '/app/ask-policy';
 
   const [sidebarCollapsed,  setSidebarCollapsed]  = useState(false);
@@ -203,10 +203,9 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
       </nav>
 
       {/* Sidebar Navigation */}
-      {!isProfileSettings && (
-        <>
-          {/* Mobile Overlay Backdrop */}
-          {mobileMenuOpen && (
+      <>
+        {/* Mobile Overlay Backdrop */}
+        {mobileMenuOpen && (
             <div 
               className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 md:hidden transition-opacity duration-300 animate-in fade-in"
               onClick={() => setMobileMenuOpen(false)}
@@ -314,12 +313,11 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
             </div>
           </aside>
         </>
-      )}
 
       {/* Main Layout Body: full width on mobile, offset on desktop */}
       <main
         className={`transition-all duration-300 pt-[61px] min-h-screen ml-0 ${
-          isProfileSettings ? "md:ml-0" : (sidebarCollapsed ? "md:ml-16" : "md:ml-64")
+          sidebarCollapsed ? "md:ml-16" : "md:ml-64"
         }`}
       >
         <div className="p-4 sm:p-6 lg:p-8">

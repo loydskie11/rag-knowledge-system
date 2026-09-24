@@ -423,6 +423,7 @@ class UpdateProfileRequest(BaseModel):
     new_email: str   # The new email they want to change to
     full_name: str
     program: str
+    otp_code: Optional[str] = None
 
 class AccessLogRequest(BaseModel):
     document_name: str
@@ -3490,10 +3491,24 @@ def update_profile(req: UpdateProfileRequest, db: Session = Depends(get_db)):
     
     # 2. Handle Email Change Logic
     if req.new_email != req.email:
+        if not req.otp_code:
+            raise HTTPException(status_code=400, detail="An OTP verification code is required to change your email.")
+            
+        # Verify the OTP
+        record = db.query(models.OTPVerification).filter(models.OTPVerification.email == req.new_email).first()
+        if not record or record.otp_code != req.otp_code:
+            raise HTTPException(status_code=400, detail="Invalid verification code.")
+        if datetime.utcnow() > record.expires_at:
+            raise HTTPException(status_code=400, detail="This verification code has expired. Please request a new one.")
+            
         existing_email = db.query(models.User).filter(models.User.email == req.new_email).first()
         if existing_email:
             raise HTTPException(status_code=400, detail="This email is already in use by another account.")
+            
         user.email = req.new_email
+        
+        # Clear the OTP record so it can't be reused
+        db.delete(record)
     
     # 3. Update core user details
     user.full_name = req.full_name

@@ -298,7 +298,7 @@ export function UsersRoles() {
       
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold animate-in slide-in-from-top-2 duration-200 ${
+        <div className={`fixed bottom-8 right-8 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold animate-in slide-in-from-bottom-5 duration-200 ${
           toast.type === 'success' 
             ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
             : 'bg-rose-50 text-rose-800 border-rose-200'
@@ -688,7 +688,7 @@ export function UsersRoles() {
                 <button type="button" onClick={() => setShowAddUserModal(false)} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" disabled={isCreating} className="px-4 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                <button type="submit" disabled={isCreating || !addUserData.name.trim() || !addUserData.email.trim() || !addUserData.password.trim()} className="px-4 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
                    {isCreating ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Creating...</> : "Create Account"}
                 </button>
               </div>
@@ -819,7 +819,7 @@ export function UsersRoles() {
                 <button type="button" onClick={() => setShowEditUserModal(false)} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" disabled={isUpdatingUser} className="px-4 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                <button type="submit" disabled={isUpdatingUser || !editingUser?.full_name?.trim()} className="px-4 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
                    {isUpdatingUser ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Saving...</> : "Save Assignment"}
                 </button>
               </div>

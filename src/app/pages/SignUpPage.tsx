@@ -11,7 +11,8 @@ import {
   Eye,
   EyeOff,
   KeyRound,
-  CheckCircle2
+  CheckCircle2,
+  Check
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { apiClient } from "../api/client";
@@ -491,10 +492,17 @@ export function SignUpPage() {
                 </div>
               </div>
 
-              {/* Password Requirement Hint */}
-              <p className="text-xs text-gray-400">
-                Minimum 8 characters with an uppercase letter, number, and special character.
-              </p>
+              {formData.password.length > 0 && !isPasswordValid && (
+                <div className="mt-2 mb-4 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+                  <p className="text-xs font-bold text-gray-700 mb-2">Password requirements</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <PasswordRequirement valid={pwdChecks.length} text="At least 8 characters" />
+                    <PasswordRequirement valid={pwdChecks.uppercase} text="1 uppercase letter" />
+                    <PasswordRequirement valid={pwdChecks.number} text="1 number" />
+                    <PasswordRequirement valid={pwdChecks.special} text="1 special character" />
+                  </div>
+                </div>
+              )}
 
               {/* College & Program Dropdowns */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -669,6 +677,17 @@ export function SignUpPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PasswordRequirement({ valid, text }: { valid: boolean; text: string }) {
+  return (
+    <div className={`flex items-center gap-2 text-xs ${valid ? 'text-green-600' : 'text-gray-500'}`}>
+      <span className={`flex items-center justify-center w-5 h-5 rounded-full ${valid ? 'bg-green-100' : 'bg-gray-200'}`}>
+        {valid ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+      </span>
+      <span>{text}</span>
     </div>
   );
 }
