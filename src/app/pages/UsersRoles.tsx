@@ -215,21 +215,14 @@ export function UsersRoles() {
     setIsUpdatingUser(true);
     try {
       const assignedEntity = editingUser.designation_entity || editingUser.department || "BSIT";
-      await apiClient.put("/users/profile", {
-        email: editingUser.email,
-        new_email: editingUser.email,
-        full_name: editingUser.full_name,
-        program: assignedEntity,
-        administrative_office: editingUser.administrative_office || null,
-        designation: editingUser.designation || "Faculty Member"
-      });
-
       if (editingUser.id) {
         await apiClient.put(`/users/${editingUser.id}/details`, {
           administrative_office: editingUser.administrative_office || null,
           is_iqa_auditor: Boolean(editingUser.is_iqa_auditor),
           designation: editingUser.designation || "Faculty Member",
-          designation_entity: assignedEntity
+          designation_entity: assignedEntity,
+          email: editingUser.email,
+          full_name: editingUser.full_name
         });
       }
 
@@ -510,15 +503,13 @@ export function UsersRoles() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {user.role !== 'STUDENT' && (
                             <button
                               onClick={() => { setEditingUser({ ...user }); setShowEditUserModal(true); }}
                               className="px-2.5 py-1 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              title="Edit User, Office, and Academic Leadership Designation"
+                              title="Edit User Details & Designations"
                             >
-                              Edit Office & Role
+                              Edit Profile
                             </button>
-                          )}
                           {user.role === 'ADMIN' && (
                             <button
                               onClick={() => handleToggleAuditor(user)}
@@ -703,8 +694,8 @@ export function UsersRoles() {
           <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-gray-200 overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50 shrink-0">
               <div>
-                <h2 className="text-xs font-semibold text-gray-900">Edit User & Academic Leadership Assignment</h2>
-                <p className="text-[11px] text-gray-500">Configure Dean, Chair, or Office designations</p>
+                <h2 className="text-xs font-semibold text-gray-900">Edit User Details & Roles</h2>
+                <p className="text-[11px] text-gray-500">Update user profile and academic designations</p>
               </div>
               <button onClick={() => setShowEditUserModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
                 <X className="h-4 w-4" />
@@ -726,9 +717,9 @@ export function UsersRoles() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Email Address</label>
                 <input 
                   type="email" 
-                  value={editingUser.email || ""} 
-                  disabled 
-                  className="w-full px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-xs text-gray-400 cursor-not-allowed" 
+                  value={editingUser.email || ""}
+                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })} 
+                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" 
                 />
               </div>
 

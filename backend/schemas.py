@@ -25,6 +25,8 @@ class UserResponse(BaseModel):
     administrative_office: Optional[str] = None
     is_iqa_auditor: Optional[bool] = False
     is_verified: bool                # NEW
+    created_by_admin: Optional[bool] = False
+    email_changed: Optional[bool] = False
     status: Optional[str] = "Active"
     created_at: datetime
 

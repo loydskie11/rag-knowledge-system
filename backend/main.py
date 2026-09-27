@@ -408,6 +408,8 @@ class UserUpdateRequest(BaseModel):
     is_iqa_auditor: Optional[bool] = False
     designation: Optional[str] = None
     designation_entity: Optional[str] = None
+    email: Optional[str] = None
+    full_name: Optional[str] = None
 
 class ISOEvidenceReviewRequest(BaseModel):
     status: str
@@ -960,6 +962,8 @@ def login_user(
         "department":   user_dept,
         "administrative_office": getattr(user, "administrative_office", "") or "",
         "is_iqa_auditor": bool(getattr(user, "is_iqa_auditor", False)),
+        "created_by_admin": bool(getattr(user, "created_by_admin", False)),
+        "email_changed": bool(getattr(user, "email_changed", False)),
     }
 
 
@@ -1149,7 +1153,8 @@ def create_user_admin(request: UserCreateRequest, db: Session = Depends(get_db))
         department="ADMIN" if request.role.upper() == "ADMIN" else "Unassigned",
         administrative_office=request.administrative_office,
         is_iqa_auditor=request.is_iqa_auditor or False,
-        is_verified=True
+        is_verified=True,
+        created_by_admin=True
     )
     db.add(new_user)
     db.commit()
@@ -1194,6 +1199,13 @@ def update_user_details(
     user.is_iqa_auditor = bool(payload.is_iqa_auditor)
     if payload.designation_entity:
         user.department = payload.designation_entity
+    if payload.email:
+        existing = db.query(models.User).filter(models.User.email == payload.email, models.User.id != user_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use by another account.")
+        user.email = payload.email
+    if payload.full_name:
+        user.full_name = payload.full_name
     db.commit()
     db.refresh(user)
     return {"message": "User administrative details updated successfully!"}
@@ -3559,6 +3571,7 @@ def update_profile(req: UpdateProfileRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="This email is already in use by another account.")
             
         user.email = req.new_email
+        user.email_changed = True
         
         # Clear the OTP record so it can't be reused
         db.delete(record)

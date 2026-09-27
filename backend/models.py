@@ -16,6 +16,8 @@ class User(Base):
     administrative_office = Column(String(255), nullable=True)
     is_iqa_auditor = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
+    created_by_admin = Column(Boolean, default=False)
+    email_changed = Column(Boolean, default=False)
     status = Column(String(50), default="Active")
     created_at = Column(DateTime, default=datetime.utcnow)
 

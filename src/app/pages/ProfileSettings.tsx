@@ -63,6 +63,9 @@ export function ProfileSettings() {
 
   const userRole = sessionStorage.getItem("userRole") || "STUDENT";
   const originalEmail = sessionStorage.getItem("userEmail") || "";
+  const createdByAdmin = sessionStorage.getItem("createdByAdmin") === "true";
+  const emailChanged = sessionStorage.getItem("emailChanged") === "true";
+  const isEmailLocked = userRole !== "ADMIN" && (!createdByAdmin || emailChanged);
 
   const [profileData, setProfileData] = useState({
     fullName: sessionStorage.getItem("userName") || "",
@@ -208,6 +211,11 @@ export function ProfileSettings() {
 
       sessionStorage.setItem("userName", response.data.full_name);
       sessionStorage.setItem("userDepartment", response.data.program);
+      if (profileData.email !== originalEmail) {
+        sessionStorage.setItem("emailChanged", "true");
+        sessionStorage.setItem("userEmail", profileData.email);
+        setOriginalEmail(profileData.email);
+      }
 
       setShowOtpModal(false);
       
@@ -335,9 +343,21 @@ export function ProfileSettings() {
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Email Address</label>
                     <div className="relative">
                       <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                      <input type="email" required value={profileData.email} onChange={(e) => setProfileData({ ...profileData, email: e.target.value })} placeholder="Enter your email" className="w-full h-9 pl-10 pr-4 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:bg-white focus:border-[#dd7230] focus:ring-4 focus:ring-[#dd7230]/10 transition-all" />
+                      <input 
+                        type="email" 
+                        required 
+                        value={profileData.email} 
+                        onChange={(e) => setProfileData({ ...profileData, email: e.target.value })} 
+                        placeholder="Enter your email" 
+                        disabled={isEmailLocked}
+                        className={`w-full h-9 pl-10 pr-4 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:bg-white focus:border-[#dd7230] focus:ring-4 focus:ring-[#dd7230]/10 transition-all ${isEmailLocked ? 'opacity-70 cursor-not-allowed' : ''}`} 
+                      />
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-1.5">Changing your email requires OTP verification.</p>
+                    {isEmailLocked ? (
+                      <p className="text-[11px] text-gray-400 mt-1.5">To change your registered email address, please contact the System Administrator.</p>
+                    ) : (
+                      <p className="text-[11px] text-gray-400 mt-1.5">Changing your email requires OTP verification.</p>
+                    )}
                   </div>
                 </div>
 
