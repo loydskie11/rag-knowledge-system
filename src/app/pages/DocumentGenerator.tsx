@@ -1,90 +1,436 @@
-import { useMemo, useRef, useState } from "react";
+"use client";
+
+/**
+ * DocumentGenerator.tsx
+ * ---------------------------------------------------------------------------
+ * CTU Document Studio — single-surface WYSIWYG editor.
+ *
+ * ARCHITECTURE (v15 — justify fixes)
+ *   • Single editable surface: the paginated preview itself.
+ *   • previewFragments: string[] is the only body-content state.
+ *   • PreviewPage writes innerHTML via ref ONLY when the incoming fragment
+ *     differs from the DOM's current innerHTML.
+ *   • Reflow replaces a page's DOM subtree wholesale; selection continuity
+ *     is preserved via a semantic descriptor resolved against the post-
+ *     reflow DOM in a useLayoutEffect.
+ *   • Letterhead is sized in JS via fitImageInBand() and rendered as <img>
+ *     with explicit width/height — no CSS sizing hazards.
+ *
+ * v15 CHANGES (justify)
+ *   • markdownToHtml now joins consecutive non-blank lines into one <p>
+ *     (standard Markdown paragraph semantics). Previously each source line
+ *     became its own <p>, producing one-line paragraphs that CSS never
+ *     justifies. Block-terminating label lines (bold-prefixed labels like
+ *     **TO:**, short ALL-CAPS labels like SUBJECT:, horizontal rules) are
+ *     still emitted as their own <p> so memo headers don't collapse.
+ *   • stripExtractionBrTags tolerance widened from max(8, w*0.04) to
+ *     max(24, w*0.12), so ordinary wrapped prose (which usually ends
+ *     10-80px short of the right edge) gets its extraction <br>s removed
+ *     when the user applies justify.
+ *   • applyParagraphAlignment: PRE added to BLOCK_TAGS; direct-child DIVs
+ *     recognized as blocks (Chrome's contentEditable Enter wrapper);
+ *     multi-block traversal walks the page in document order including
+ *     those DIVs.
+ *
+ * v14 CHANGES
+ *   • Paragraph alignment is applied by setting `style.textAlign` directly
+ *     on the block-level elements intersecting the selection. Bypasses
+ *     document.execCommand, whose justifyFull silently no-ops inside a
+ *     CSS-transformed contentEditable, and whose behaviour for the other
+ *     three alignments varies across browsers.
+ *   • Toolbar commands operate on a caret-tolerant range, so alignment and
+ *     list toggles work from a bare caret (previously they required a
+ *     non-collapsed text selection).
+ *   • Toolbar commands cancel any pending debounced repaginate and reflow
+ *     synchronously from the mutated DOM, so a stale fragment can never
+ *     overwrite the change ~600 ms later (fixes the "bullet list reverts"
+ *     bug).
+ *   • The toolbar's active-state detection reads the block's computed
+ *     text-align instead of document.queryCommandState.
+ */
+
+import React, {
+  useState, useRef, useEffect, useLayoutEffect, useMemo,
+  type RefObject,
+} from "react";
 import {
-  Sparkles,
-  Copy,
-  RefreshCw,
-  Image as ImageIcon,
-  X,
-  FileText,
-  FileDown,
-  AlertCircle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  SlidersHorizontal,
-  Check
+  Sparkles, RefreshCw, Image as ImageIcon, X, FileText, AlertCircle,
+  ChevronDown, ChevronUp, AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  Printer, ArrowLeft, Plus, Minus, Bold, Italic,
+  Underline as UnderlineIcon, Strikethrough, List, ListOrdered,
+  PenTool, Calendar, Layers, FileSpreadsheet, Trash2, Check,
+  Undo, Redo, FolderOpen, UploadCloud, Eye, Search,
 } from "lucide-react";
 import {
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-  ImageRun,
-  AlignmentType,
-  Header,
-  Footer,
+  Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType,
+  Header, Footer, Table, TableRow, TableCell, WidthType, BorderStyle,
 } from "docx";
 import { saveAs } from "file-saver";
-import jsPDF from "jspdf";
-import { apiClient } from "../api/client";
+
+/* ============================================================================
+ * LOCAL TYPE ALIASES
+ * ==========================================================================*/
+type PageSize = "short" | "a4" | "long";
+type DocFont = "serif" | "sans" | "georgia" | "mono";
+
+/* ============================================================================
+ * PAGE SIZE SPECIFICATIONS
+ * ==========================================================================*/
+interface PageSizeConfig {
+  key: PageSize; label: string; subLabel: string;
+  cssWidth: number; cssHeight: number; docxWidth: number; docxHeight: number;
+}
+
+const PAGE_SIZES: Record<PageSize, PageSizeConfig> = {
+  short: { key: "short", label: "Letter (Short)", subLabel: '8.5" × 11"',
+    cssWidth: 816, cssHeight: 1056, docxWidth: 12240, docxHeight: 15840 },
+  a4:    { key: "a4",    label: "A4 (Standard)",   subLabel: '8.27" × 11.69"',
+    cssWidth: 794, cssHeight: 1123, docxWidth: 11906, docxHeight: 16838 },
+  long:  { key: "long",  label: "Legal (Long)",    subLabel: '8.5" × 13"',
+    cssWidth: 816, cssHeight: 1248, docxWidth: 12240, docxHeight: 18720 },
+};
+
+/* ============================================================================
+ * SHARED PAGE GEOMETRY
+ * ==========================================================================*/
+const PAGE_PADDING_TOP = 36;
+const PAGE_PADDING_BOTTOM = 36;
+const PAGE_PADDING_LEFT = 48;
+const PAGE_PADDING_RIGHT = 48;
+
+const HEADER_AREA_HEIGHT = 135;
+const FOOTER_AREA_HEIGHT = 100;
+const FOOTER_MIN_HEIGHT = 26;
+
+const PAGE_FIT_SAFETY_PX = 12;
+const MIN_FIT_FONT_PT = 10;
+const SMALL_OVERFLOW_FIT_RATIO = 1.2;
+const SIGNATURE_LOOKBACK_BLOCKS = 12;
+const REPAGINATE_DEBOUNCE_MS = 600;
+
+function getContentAreaHeight(cssHeight: number, hasHeader: boolean, hasFooter: boolean): number {
+  return (
+    cssHeight - PAGE_PADDING_TOP - PAGE_PADDING_BOTTOM -
+    (hasHeader ? HEADER_AREA_HEIGHT : 0) -
+    (hasFooter ? FOOTER_AREA_HEIGHT : FOOTER_MIN_HEIGHT)
+  );
+}
+
+function getContentAreaWidth(cssWidth: number): number {
+  return cssWidth - PAGE_PADDING_LEFT - PAGE_PADDING_RIGHT;
+}
+
+/* ============================================================================
+ * FONT CONFIG
+ * ==========================================================================*/
+const FONT_CONFIG: Record<DocFont, { name: string; css: string; docx: string; pdf: string }> = {
+  serif:   { name: "Times New Roman",  css: "'Times New Roman', Times, serif",       docx: "Times New Roman", pdf: "times" },
+  sans:    { name: "Arial / Calibri",  css: "Arial, 'Helvetica Neue', sans-serif",   docx: "Calibri",         pdf: "helvetica" },
+  georgia: { name: "Georgia",          css: "Georgia, serif",                        docx: "Georgia",         pdf: "times" },
+  mono:    { name: "Courier New",      css: "'Courier New', Courier, monospace",     docx: "Courier New",     pdf: "courier" },
+};
+
+const DEFAULT_HEADER_URL = "/ctu-argao-header.jpg";
+const DEFAULT_FOOTER_URL = "/ctu-argao-footer.jpg";
+
+/* ============================================================================
+ * SHARED CONTENT CSS
+ * ==========================================================================*/
+const CONTENT_STYLES = `
+  .wysiwyg-content { box-sizing: border-box; line-height: var(--doc-line-height, 1.45); }
+  .wysiwyg-content * { box-sizing: border-box; }
+  .wysiwyg-content h1 { font-size: 1.45em; text-align: center; text-transform: uppercase;
+    margin: 0 0 14px 0; letter-spacing: 0.03em; font-weight: 700; }
+  .wysiwyg-content h2 { font-size: 1.15em; border-bottom: 1.5px solid #1f2937;
+    padding-bottom: 2px; margin: 14px 0 6px 0; font-weight: 700; }
+  .wysiwyg-content h3 { font-size: 1.02em; border-bottom: 1px solid #6b7280;
+    padding-bottom: 2px; margin: 10px 0 4px 0; font-weight: 700; }
+  .wysiwyg-content p { margin: 0 0 6px 0; }
+  .wysiwyg-content ul { margin: 0 0 8px 0; padding-left: 24px; list-style-type: disc; }
+  .wysiwyg-content ol { margin: 0 0 8px 0; padding-left: 24px; list-style-type: decimal; }
+  .wysiwyg-content li { margin-bottom: 4px; }
+  .wysiwyg-content table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.9em; }
+  .wysiwyg-content img { max-width: 100%; height: auto; }
+  .wysiwyg-content strong { font-weight: 700; }
+  .wysiwyg-content em { font-style: italic; }
+  .wysiwyg-content u { text-decoration: underline; }
+  .wysiwyg-content h1:has(> br:only-child),
+  .wysiwyg-content h2:has(> br:only-child),
+  .wysiwyg-content h3:has(> br:only-child),
+  .wysiwyg-content h2:empty,
+  .wysiwyg-content h3:empty { border-bottom: 0 !important; }
+  [data-page-content='1']:focus { outline: none; }
+`;
+
+export const SYSTEM_PROMPT = `You are a senior institutional and academic document drafting assistant for Cebu Technological University (CTU Argao Campus and System).
+You generate professional, legally sound, and academic-grade documents.`;
 
 /* ============================================================================
  * QUICK PROMPTS
  * ==========================================================================*/
-const QUICK_PROMPTS: string[] = [
-  "Generate a comprehensive course syllabus for Data Structures and Algorithms",
-  "Create a professional service invoice for a software development project",
-  "Draft a formal employment contract for a full-time software engineer",
-  "Write an official campus memorandum regarding midterm examination guidelines",
-  "Create a detailed lesson plan for Introduction to Programming",
-  "Generate a quality assurance compliance report for academic accreditation",
-  "Draft a Non-Disclosure Agreement (NDA) between university and partner industry",
-  "Write an endorsement letter for faculty research grant application",
-  "Create a student research paper evaluation rubric",
-  "Draft a formal resolution for departmental curriculum enhancement",
+const QUICK_PROMPTS = [
+  { title: "Official Memorandum",
+    prompt: "Draft an Official Campus Memorandum announcing the submission schedule and compliance guidelines for Midterm Grade Submissions and Instructional Materials for the current academic semester." },
+  { title: "Activity & Budget Proposal",
+    prompt: "Create a formal Academic Activity and Budget Proposal for a 2-day Faculty Capability Training on AI and RAG Governance Tools at CTU Argao Campus." },
+  { title: "Course Syllabus (OBE)",
+    prompt: "Generate an Outcomes-Based Education (OBE) Course Syllabus for IT 312: Advanced Database Systems, including Course Description, Intended Learning Outcomes, Assessment Tasks, and Grading Policy." },
+  { title: "Faculty Endorsement Letter",
+    prompt: "Write a formal Endorsement Letter from the Department Chairperson to the Campus Director recommending faculty research paper presentation at an international conference." },
+  { title: "Academic Policy Resolution",
+    prompt: "Draft an Academic Council Resolution approving the revised guidelines on Capstone Project Defense, Intellectual Property Rights, and Repository Archival for graduating BSIT students." },
+  { title: "Terms of Reference (TOR)",
+    prompt: "Draft Terms of Reference (TOR) for the Campus Accreditation and Quality Assurance Working Committee." },
+  { title: "Service Invoice / Contract",
+    prompt: "Create a formal Service Invoice and Deliverable Sign-off for institutional IT infrastructure consulting." },
+  { title: "Certificate of Appreciation",
+    prompt: "Draft a formal Certificate of Appreciation and Citation for a Keynote Resource Speaker at the Annual University IT Colloquium." },
 ];
-const COLLAPSED_PROMPT_COUNT = 4;
 
 /* ============================================================================
- * SHARED TYPES
+ * TYPES
  * ==========================================================================*/
 type ImageAsset = {
-  dataUrl: string;
-  base64: string;
-  mimeType: "png" | "jpg" | "gif" | "bmp";
-  width: number;
-  height: number;
-  fileName: string;
+  dataUrl: string; base64: string; mimeType: "png" | "jpg" | "gif" | "bmp";
+  width: number; height: number; fileName: string;
 };
+type GenerationStatus = "idle" | "generating" | "importing" | "success" | "error";
+type DownloadTarget = "docx" | null;
+type DocAlign = "left" | "center" | "right" | "justify";
+type AppView = "chooser" | "templates" | "compose" | "editor";
+type RibbonTab = "home" | "layout" | "insert";
+type LineSpacing = "1.15" | "1.5" | "2.0";
 
-type GenerationStatus = "idle" | "generating" | "success" | "error";
-type DownloadTarget = "docx" | "pdf" | null;
+interface RepositoryDocument {
+  name: string;
+  category: string;
+  office: string;
+  program?: string;
+  version?: string;
+  effectivity_date?: string;
+  status?: string;
+  file_url?: string;
+  upload_date?: string;
+  uploaded_by?: string;
+  has_content_html?: boolean;
+  header_image_url?: string | null;
+  footer_image_url?: string | null;
+}
 
+interface RepositoryDocumentContent {
+  name: string;
+  category: string;
+  office: string;
+  version?: string;
+  effectivity_date?: string;
+  content_html: string;
+  header_image_url?: string | null;
+  footer_image_url?: string | null;
+  file_url?: string;
+  page_size?: string;
+  line_spacing?: string;
+}
+
+interface SelectionDescriptor {
+  start: number;
+  end: number;
+}
+
+function cssVars(vars: Record<string, string>): React.CSSProperties {
+  return vars as unknown as React.CSSProperties;
+}
+
+/* ============================================================================
+ * IMAGE HELPERS
+ * ==========================================================================*/
 const MAX_IMAGE_DIMENSION_PX = 1600;
 const MAX_IMAGE_SIZE_MB = 5;
-const HEADER_FOOTER_DISPLAY_HEIGHT_PX = 60;
+const HEADER_FOOTER_DISPLAY_HEIGHT_PX = 110;
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
+/**
+ * Returns true if the given raw markdown source line should be treated as
+ * a self-contained block rather than a continuation of the current
+ * paragraph. Used by markdownToHtml so that memo headers like
+ *
+ *     **TO:** All Faculty
+ *     **FROM:** Office of the Dean
+ *     **SUBJECT:** Midterm Grade Submission
+ *
+ * do not collapse into a single paragraph while ordinary body lines do.
+ */
+function isBlockLabelLine(rawLine: string): boolean {
+  const line = rawLine.trim();
+  if (!line) return false;
+
+  // Signature rule or horizontal rule
+  if (/^_{3,}\s*$/.test(line)) return true;
+  if (/^-{3,}\s*$/.test(line)) return true;
+
+  // Bold-prefixed label: **TO:**, **Prepared by:**, **DATE:** March 14, 2026
+  const boldMatch = line.match(/^\*\*([^*]+)\*\*\s*:?\s*(.*)$/);
+  if (boldMatch) {
+    const label = boldMatch[1].trim();
+    const rest = boldMatch[2].trim();
+    if (label.endsWith(":") && label.length <= 40 && rest.length <= 60) return true;
+    if (rest === "" && label.length <= 40) return true;
+  }
+
+  // Short ALL-CAPS-style label ending in a colon with no content after:
+  // SUBJECT:, RE:, DATE:
+  if (/^[A-Z][A-Z /_-]{1,30}:\s*$/.test(line)) return true;
+
+  return false;
+}
+
+function markdownToHtml(raw: string): string {
+  const lines = raw.replace(/\r\n/g, "\n").split("\n");
+  let html = "";
+  let inList = false;
+  let inTable = false;
+  let isTableHeader = true;
+  let pendingParagraph: string[] = [];
+
+  const processInline = (line: string): string => {
+    let s = line;
+    s = s.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/__(.*?)__/g, "<strong>$1</strong>");
+    s = s.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+    return s;
+  };
+
+  const flushParagraph = () => {
+    if (pendingParagraph.length === 0) return;
+    html += `<p>${pendingParagraph.join(" ")}</p>`;
+    pendingParagraph = [];
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    // Blank line: paragraph break, list break, table break.
+    if (!line) {
+      flushParagraph();
+      if (inList) { html += "</ul>"; inList = false; }
+      if (inTable) {
+        html += (isTableHeader ? "</thead>" : "</tbody>") + "</table>";
+        inTable = false;
+        isTableHeader = true;
+      }
+      continue;
+    }
+
+    // Table rows.
+    if (line.startsWith("|")) {
+      flushParagraph();
+      if (inList) { html += "</ul>"; inList = false; }
+      if (/^[-:\s]+$/.test(line.replace(/\|/g, "").trim())) {
+        if (inTable && isTableHeader) { html += "</thead><tbody>"; isTableHeader = false; }
+        continue;
+      }
+      const cells = line
+        .split("|")
+        .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
+        .map((c) => c.trim());
+      if (!inTable) {
+        inTable = true;
+        isTableHeader = true;
+        html += `<table><thead><tr>`;
+        cells.forEach((cell) => {
+          html += `<th style="border: 1px solid #9ca3af; padding: 5px 8px; text-align: left; font-weight: 700; background-color: #f3f4f6;">${processInline(cell)}</th>`;
+        });
+        html += `</tr>`;
+      } else {
+        const tag = isTableHeader ? "th" : "td";
+        const style = isTableHeader
+          ? "border: 1px solid #9ca3af; padding: 5px 8px; text-align: left; font-weight: 700;"
+          : "border: 1px solid #d1d5db; padding: 5px 8px;";
+        html += `<tr>`;
+        cells.forEach((cell) => { html += `<${tag} style="${style}">${processInline(cell)}</${tag}>`; });
+        html += `</tr>`;
+      }
+      continue;
+    } else if (inTable) {
+      html += (isTableHeader ? "</thead>" : "</tbody>") + "</table>";
+      inTable = false;
+      isTableHeader = true;
+    }
+
+    // Headings.
+    if (line.startsWith("# ")) {
+      flushParagraph();
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<h1>${processInline(line.slice(2))}</h1>`;
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      flushParagraph();
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<h2>${processInline(line.slice(3))}</h2>`;
+      continue;
+    }
+    if (line.startsWith("### ")) {
+      flushParagraph();
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<h3>${processInline(line.slice(4))}</h3>`;
+      continue;
+    }
+
+    // Bullet list items.
+    if (line.startsWith("- ") || line.startsWith("* ")) {
+      flushParagraph();
+      if (!inList) { html += `<ul>`; inList = true; }
+      html += `<li>${processInline(line.slice(2))}</li>`;
+      continue;
+    }
+
+    // Numbered list items — rendered as a bolded-number paragraph.
+    if (/^\d+\.\s/.test(line)) {
+      flushParagraph();
+      if (inList) { html += "</ul>"; inList = false; }
+      const text = line.replace(/^\d+\.\s/, "");
+      html += `<p><strong>${line.match(/^\d+\./)?.[0]}</strong> ${processInline(text)}</p>`;
+      continue;
+    }
+
+    // Block-terminating label lines (memo headers, signature lines, rules).
+    if (isBlockLabelLine(line)) {
+      flushParagraph();
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<p>${processInline(line)}</p>`;
+      continue;
+    }
+
+    // Ordinary paragraph continuation line — accumulate into the current
+    // paragraph so consecutive lines join into one <p> that is long enough
+    // for text-align: justify to actually distribute space between words.
+    if (inList) { html += "</ul>"; inList = false; }
+    pendingParagraph.push(processInline(line));
+  }
+
+  flushParagraph();
+  if (inList) html += "</ul>";
+  if (inTable) html += (isTableHeader ? "</thead>" : "</tbody>") + "</table>";
+
+  return html;
+}
+
 async function fileToImageAsset(file: File): Promise<ImageAsset> {
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error("Please upload a PNG, JPG, or WEBP image.");
-  }
-  if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
-    throw new Error(`Image must be smaller than ${MAX_IMAGE_SIZE_MB}MB.`);
-  }
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) throw new Error("Please upload a PNG, JPG, or WEBP image.");
+  if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) throw new Error(`Image must be smaller than ${MAX_IMAGE_SIZE_MB}MB.`);
 
   const rawDataUrl: string = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Could not read the image file."));
+    reader.onerror = () => reject(new Error("Could not read image file."));
     reader.readAsDataURL(file);
   });
 
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new window.Image();
     el.onload = () => resolve(el);
-    el.onerror = () => reject(new Error("Could not decode the image file."));
+    el.onerror = () => reject(new Error("Could not decode image."));
     el.src = rawDataUrl;
   });
 
@@ -99,795 +445,3415 @@ async function fileToImageAsset(file: File): Promise<ImageAsset> {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Could not initialize image processing.");
+  if (!ctx) throw new Error("Canvas is not supported.");
   ctx.drawImage(img, 0, 0, width, height);
 
-  const isPng = file.type === "image/png" || file.type === "image/webp";
-  const outputMime = isPng ? "image/png" : "image/jpeg";
-  const processedDataUrl = canvas.toDataURL(outputMime, 0.92);
-  const base64 = processedDataUrl.split(",")[1];
+  const dataUrl = canvas.toDataURL("image/png");
+  const base64 = dataUrl.split(",")[1];
 
-  return {
-    dataUrl: processedDataUrl,
-    base64,
-    mimeType: isPng ? "png" : "jpg",
-    width,
-    height,
-    fileName: file.name,
-  };
+  return { dataUrl, base64, mimeType: "png", width, height, fileName: file.name };
+}
+
+async function loadImageAssetFromUrl(url: string): Promise<ImageAsset | null> {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const fileName = url.split("/").pop() || "letterhead.png";
+    const type = blob.type || (/\.jpe?g$/i.test(url) ? "image/jpeg" : "image/png");
+    const file = new File([blob], fileName, { type });
+    return await fileToImageAsset(file);
+  } catch { return null; }
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+  return bytes;
+}
+
+function scaledDocxDimensions(image: ImageAsset): { width: number; height: number } {
+  const maxHeight = HEADER_FOOTER_DISPLAY_HEIGHT_PX;
+  const aspect = image.width / image.height;
+  const height = Math.min(maxHeight, image.height);
+  const width = Math.round(height * aspect);
+  return { width, height: Math.round(height) };
+}
+
+/**
+ * Compute the pixel dimensions to render an image inside a fixed band
+ * (maxW × maxH) while preserving its aspect ratio.
+ */
+function fitImageInBand(
+  image: { width: number; height: number } | null,
+  maxW: number,
+  maxH: number,
+): { width: number; height: number } | null {
+  if (!image || !image.width || !image.height) return null;
+  const aspect = image.width / image.height;
+  let h = maxH;
+  let w = h * aspect;
+  if (w > maxW) {
+    w = maxW;
+    h = w / aspect;
+  }
+  return { width: Math.round(w), height: Math.round(h) };
 }
 
 /* ============================================================================
- * DOCUMENT CONTENT PARSER
+ * PAGINATION SPLITTING HELPERS
  * ==========================================================================*/
-type ParsedBlock =
-  | { type: "h1"; text: string }
-  | { type: "h2"; text: string }
-  | { type: "h3"; text: string }
-  | { type: "bullet"; text: string }
-  | { type: "paragraph"; text: string }
-  | { type: "blank" };
+function splitListAtHeight(listEl: HTMLElement, maxHeight: number): { firstHtml: string; restEl: HTMLElement } | null {
+  const items = Array.from(listEl.children).filter((c) => c.tagName === "LI") as HTMLElement[];
+  if (items.length < 2) return null;
 
-function parseContentToBlocks(raw: string): ParsedBlock[] {
-  const lines = raw.replace(/\r\n/g, "\n").split("\n");
-  const blocks: ParsedBlock[] = [];
+  const listTop = listEl.getBoundingClientRect().top;
+  let splitIndex = -1;
+  for (let i = 0; i < items.length; i++) {
+    const itemBottom = items[i].getBoundingClientRect().bottom;
+    if (itemBottom - listTop <= maxHeight) splitIndex = i;
+    else break;
+  }
+  if (splitIndex < 0 || splitIndex >= items.length - 1) return null;
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
+  const firstEl = document.createElement(listEl.tagName);
+  const restEl = document.createElement(listEl.tagName);
+  Array.from(listEl.attributes).forEach((attr) => {
+    firstEl.setAttribute(attr.name, attr.value);
+    restEl.setAttribute(attr.name, attr.value);
+  });
+  items.forEach((li, idx) => {
+    const cloneLi = li.cloneNode(true) as HTMLElement;
+    (idx <= splitIndex ? firstEl : restEl).appendChild(cloneLi);
+  });
+  return { firstHtml: firstEl.outerHTML, restEl };
+}
 
-    if (!line) {
-      blocks.push({ type: "blank" });
-    } else if (line.startsWith("# ")) {
-      blocks.push({ type: "h1", text: line.slice(2).trim() });
-    } else if (line.startsWith("## ")) {
-      blocks.push({ type: "h2", text: line.slice(3).trim() });
-    } else if (line.startsWith("### ")) {
-      blocks.push({ type: "h3", text: line.slice(4).trim() });
-    } else if (line.startsWith("- ") || line.startsWith("* ")) {
-      blocks.push({ type: "bullet", text: line.slice(2).trim() });
+function splitTableAtHeight(table: HTMLElement, maxHeight: number): { firstHtml: string; restEl: HTMLElement } | null {
+  const rows = Array.from(table.querySelectorAll("tbody > tr")) as HTMLElement[];
+  if (rows.length < 2) return null;
+
+  const limit = maxHeight - 10;
+  const top = table.getBoundingClientRect().top;
+  let splitIndex = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].getBoundingClientRect().bottom - top <= limit) splitIndex = i;
+    else break;
+  }
+  if (splitIndex < 0 || splitIndex >= rows.length - 1) return null;
+
+  const firstEl = table.cloneNode(true) as HTMLElement;
+  const restEl = table.cloneNode(true) as HTMLElement;
+  firstEl.querySelectorAll("tbody > tr").forEach((r, i) => { if (i > splitIndex) r.remove(); });
+  restEl.querySelectorAll("tbody > tr").forEach((r, i) => { if (i <= splitIndex) r.remove(); });
+  return { firstHtml: firstEl.outerHTML, restEl };
+}
+
+function splitElementAtHeight(el: HTMLElement, maxHeight: number): { firstHtml: string; restEl: HTMLElement } | null {
+  const elTop = el.getBoundingClientRect().top;
+  const collectTextNodes = (root: Node): Text[] => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    let n: Node | null;
+    while ((n = walker.nextNode())) nodes.push(n as Text);
+    return nodes;
+  };
+  const textNodes = collectTextNodes(el);
+  const totalLen = textNodes.reduce((sum, t) => sum + (t.textContent?.length || 0), 0);
+  if (totalLen < 2) return null;
+
+  const rangeAtOffset = (root: Node, nodes: Text[], offset: number): Range => {
+    const range = document.createRange();
+    range.setStart(root, 0);
+    let remaining = offset;
+    for (const tn of nodes) {
+      const len = tn.textContent?.length || 0;
+      if (remaining <= len) { range.setEnd(tn, Math.max(0, remaining)); return range; }
+      remaining -= len;
+    }
+    range.setEnd(root, root.childNodes.length);
+    return range;
+  };
+  const bottomAtOffset = (offset: number): number => {
+    const range = rangeAtOffset(el, textNodes, offset);
+    const rects = range.getClientRects();
+    return rects.length ? rects[rects.length - 1].bottom : elTop;
+  };
+
+  if (bottomAtOffset(1) - elTop > maxHeight) return null;
+
+  let lo = 1;
+  let hi = totalLen;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (bottomAtOffset(mid) - elTop <= maxHeight) lo = mid;
+    else hi = mid - 1;
+  }
+  let splitOffset = lo;
+  if (splitOffset >= totalLen - 1) return null;
+
+  let combined = "";
+  for (const tn of textNodes) combined += tn.textContent || "";
+  let snapped = splitOffset;
+  let guard = 0;
+  while (snapped > 0 && guard < 60 && !/\s/.test(combined[snapped - 1] || "")) { snapped--; guard++; }
+  if (snapped > 0 && splitOffset - snapped < 60) splitOffset = snapped;
+  if (splitOffset <= 0) return null;
+
+  const clone = el.cloneNode(true) as HTMLElement;
+  const cloneTextNodes = collectTextNodes(clone);
+  const boundary = rangeAtOffset(clone, cloneTextNodes, splitOffset);
+
+  const firstRange = document.createRange();
+  firstRange.setStart(clone, 0);
+  firstRange.setEnd(boundary.endContainer, boundary.endOffset);
+  const firstContents = firstRange.cloneContents();
+
+  const removeRange = document.createRange();
+  removeRange.setStart(clone, 0);
+  removeRange.setEnd(boundary.endContainer, boundary.endOffset);
+  removeRange.deleteContents();
+
+  const restFirstText = collectTextNodes(clone)[0];
+  if (restFirstText && restFirstText.textContent) {
+    restFirstText.textContent = restFirstText.textContent.replace(/^ +/, "");
+  }
+
+  const firstEl = document.createElement(el.tagName);
+  Array.from(el.attributes).forEach((attr) => firstEl.setAttribute(attr.name, attr.value));
+  firstEl.appendChild(firstContents);
+  return { firstHtml: firstEl.outerHTML, restEl: clone };
+}
+
+function sanitizeFileName(input: string): string {
+  return input.trim().slice(0, 40).replace(/[^a-z0-9\s-]/gi, "").replace(/\s+/g, "_") || "CTU_Document";
+}
+
+const MAX_TARGET_PAGES = 5;
+
+function parseTargetPageCount(prompt: string): number | null {
+  const p = (prompt || "").toLowerCase();
+  if (/multi[-\s]?page/.test(p)) return MAX_TARGET_PAGES;
+  const wordMatch = p.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\s*page/);
+  if (wordMatch) {
+    const map: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const n = map[wordMatch[1]] ?? 1;
+    return Math.min(n, MAX_TARGET_PAGES);
+  }
+  const numMatch = p.match(/(\d+)\s*page/);
+  if (numMatch) {
+    const n = parseInt(numMatch[1], 10);
+    if (n >= 1) return Math.min(n, MAX_TARGET_PAGES);
+  }
+  return 1;
+}
+
+function parseFontSizePt(styleStr: string, baseSizePt: number): number | null {
+  if (!styleStr) return null;
+  const match = styleStr.match(/([\d.]+)\s*(pt|px|em)?/i);
+  if (!match) return null;
+  const val = parseFloat(match[1]);
+  if (isNaN(val)) return null;
+  const unit = (match[2] || "pt").toLowerCase();
+  if (unit === "px") return Math.round((val * 72) / 96);
+  if (unit === "em") return Math.round(val * baseSizePt);
+  return Math.round(val);
+}
+
+/* ============================================================================
+ * SELECTION STYLING HELPER
+ * ==========================================================================*/
+function wrapRangeInStyledSpans(
+  range: Range,
+  cssProp: "font-family" | "font-size",
+  cssValue: string
+): HTMLElement[] {
+  const common = range.commonAncestorContainer;
+  const rootEl: Element | null = common.nodeType === Node.ELEMENT_NODE
+    ? (common as Element)
+    : common.parentElement;
+  if (!rootEl) return [];
+
+  const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+  const intersecting: Text[] = [];
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    const t = n as Text;
+    if (!t.data || !range.intersectsNode(t)) continue;
+    const isStart = t === range.startContainer;
+    const isEnd = t === range.endContainer;
+    const s = isStart ? range.startOffset : 0;
+    const e = isEnd ? range.endOffset : t.data.length;
+    if (e <= s) continue;
+    intersecting.push(t);
+  }
+  if (intersecting.length === 0) return [];
+
+  const isolated: Text[] = [];
+  for (let i = intersecting.length - 1; i >= 0; i--) {
+    const t = intersecting[i];
+    const isStart = t === range.startContainer;
+    const isEnd = t === range.endContainer;
+    const s = isStart ? range.startOffset : 0;
+    const e = isEnd ? range.endOffset : t.data.length;
+
+    let middle: Text = t;
+    if (e < middle.data.length) middle.splitText(e);
+    if (s > 0) middle = middle.splitText(s);
+    isolated.push(middle);
+  }
+  isolated.reverse();
+
+  const spans: HTMLElement[] = [];
+  for (const t of isolated) {
+    const parent = t.parentNode;
+    if (!parent) continue;
+    const span = document.createElement("span");
+    span.style.setProperty(cssProp, cssValue, "important");
+    parent.insertBefore(span, t);
+    span.appendChild(t);
+    spans.push(span);
+  }
+  return spans;
+}
+
+/* ============================================================================
+ * GLOBAL TEXT OFFSET HELPERS
+ * ==========================================================================*/
+function getPageElements(pagesRoot: HTMLElement): HTMLElement[] {
+  return Array.from(pagesRoot.querySelectorAll<HTMLElement>("[data-page-content='1']"));
+}
+
+function captureCaretOffset(root: HTMLElement): number | null {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return null;
+
+  let offset = 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    if (n === range.startContainer) return offset + range.startOffset;
+    offset += (n.textContent || "").length;
+  }
+  return null;
+}
+
+function restoreCaretOffset(root: HTMLElement, offset: number): boolean {
+  let remaining = offset;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    const len = (n.textContent || "").length;
+    if (remaining <= len) {
+      const range = document.createRange();
+      range.setStart(n, remaining);
+      range.collapse(true);
+      const sel = window.getSelection();
+      if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      return true;
+    }
+    remaining -= len;
+  }
+  return false;
+}
+
+function captureGlobalCaretOffset(pagesRoot: HTMLElement): number | null {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const start = sel.getRangeAt(0).startContainer;
+  if (!pagesRoot.contains(start)) return null;
+
+  const pageEls = getPageElements(pagesRoot);
+  let globalOffset = 0;
+  for (const pageEl of pageEls) {
+    if (pageEl.contains(start)) {
+      const localOffset = captureCaretOffset(pageEl);
+      if (localOffset === null) return null;
+      return globalOffset + localOffset;
+    }
+    globalOffset += (pageEl.textContent || "").length;
+  }
+  return null;
+}
+
+function restoreGlobalCaretOffset(pagesRoot: HTMLElement, globalOffset: number): boolean {
+  const pageEls = getPageElements(pagesRoot);
+  let remaining = globalOffset;
+  for (const pageEl of pageEls) {
+    const textLen = (pageEl.textContent || "").length;
+    if (remaining <= textLen) return restoreCaretOffset(pageEl, remaining);
+    remaining -= textLen;
+  }
+  const last = pageEls[pageEls.length - 1];
+  if (last) return restoreCaretOffset(last, (last.textContent || "").length);
+  return false;
+}
+
+function findGlobalTextPosition(
+  pageEls: HTMLElement[],
+  target: number
+): { node: Text; offset: number } | null {
+  if (target < 0) return null;
+  let remaining = target;
+  for (const pageEl of pageEls) {
+    const walker = document.createTreeWalker(pageEl, NodeFilter.SHOW_TEXT);
+    let n: Node | null;
+    while ((n = walker.nextNode())) {
+      const text = n as Text;
+      const len = text.data.length;
+      if (len === 0) continue;
+      if (remaining <= len) return { node: text, offset: remaining };
+      remaining -= len;
+    }
+  }
+  return null;
+}
+
+function computeGlobalRangeOffsets(
+  range: Range,
+  pagesRoot: HTMLElement
+): SelectionDescriptor | null {
+  const pageEls = getPageElements(pagesRoot);
+  if (pageEls.length === 0) return null;
+
+  const offsetFor = (node: Node, offset: number): number | null => {
+    let cumulative = 0;
+    for (const pageEl of pageEls) {
+      if (pageEl.contains(node)) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          let local = 0;
+          const walker = document.createTreeWalker(pageEl, NodeFilter.SHOW_TEXT);
+          let n: Node | null;
+          while ((n = walker.nextNode())) {
+            if (n === node) return cumulative + local + offset;
+            local += (n as Text).data.length;
+          }
+          return null;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as Element;
+          let sum = 0;
+          const max = Math.min(offset, el.childNodes.length);
+          for (let i = 0; i < max; i++) {
+            sum += (el.childNodes[i].textContent || "").length;
+          }
+          return cumulative + sum;
+        }
+        return null;
+      }
+      cumulative += (pageEl.textContent || "").length;
+    }
+    return null;
+  };
+
+  const start = offsetFor(range.startContainer, range.startOffset);
+  const end = offsetFor(range.endContainer, range.endOffset);
+  if (start === null || end === null || end <= start) return null;
+  return { start, end };
+}
+
+function resolveGlobalRange(
+  pagesRoot: HTMLElement,
+  startGlobal: number,
+  endGlobal: number
+): Range | null {
+  const pageEls = getPageElements(pagesRoot);
+  if (pageEls.length === 0) return null;
+
+  const start = findGlobalTextPosition(pageEls, startGlobal);
+  const end = findGlobalTextPosition(pageEls, endGlobal);
+  if (!start || !end) return null;
+
+  try {
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    return range;
+  } catch {
+    return null;
+  }
+}
+
+function isRangeAttachedToPages(range: Range, pagesRoot: HTMLElement): boolean {
+  return (
+    pagesRoot.contains(range.startContainer) &&
+    pagesRoot.contains(range.endContainer)
+  );
+}
+
+/* ============================================================================
+ * FIT-TO-PAGE HELPERS
+ * ==========================================================================*/
+function reduceExplicitFontSizes(measure: HTMLElement, delta: number): void {
+  measure.querySelectorAll<HTMLElement>("[style*='font-size']").forEach((el) => {
+    const current = parseFloat(el.style.fontSize);
+    if (!isNaN(current) && current > MIN_FIT_FONT_PT) {
+      el.style.fontSize = `${Math.max(MIN_FIT_FONT_PT, current - delta)}pt`;
+    }
+  });
+}
+
+function aggressiveFitToOnePage(
+  measure: HTMLElement,
+  targetHeight: number,
+  baseFontPt: number
+): void {
+  const MAX_STEPS = 200;
+  const SPACING_RAMP = 18;
+
+  let fontPt = baseFontPt;
+  let steps = 0;
+  let prevHeight = Infinity;
+
+  while (measure.offsetHeight > targetHeight && steps < MAX_STEPS) {
+    steps++;
+    const p = Math.min(1, steps / SPACING_RAMP);
+
+    const h1Margin = Math.max(0, 14 - p * 14);
+    const h2MarginTop = Math.max(1, 14 - p * 13);
+    const h2MarginBottom = Math.max(0, 6 - p * 6);
+    const h3MarginTop = Math.max(1, 10 - p * 9);
+    const h3MarginBottom = Math.max(0, 4 - p * 4);
+    const pMarginBottom = Math.max(0, 6 - p * 6);
+    const ulMarginBottom = Math.max(0, 8 - p * 8);
+    const liMarginBottom = Math.max(0, 4 - p * 4);
+    const tableMargin = Math.max(0, 8 - p * 8);
+    const ulPaddingLeft = Math.max(12, 24 - p * 12);
+    const h2PaddingBottom = Math.max(0, 2 - p * 2);
+
+    measure.querySelectorAll("h1").forEach((el) => {
+      (el as HTMLElement).style.margin = `0 0 ${h1Margin}px 0`;
+    });
+    measure.querySelectorAll("h2").forEach((el) => {
+      const h = el as HTMLElement;
+      h.style.margin = `${h2MarginTop}px 0 ${h2MarginBottom}px 0`;
+      h.style.paddingBottom = `${h2PaddingBottom}px`;
+    });
+    measure.querySelectorAll("h3").forEach((el) => {
+      (el as HTMLElement).style.margin = `${h3MarginTop}px 0 ${h3MarginBottom}px 0`;
+    });
+    measure.querySelectorAll("p").forEach((el) => {
+      (el as HTMLElement).style.margin = `0 0 ${pMarginBottom}px 0`;
+    });
+    measure.querySelectorAll("ul, ol").forEach((el) => {
+      const h = el as HTMLElement;
+      h.style.margin = `0 0 ${ulMarginBottom}px 0`;
+      h.style.paddingLeft = `${ulPaddingLeft}px`;
+    });
+    measure.querySelectorAll("li").forEach((el) => {
+      (el as HTMLElement).style.marginBottom = `${liMarginBottom}px`;
+    });
+    measure.querySelectorAll("table").forEach((el) => {
+      (el as HTMLElement).style.margin = `${tableMargin}px 0`;
+    });
+
+    const h = measure.offsetHeight;
+    if (h <= targetHeight) break;
+
+    if (p >= 1 && fontPt > MIN_FIT_FONT_PT) {
+      fontPt = Math.max(MIN_FIT_FONT_PT, fontPt - 0.5);
+      measure.style.fontSize = `${fontPt}pt`;
+      reduceExplicitFontSizes(measure, 0.5);
+    } else if (h >= prevHeight - 0.5) {
+      break;
+    }
+    prevHeight = h;
+  }
+}
+
+function moderateShrinkForMultiPage(measure: HTMLElement, maxTotalHeight: number, baseFontPt: number): void {
+  const MAX_STEPS = 30;
+  let fontPt = baseFontPt;
+  let steps = 0;
+
+  while (measure.offsetHeight > maxTotalHeight && steps < MAX_STEPS) {
+    steps++;
+    const intensity = steps * 0.7;
+
+    measure.querySelectorAll("h1, h2, h3, p, ul, ol, li, table").forEach((el) => {
+      const h = el as HTMLElement;
+      const tag = h.tagName.toLowerCase();
+      if (tag === "h1") { h.style.margin = "0 0 6px 0"; h.style.fontSize = `${Math.max(1.0, 1.3 - intensity * 0.02)}em`; }
+      else if (tag === "h2") { h.style.margin = "6px 0 2px 0"; h.style.fontSize = `${Math.max(0.85, 1.02 - intensity * 0.015)}em`; h.style.paddingBottom = "1px"; }
+      else if (tag === "h3") { h.style.margin = "4px 0 2px 0"; }
+      else if (tag === "p") { h.style.margin = "0 0 3px 0"; }
+      else if (tag === "ul" || tag === "ol") { h.style.margin = "0 0 3px 0"; h.style.paddingLeft = "20px"; }
+      else if (tag === "li") { h.style.margin = "0 0 2px 0"; }
+      else if (tag === "table") { h.style.margin = "4px 0"; }
+    });
+
+    if (measure.offsetHeight > maxTotalHeight && fontPt > MIN_FIT_FONT_PT) {
+      fontPt = Math.max(MIN_FIT_FONT_PT, fontPt - 0.5);
+      measure.style.fontSize = `${fontPt}pt`;
+    }
+    if (fontPt <= MIN_FIT_FONT_PT) {
+      reduceExplicitFontSizes(measure, 0.5);
+    }
+  }
+}
+
+const SIG_BLOCK_REGEX =
+  /\b(prepared\s+by|reviewed\s+by|approved\s+by|recommending\s+approval|recommended\s+by|noted\s+by|attested\s+by|conforme|submitted\s+by|respectfully\s+submitted)\b/i;
+
+function wrapTrailingSignatureBlock(measure: HTMLElement, maxHeight: number = Infinity): void {
+  const children = Array.from(measure.children) as HTMLElement[];
+  if (children.length < 3) return;
+
+  let firstSigIdx = -1;
+  for (let i = Math.max(0, children.length - SIGNATURE_LOOKBACK_BLOCKS); i < children.length; i++) {
+    const text = (children[i].textContent || "").trim();
+    if (SIG_BLOCK_REGEX.test(text)) { firstSigIdx = i; break; }
+  }
+  if (firstSigIdx < 1) return;
+
+  const wrapStart = firstSigIdx - 1;
+  const toWrap = children.slice(wrapStart);
+
+  const blockHeight = toWrap.reduce((sum, el) => sum + el.offsetHeight, 0);
+  if (blockHeight > maxHeight) return;
+
+  toWrap.forEach((el) => { if (el.parentNode === measure) measure.removeChild(el); });
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "signature-block-group";
+  wrapper.setAttribute("data-signature-block", "1");
+  wrapper.style.cssText = "page-break-inside: avoid; break-inside: avoid;";
+  toWrap.forEach((el) => wrapper.appendChild(el));
+  measure.appendChild(wrapper);
+}
+
+function splitHtmlIntoFragments(measure: HTMLElement, pageHeight: number): string[] {
+  const children = Array.from(measure.children) as HTMLElement[];
+  if (children.length === 0) return [measure.innerHTML];
+
+  if (measure.offsetHeight <= pageHeight + 4) {
+    return [measure.innerHTML];
+  }
+
+  const fragments: string[] = [];
+  const queue: HTMLElement[] = [...children];
+  let qIndex = 0;
+  let currentFragmentBlocks: string[] = [];
+  let pageStartTop: number | null = null;
+  const MIN_USEFUL_SPACE = 32;
+
+  while (qIndex < queue.length) {
+    const el = queue[qIndex];
+    qIndex++;
+
+    const tag = el.tagName.toLowerCase();
+    const rect = el.getBoundingClientRect();
+    const elTop = rect.top;
+    const elBottom = rect.bottom;
+    const elHeight = elBottom - elTop;
+
+    const isAtomic = tag === "div" || el.getAttribute("data-signature-block") === "1";
+
+    const trySplit = (maxHeight: number) => {
+      if (maxHeight < MIN_USEFUL_SPACE) return null;
+      if (isAtomic) return null;
+      if (tag === "ul" || tag === "ol") return splitListAtHeight(el, maxHeight);
+      if (tag === "table") return splitTableAtHeight(el, maxHeight);
+      if (tag === "p") return splitElementAtHeight(el, maxHeight);
+      return null;
+    };
+
+    if (pageStartTop === null) {
+      if (elHeight > pageHeight) {
+        const split = trySplit(pageHeight);
+        if (split) {
+          fragments.push(split.firstHtml);
+          el.insertAdjacentElement("afterend", split.restEl);
+          queue.splice(qIndex, 0, split.restEl);
+          continue;
+        }
+      }
+      currentFragmentBlocks.push(el.outerHTML);
+      pageStartTop = elTop;
+      continue;
+    }
+
+    const usedHeight = elBottom - pageStartTop;
+    if (usedHeight <= pageHeight) {
+      currentFragmentBlocks.push(el.outerHTML);
+      continue;
+    }
+
+    const spaceForEl = pageHeight - (elTop - pageStartTop);
+    const split = spaceForEl >= MIN_USEFUL_SPACE ? trySplit(spaceForEl) : null;
+
+    if (split) {
+      currentFragmentBlocks.push(split.firstHtml);
+      fragments.push(currentFragmentBlocks.join(""));
+      currentFragmentBlocks = [];
+      pageStartTop = null;
+      el.insertAdjacentElement("afterend", split.restEl);
+      queue.splice(qIndex, 0, split.restEl);
+      continue;
+    }
+
+    if (currentFragmentBlocks.length > 0) {
+      fragments.push(currentFragmentBlocks.join(""));
+      currentFragmentBlocks = [];
+      pageStartTop = null;
+    }
+
+    if (elHeight > pageHeight) {
+      const splitFresh = trySplit(pageHeight);
+      if (splitFresh) {
+        fragments.push(splitFresh.firstHtml);
+        el.insertAdjacentElement("afterend", splitFresh.restEl);
+        queue.splice(qIndex, 0, splitFresh.restEl);
+        continue;
+      }
+    }
+    currentFragmentBlocks.push(el.outerHTML);
+    pageStartTop = elTop;
+  }
+
+  if (currentFragmentBlocks.length > 0) {
+    fragments.push(currentFragmentBlocks.join(""));
+  }
+
+  return fragments;
+}
+
+/**
+ * Strip <br> elements that appear to be PDF/DOCX extraction artifacts —
+ * hard line breaks inserted at positions where the source text was already
+ * wrapping. These breaks defeat `text-align: justify`, because CSS treats
+ * every forced break as the last line of a segment and does not stretch
+ * it. Removing them lets the browser flow the text naturally.
+ *
+ * Detection is positional: for each <br> inside the block, measure the
+ * horizontal position of the character immediately before it. If that
+ * character reaches within a tolerance of the block's right edge, the
+ * <br> was placed where the text was already wrapping — replace it with
+ * a space. If the character ended well short (a signature block, a header
+ * label, an intentional blank line), the <br> is left intact.
+ *
+ * The tolerance is a compromise: too small and ordinary wrapped prose
+ * (which usually ends 10–80px short of the right edge because the last
+ * word didn't quite fit) escapes detection; too large and short-line
+ * content like signature blocks gets mangled. max(24, width*0.12) catches
+ * typical prose while still preserving deliberate short lines.
+ *
+ * Returns the number of <br> elements replaced.
+ */
+function stripExtractionBrTags(block: HTMLElement): number {
+  const blockRect = block.getBoundingClientRect();
+  if (blockRect.width <= 0) return 0;
+  const blockRight = blockRect.right;
+  const tolerance = Math.max(24, blockRect.width * 0.12);
+
+  const lastCharRightBeforeBr = (br: HTMLBRElement): number | null => {
+    let cursor: Node | null = br.previousSibling;
+    while (cursor) {
+      if (cursor.nodeType === Node.TEXT_NODE) {
+        const text = cursor.textContent || "";
+        if (text.trim().length > 0) {
+          const range = document.createRange();
+          try {
+            range.setStart(cursor, text.length - 1);
+            range.setEnd(cursor, text.length);
+            const rects = range.getClientRects();
+            if (rects.length > 0) return rects[rects.length - 1].right;
+          } catch { /* ignore */ }
+          return null;
+        }
+      } else if (cursor.nodeType === Node.ELEMENT_NODE) {
+        const walker = document.createTreeWalker(cursor, NodeFilter.SHOW_TEXT);
+        let last: Text | null = null;
+        let n: Node | null;
+        while ((n = walker.nextNode())) {
+          if ((n.textContent || "").trim().length > 0) last = n as Text;
+        }
+        if (last) {
+          const text = last.textContent || "";
+          const range = document.createRange();
+          try {
+            range.setStart(last, text.length - 1);
+            range.setEnd(last, text.length);
+            const rects = range.getClientRects();
+            if (rects.length > 0) return rects[rects.length - 1].right;
+          } catch { /* ignore */ }
+          return null;
+        }
+      }
+      cursor = cursor.previousSibling;
+    }
+    return null;
+  };
+
+  const brs = Array.from(block.querySelectorAll("br")) as HTMLBRElement[];
+  let removed = 0;
+  for (const br of brs) {
+    const rightPos = lastCharRightBeforeBr(br);
+    if (rightPos === null) continue;
+    if (rightPos >= blockRight - tolerance) {
+      const space = document.createTextNode(" ");
+      br.parentNode?.replaceChild(space, br);
+      removed++;
+    }
+  }
+  return removed;
+}
+
+/* ============================================================================
+ * SINGLE-PAGE HTML BUILDER  (print / PDF only)
+ * ==========================================================================*/
+interface SinglePageOptions {
+  fragment: string;
+  pageNum: number;
+  totalPages: number;
+  cfg: PageSizeConfig;
+  fontCss: string;
+  fontSizePt: number;
+  lineSpacing: string;
+  alignment: DocAlign;
+  headerImage: ImageAsset | null;
+  footerImage: ImageAsset | null;
+}
+
+function buildSinglePageHtml(opts: SinglePageOptions): string {
+  const {
+    fragment, pageNum, totalPages, cfg, fontCss, fontSizePt,
+    lineSpacing, alignment, headerImage, footerImage,
+  } = opts;
+
+  const bandWidth = cfg.cssWidth - PAGE_PADDING_LEFT - PAGE_PADDING_RIGHT;
+
+  const headerDims = fitImageInBand(headerImage, bandWidth, HEADER_AREA_HEIGHT - 8);
+  const footerDims = fitImageInBand(footerImage, bandWidth, FOOTER_AREA_HEIGHT - 6);
+
+  const pageStyle =
+    `width:${cfg.cssWidth}px;height:${cfg.cssHeight}px;` +
+    `padding:${PAGE_PADDING_TOP}px ${PAGE_PADDING_RIGHT}px ${PAGE_PADDING_BOTTOM}px ${PAGE_PADDING_LEFT}px;` +
+    `box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;` +
+    `background:#ffffff;font-family:${fontCss};font-size:${fontSizePt}pt;` +
+    `color:#111827;line-height:${lineSpacing};position:relative;`;
+
+  const headerBandStyle =
+    `height:${HEADER_AREA_HEIGHT}px;flex-shrink:0;` +
+    `display:flex;align-items:center;justify-content:center;` +
+    `padding:4px 0;box-sizing:border-box;overflow:hidden;`;
+
+  const headerHtml =
+    headerImage && headerDims
+      ? `<div style="${headerBandStyle}">` +
+          `<img src="${headerImage.dataUrl}" ` +
+          `style="width:${headerDims.width}px;height:${headerDims.height}px;display:block;" alt="" />` +
+        `</div>`
+      : "";
+
+  const contentStyle =
+    `flex:1 1 auto;min-height:0;overflow:hidden;text-align:${alignment};` +
+    `--doc-line-height:${lineSpacing};`;
+
+  const footerBandHeight = footerImage ? FOOTER_AREA_HEIGHT : FOOTER_MIN_HEIGHT;
+
+  const footerBandStyle =
+    `height:${footerBandHeight}px;flex-shrink:0;` +
+    `display:flex;flex-direction:column;justify-content:flex-end;align-items:center;` +
+    `padding-top:4px;border-top:1px solid #E5E7EB;position:relative;` +
+    `overflow:hidden;box-sizing:border-box;`;
+
+  const pageNumStyle =
+    `position:absolute;right:0;bottom:0;font-size:10px;` +
+    `color:#9CA3AF;font-weight:600;`;
+
+  const footerImgHtml =
+    footerImage && footerDims
+      ? `<img src="${footerImage.dataUrl}" ` +
+          `style="width:${footerDims.width}px;height:${footerDims.height}px;display:block;" alt="" />`
+      : "";
+
+  const footerHtml = `
+    <div style="${footerBandStyle}">
+      ${footerImgHtml}
+      <div style="${pageNumStyle}">Page ${pageNum} of ${totalPages}</div>
+    </div>
+  `;
+
+  return `<div style="${pageStyle}">${headerHtml}<div class="wysiwyg-content" style="${contentStyle}">${fragment}</div>${footerHtml}</div>`;
+}
+
+/* ============================================================================
+ * DOCX BUILDER
+ * ==========================================================================*/
+async function buildDocxBlobFromHtml(
+  html: string, docFontKey: DocFont, docFontSizePt: number, pageSizeKey: PageSize,
+  docAlignMode: DocAlign, headerImg: ImageAsset | null, noHdr: boolean,
+  footerImg: ImageAsset | null, noFtr: boolean
+): Promise<Blob> {
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+  const defaultFontName = FONT_CONFIG[docFontKey].docx;
+  const baseHalfPt = docFontSizePt * 2;
+  const currentSizeConfig = PAGE_SIZES[pageSizeKey];
+  const children: (Paragraph | Table)[] = [];
+
+  const base64ToBytes = (b64: string): Uint8Array => {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  };
+
+  const styleToFont = (styleFamily: string | undefined, fallback: string): string => {
+    if (!styleFamily) return fallback;
+    if (styleFamily.includes("Times")) return "Times New Roman";
+    if (styleFamily.includes("Arial") || styleFamily.includes("Calibri")) return "Calibri";
+    if (styleFamily.includes("Courier")) return "Courier New";
+    if (styleFamily.includes("Georgia")) return "Georgia";
+    return fallback;
+  };
+
+  type RunNode =
+    | { kind: "text"; text: string; font: string; size: number; bold: boolean; italics: boolean; underline: boolean; strike: boolean }
+    | { kind: "image"; data: Uint8Array; width: number; height: number; type: "png" | "jpg" };
+
+  const extractRuns = (
+    node: Node,
+    inherited: { bold?: boolean; italics?: boolean; underline?: boolean; strike?: boolean; font?: string; size?: number } = {}
+  ): RunNode[] => {
+    const bold = inherited.bold ?? false;
+    const italics = inherited.italics ?? false;
+    const underline = inherited.underline ?? false;
+    const strike = inherited.strike ?? false;
+    const font = inherited.font ?? defaultFontName;
+    const size = inherited.size ?? baseHalfPt;
+    const out: RunNode[] = [];
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? "";
+      if (text) out.push({ kind: "text", text, font, size, bold, italics, underline, strike });
+      return out;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return out;
+
+    const el = node as HTMLElement;
+    const tag = el.tagName;
+
+    if (tag === "IMG") {
+      const src = el.getAttribute("src") || "";
+      const b64 = src.startsWith("data:") ? src.split(",")[1] : "";
+      if (b64) {
+        const naturalW = parseFloat(el.getAttribute("width") || "") || 100;
+        const naturalH = parseFloat(el.getAttribute("height") || "") || 60;
+        const displayH = Math.min(100, naturalH) || naturalH;
+        const displayW = Math.round(displayH * (naturalW / naturalH));
+        const mime = src.split(";")[0].split(":")[1] || "image/png";
+        out.push({ kind: "image", data: base64ToBytes(b64), width: displayW, height: Math.round(displayH),
+          type: mime.includes("jpeg") || mime.includes("jpg") ? "jpg" : "png" });
+      }
+      return out;
+    }
+
+    const isBold = bold || tag === "STRONG" || tag === "B" || el.style.fontWeight === "bold" || parseInt(el.style.fontWeight || "0", 10) >= 600;
+    const isItalic = italics || tag === "EM" || tag === "I" || el.style.fontStyle === "italic";
+    const isUnderline = underline || tag === "U" || el.style.textDecoration.includes("underline");
+    const isStrike = strike || ["STRIKE", "S", "DEL"].includes(tag) || el.style.textDecoration.includes("line-through");
+    const nextFont = el.style.fontFamily ? styleToFont(el.style.fontFamily, font) : font;
+    let nextSize = size;
+    if (el.style.fontSize) {
+      const pt = parseFontSizePt(el.style.fontSize, Math.round(size / 2));
+      if (pt) nextSize = pt * 2;
+    }
+
+    for (const child of Array.from(el.childNodes)) {
+      out.push(...extractRuns(child, { bold: isBold, italics: isItalic, underline: isUnderline, strike: isStrike, font: nextFont, size: nextSize }));
+    }
+    return out;
+  };
+
+  const runsToDocx = (runs: RunNode[]): (TextRun | ImageRun)[] =>
+    runs.map((r) => {
+      if (r.kind === "image") {
+        return new ImageRun({ data: r.data, transformation: { width: r.width, height: r.height }, type: r.type });
+      }
+      return new TextRun({ text: r.text, font: r.font, bold: r.bold, italics: r.italics,
+        underline: r.underline ? {} : undefined, strike: r.strike, size: r.size });
+    });
+
+  const blockAlign = (el: HTMLElement, fallback: (typeof AlignmentType)[keyof typeof AlignmentType]) => {
+    const a = (el.style.textAlign || "").toLowerCase();
+    if (a === "center") return AlignmentType.CENTER;
+    if (a === "right") return AlignmentType.RIGHT;
+    if (a === "justify") return AlignmentType.JUSTIFIED;
+    if (a === "left") return AlignmentType.LEFT;
+    return fallback;
+  };
+
+  const nilBorders = {
+    top:    { style: BorderStyle.NIL, size: 0, color: "FFFFFF" },
+    bottom: { style: BorderStyle.NIL, size: 0, color: "FFFFFF" },
+    left:   { style: BorderStyle.NIL, size: 0, color: "FFFFFF" },
+    right:  { style: BorderStyle.NIL, size: 0, color: "FFFFFF" },
+  };
+
+  const buildDocxTable = (tableEl: HTMLTableElement): Table => {
+    const anyBordered = Array.from(tableEl.querySelectorAll("td, th")).some((c) => {
+      const style = (c as HTMLElement).style;
+      const border = style.border || style.borderTop || style.borderLeft || style.borderRight || style.borderBottom;
+      return border && !/none|0/.test(border);
+    });
+    const borderless = !anyBordered;
+
+    const rows = Array.from(
+      tableEl.querySelectorAll(":scope > tbody > tr, :scope > thead > tr, :scope > tr")
+    ) as HTMLTableRowElement[];
+
+    const tableRows = rows.map((tr) => {
+      const cells = Array.from(tr.children).filter((c) => c.tagName === "TD" || c.tagName === "TH") as HTMLTableCellElement[];
+      const totalCells = cells.length || 1;
+
+      return new TableRow({
+        children: cells.map((cell) => {
+          const wRaw = cell.getAttribute("width") || cell.style.width;
+          let pct = 100 / totalCells;
+          if (wRaw && wRaw.endsWith("%")) pct = parseFloat(wRaw);
+
+          const parts = (cell.innerHTML || "").split(/<br\s*\/?>/i);
+          const cellParagraphs: Paragraph[] = [];
+
+          for (const part of parts) {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = part;
+            const runs = runsToDocx(extractRuns(wrapper));
+            cellParagraphs.push(new Paragraph({ children: runs.length ? runs : [new TextRun("")], spacing: { before: 20, after: 20 } }));
+          }
+          if (cellParagraphs.length === 0) cellParagraphs.push(new Paragraph({ children: [new TextRun("")] }));
+
+          return new TableCell({
+            width: { size: Math.round(pct * 10), type: WidthType.PERCENTAGE },
+            borders: borderless ? nilBorders : undefined,
+            margins: { top: 40, bottom: 40, left: 60, right: 60 },
+            children: cellParagraphs,
+          });
+        }),
+      });
+    });
+
+    return new Table({
+      rows: tableRows,
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: borderless ? nilBorders : undefined,
+    });
+  };
+
+  const defaultAlign =
+    docAlignMode === "center" ? AlignmentType.CENTER :
+    docAlignMode === "right"  ? AlignmentType.RIGHT :
+    docAlignMode === "justify" ? AlignmentType.JUSTIFIED :
+    AlignmentType.LEFT;
+
+  for (const block of Array.from(temp.children)) {
+    const el = block as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "table") { children.push(buildDocxTable(el as HTMLTableElement)); continue; }
+
+    if (tag === "h1") {
+      const runs = runsToDocx(extractRuns(el, { bold: true }));
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 140, after: 260 },
+        children: runs.map((r) => r instanceof TextRun
+          ? new TextRun({ text: (el.textContent || "").toUpperCase(), font: defaultFontName, bold: true, size: Math.round(baseHalfPt * 1.55) })
+          : r),
+      }));
+    } else if (tag === "h2") {
+      const runs = runsToDocx(extractRuns(el, { bold: true }));
+      children.push(new Paragraph({
+        alignment: blockAlign(el, defaultAlign),
+        spacing: { before: 240, after: 120 },
+        children: runs.map((r) => r instanceof TextRun
+          ? new TextRun({ text: (el.textContent || ""), font: defaultFontName, bold: true, underline: {}, size: Math.round(baseHalfPt * 1.2) })
+          : r),
+      }));
+    } else if (tag === "h3") {
+      const runs = runsToDocx(extractRuns(el, { bold: true }));
+      children.push(new Paragraph({
+        alignment: blockAlign(el, defaultAlign),
+        spacing: { before: 180, after: 100 },
+        children: runs.map((r) => r instanceof TextRun
+          ? new TextRun({ text: (el.textContent || ""), font: defaultFontName, bold: true, underline: {}, size: Math.round(baseHalfPt * 1.05) })
+          : r),
+      }));
+    } else if (tag === "ul" || tag === "ol") {
+      for (const li of Array.from(el.querySelectorAll("li"))) {
+        children.push(new Paragraph({
+          bullet: { level: 0 },
+          alignment: blockAlign(li as HTMLElement, defaultAlign),
+          spacing: { before: 40, after: 40 },
+          children: runsToDocx(extractRuns(li)),
+        }));
+      }
     } else {
-      blocks.push({ type: "paragraph", text: line });
+      const innerRuns = runsToDocx(extractRuns(el));
+      if (innerRuns.length) {
+        children.push(new Paragraph({ alignment: blockAlign(el, defaultAlign), spacing: { before: 60, after: 100 }, children: innerRuns }));
+      }
     }
   }
 
-  return blocks;
+  const headerContent = !noHdr && headerImg
+    ? new Header({ children: [new Paragraph({ alignment: AlignmentType.CENTER,
+        children: [new ImageRun({ data: base64ToUint8Array(headerImg.base64), transformation: scaledDocxDimensions(headerImg), type: "png" })] })] })
+    : new Header({ children: [new Paragraph("")] });
+
+  const footerContent = !noFtr && footerImg
+    ? new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER,
+        children: [new ImageRun({ data: base64ToUint8Array(footerImg.base64), transformation: scaledDocxDimensions(footerImg), type: "png" })] })] })
+    : new Footer({ children: [new Paragraph("")] });
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: { size: { width: currentSizeConfig.docxWidth, height: currentSizeConfig.docxHeight },
+          margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } },
+      },
+      headers: { default: headerContent },
+      footers: { default: footerContent },
+      children: children.length > 0 ? children : [new Paragraph({ text: "CTU Document" })],
+    }],
+    styles: { default: { document: { run: { font: defaultFontName, size: baseHalfPt } } } },
+  });
+
+  return await Packer.toBlob(doc);
 }
 
+/* ============================================================================
+ * PREVIEW PAGE COMPONENT
+ * ==========================================================================*/
+interface PreviewPageProps {
+  fragment: string;
+  pageIndex: number;
+  totalPages: number;
+  cfg: PageSizeConfig;
+  fontCss: string;
+  fontSizePt: number;
+  lineSpacing: string;
+  alignment: DocAlign;
+  headerImage: ImageAsset | null;
+  footerImage: ImageAsset | null;
+  onInput: (pageIndex: number, html: string) => void;
+  onFocus: (pageIndex: number) => void;
+  onBlur: (pageIndex: number, e: React.FocusEvent<HTMLDivElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  onSelectionSync: () => void;
+}
+
+function PreviewPage(props: PreviewPageProps) {
+  const {
+    fragment, pageIndex, totalPages, cfg, fontCss, fontSizePt,
+    lineSpacing, alignment, headerImage, footerImage,
+    onInput, onFocus, onBlur, onKeyDown, onSelectionSync,
+  } = props;
+
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    if (el.innerHTML !== fragment) {
+      el.innerHTML = fragment;
+    }
+  }, [fragment]);
+
+  const bandWidth = cfg.cssWidth - PAGE_PADDING_LEFT - PAGE_PADDING_RIGHT;
+  const headerDims = fitImageInBand(headerImage, bandWidth, HEADER_AREA_HEIGHT - 8);
+  const footerDims = fitImageInBand(footerImage, bandWidth, FOOTER_AREA_HEIGHT - 6);
+
+  return (
+    <div
+      style={{
+        width: cfg.cssWidth,
+        height: cfg.cssHeight,
+        padding: `${PAGE_PADDING_TOP}px ${PAGE_PADDING_RIGHT}px ${PAGE_PADDING_BOTTOM}px ${PAGE_PADDING_LEFT}px`,
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "#ffffff",
+        fontFamily: fontCss,
+        fontSize: `${fontSizePt}pt`,
+        color: "#111827",
+        lineHeight: lineSpacing,
+        position: "relative",
+      }}
+    >
+      {headerImage && headerDims && (
+        <div
+          style={{
+            height: HEADER_AREA_HEIGHT,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "4px 0",
+            boxSizing: "border-box",
+            overflow: "hidden",
+          }}
+        >
+          <img
+            src={headerImage.dataUrl}
+            alt=""
+            style={{
+              width: `${headerDims.width}px`,
+              height: `${headerDims.height}px`,
+              display: "block",
+            }}
+          />
+        </div>
+      )}
+
+      <div
+        ref={contentRef}
+        className="wysiwyg-content"
+        data-page-content="1"
+        data-page-index={pageIndex}
+        contentEditable
+        suppressContentEditableWarning
+        spellCheck={false}
+        onInput={(e) => onInput(pageIndex, e.currentTarget.innerHTML)}
+        onFocus={() => onFocus(pageIndex)}
+        onBlur={(e) => onBlur(pageIndex, e)}
+        onKeyDown={onKeyDown}
+        onKeyUp={onSelectionSync}
+        onMouseUp={onSelectionSync}
+        style={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          overflow: "hidden",
+          textAlign: alignment,
+          ...cssVars({ "--doc-line-height": lineSpacing }),
+        }}
+      />
+
+      <div
+        style={{
+          height: footerImage ? FOOTER_AREA_HEIGHT : FOOTER_MIN_HEIGHT,
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          paddingTop: 4,
+          borderTop: "1px solid #E5E7EB",
+          position: "relative",
+          overflow: "hidden",
+          boxSizing: "border-box",
+        }}
+      >
+        {footerImage && footerDims && (
+          <img
+            src={footerImage.dataUrl}
+            alt=""
+            style={{
+              width: `${footerDims.width}px`,
+              height: `${footerDims.height}px`,
+              display: "block",
+            }}
+          />
+        )}
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            bottom: 0,
+            fontSize: 10,
+            color: "#9CA3AF",
+            fontWeight: 600,
+          }}
+        >
+          Page {pageIndex + 1} of {totalPages}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+ * MAIN COMPONENT
+ * ==========================================================================*/
 export function DocumentGenerator() {
+  const [view, setView] = useState<AppView>("chooser");
+  const [entryMode, setEntryMode] = useState<"ai" | "template">("ai");
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+
   const [prompt, setPrompt] = useState("");
-  const [generatedContent, setGeneratedContent] = useState("");
+  const [showAllPrompts, setShowAllPrompts] = useState(false);
+  const [activeRibbonTab, setActiveRibbonTab] = useState<RibbonTab>("home");
+
+  const [pageSize, setPageSize] = useState<PageSize>("short");
+  const [docFont] = useState<DocFont>("serif");
+  const [docFontSize] = useState(12);
+  const [docAlign] = useState<DocAlign>("left");
+  const [lineSpacing, setLineSpacing] = useState<LineSpacing>("1.5");
+
+  const [activeStyles, setActiveStyles] = useState({
+    bold: false, italic: false, underline: false, strike: false,
+    ul: false, ol: false, alignLeft: true, alignCenter: false, alignRight: false, alignJustify: false,
+    font: "serif" as DocFont,
+  });
+
+  const [displayedFontSize, setDisplayedFontSize] = useState(docFontSize);
+  const [wordCount, setWordCount] = useState(0);
   const [status, setStatus] = useState<GenerationStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<DownloadTarget>(null);
-  const [copySuccess, setCopySuccess] = useState(false);
-  const [showAllPrompts, setShowAllPrompts] = useState(false);
 
-  // Header letterhead state
+  const [repositoryLoading, setRepositoryLoading] = useState<string | null>(null);
+
   const [headerImage, setHeaderImage] = useState<ImageAsset | null>(null);
-  const [noHeader, setNoHeader] = useState(true);
   const [headerError, setHeaderError] = useState<string | null>(null);
-
-  // Footer letterhead state
   const [footerImage, setFooterImage] = useState<ImageAsset | null>(null);
-  const [noFooter, setNoFooter] = useState(true);
   const [footerError, setFooterError] = useState<string | null>(null);
 
+  const [showFontDropdown, setShowFontDropdown] = useState(false);
+  const fontDropdownRef = useRef<HTMLDivElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
   const footerInputRef = useRef<HTMLInputElement>(null);
 
-  const visiblePrompts = useMemo(
-    () => (showAllPrompts ? QUICK_PROMPTS : QUICK_PROMPTS.slice(0, COLLAPSED_PROMPT_COUNT)),
-    [showAllPrompts]
-  );
+  const [previewFragments, setPreviewFragments] = useState<string[]>([]);
+  const [fit, setFit] = useState<{ fontPt: number; lineHeight: string } | null>(null);
+
+  const previewWrapRef = useRef<HTMLDivElement>(null);
+  const previewPagesRef = useRef<HTMLDivElement>(null);
+  const activePageIndexRef = useRef<number>(-1);
+
+  const pendingGlobalCaretRef = useRef<number | null>(null);
+  const savedSelectionDescriptorRef = useRef<SelectionDescriptor | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
+
+  const suppressNextStyleSyncRef = useRef<boolean>(false);
+  const historyStackRef = useRef<string[]>([]);
+  const historyIndexRef = useRef<number>(-1);
+  const repaginateDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const hasUserEditedRef = useRef(false);
+
+  const [previewScale, setPreviewScale] = useState(1);
+  useEffect(() => {
+    const el = previewWrapRef.current;
+    if (!el) return;
+    const pageW = PAGE_SIZES[pageSize].cssWidth;
+    const update = () => {
+      const available = el.clientWidth - 64;
+      setPreviewScale(Math.max(0.3, Math.min(1.25, available / pageW)));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [pageSize, view]);
+
+  useEffect(() => {
+    if (view !== "editor") return;
+    try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch {}
+  }, [view]);
+
+  const defaultsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
+
+    (async () => {
+      const [defHeader, defFooter] = await Promise.all([
+        loadImageAssetFromUrl(DEFAULT_HEADER_URL),
+        loadImageAssetFromUrl(DEFAULT_FOOTER_URL),
+      ]);
+
+      if (defHeader) setHeaderImage((prev) => prev ?? defHeader);
+      if (defFooter) setFooterImage((prev) => prev ?? defFooter);
+    })();
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (fontDropdownRef.current && !fontDropdownRef.current.contains(e.target as Node)) setShowFontDropdown(false);
+    };
+    if (showFontDropdown) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showFontDropdown]);
+
+  const computePreviewFragments = (sourceHtml: string) => {
+    if (!sourceHtml || !sourceHtml.trim()) {
+      setFit(null);
+      setPreviewFragments([""]);
+      return;
+    }
+
+    const cfg = PAGE_SIZES[pageSize];
+    const hasHeader = !!headerImage;
+    const hasFooter = !!footerImage;
+
+    const contentAreaHeight = getContentAreaHeight(cfg.cssHeight, hasHeader, hasFooter);
+    const effectiveContentHeight = Math.max(80, contentAreaHeight - PAGE_FIT_SAFETY_PX);
+    const contentAreaWidth = getContentAreaWidth(cfg.cssWidth);
+    const baseLineHeight = parseFloat(lineSpacing) || 1.5;
+
+    const measure = document.createElement("div");
+    measure.className = "wysiwyg-content";
+    measure.style.cssText = `
+      position: absolute;
+      visibility: hidden;
+      top: -99999px;
+      left: -99999px;
+      width: ${contentAreaWidth}px;
+      font-family: ${FONT_CONFIG[docFont].css};
+      font-size: ${docFontSize}pt;
+      color: #111827;
+      box-sizing: border-box;
+      overflow: hidden;
+    `;
+    measure.style.setProperty("--doc-line-height", String(baseLineHeight));
+    measure.innerHTML = sourceHtml;
+    document.body.appendChild(measure);
+
+    const honourAiPageTarget = entryMode === "ai" && !hasUserEditedRef.current;
+    let targetPageCount: number | null = honourAiPageTarget ? parseTargetPageCount(prompt) : null;
+    if (!honourAiPageTarget && measure.offsetHeight <= effectiveContentHeight * SMALL_OVERFLOW_FIT_RATIO) {
+      targetPageCount = 1;
+    }
+
+    if (targetPageCount === 1) {
+      aggressiveFitToOnePage(measure, effectiveContentHeight, docFontSize);
+    } else if (targetPageCount !== null && targetPageCount > 1) {
+      const wasteBuffer = (targetPageCount - 1) * 60;
+      const maxTotalHeight = Math.max(
+        effectiveContentHeight,
+        effectiveContentHeight * targetPageCount - wasteBuffer
+      );
+      moderateShrinkForMultiPage(measure, maxTotalHeight, docFontSize);
+    }
+
+    const fitFontPt = parseFloat(measure.style.fontSize) || docFontSize;
+    const fitLineHeight = String(baseLineHeight);
+
+    wrapTrailingSignatureBlock(measure, effectiveContentHeight);
+
+    let fragments = splitHtmlIntoFragments(measure, effectiveContentHeight);
+
+    if (targetPageCount === 1 && fragments.length > 1) {
+      const retry = document.createElement("div");
+      retry.className = "wysiwyg-content";
+      retry.style.cssText = measure.style.cssText;
+      retry.style.setProperty("--doc-line-height", String(baseLineHeight));
+      retry.innerHTML = sourceHtml;
+      document.body.appendChild(retry);
+
+      aggressiveFitToOnePage(retry, effectiveContentHeight, docFontSize);
+      reduceExplicitFontSizes(retry, 0.5);
+      reduceExplicitFontSizes(retry, 0.5);
+      wrapTrailingSignatureBlock(retry, effectiveContentHeight);
+
+      const retryFragments = splitHtmlIntoFragments(retry, effectiveContentHeight);
+      if (retryFragments.length > 0 && retryFragments.length < fragments.length) {
+        fragments = retryFragments;
+      }
+
+      document.body.removeChild(retry);
+    }
+
+    document.body.removeChild(measure);
+
+    while (fragments.length > 1) {
+      const last = fragments[fragments.length - 1];
+      const text = last.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
+      if (text.length === 0) fragments.pop();
+      else break;
+    }
+
+    const finalFragments = fragments.length > 0 ? fragments : [sourceHtml];
+    setFit({ fontPt: fitFontPt, lineHeight: fitLineHeight });
+    setPreviewFragments(finalFragments);
+  };
+
+  const repaginateFromDom = () => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return;
+    const pageEls = getPageElements(pagesRoot);
+    if (pageEls.length === 0) return;
+
+    const currentFragments = pageEls.map((el) => el.innerHTML);
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (pagesRoot.contains(range.startContainer)) {
+        if (!range.collapsed && range.toString().trim().length > 0) {
+          const desc = computeGlobalRangeOffsets(range, pagesRoot);
+          if (desc) {
+            savedSelectionDescriptorRef.current = desc;
+            pendingGlobalCaretRef.current = null;
+          }
+        } else {
+          const caret = captureGlobalCaretOffset(pagesRoot);
+          if (caret !== null) pendingGlobalCaretRef.current = caret;
+        }
+      }
+    }
+
+    computePreviewFragments(currentFragments.join(""));
+  };
+
+  const scheduleRepaginate = () => {
+    if (repaginateDebounceRef.current) clearTimeout(repaginateDebounceRef.current);
+    repaginateDebounceRef.current = setTimeout(() => {
+      repaginateDebounceRef.current = null;
+      repaginateFromDom();
+    }, REPAGINATE_DEBOUNCE_MS);
+  };
+
+  const cancelScheduledRepaginate = () => {
+    if (repaginateDebounceRef.current) {
+      clearTimeout(repaginateDebounceRef.current);
+      repaginateDebounceRef.current = null;
+    }
+  };
+
+  const loadHtmlIntoPreview = (html: string) => {
+    cancelScheduledRepaginate();
+    hasUserEditedRef.current = false;
+    pendingGlobalCaretRef.current = null;
+    activePageIndexRef.current = -1;
+    savedRangeRef.current = null;
+    savedSelectionDescriptorRef.current = null;
+    computePreviewFragments(html);
+  };
+
+  useLayoutEffect(() => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return;
+
+    const pendingCaret = pendingGlobalCaretRef.current;
+    if (pendingCaret !== null) {
+      pendingGlobalCaretRef.current = null;
+      if (restoreGlobalCaretOffset(pagesRoot, pendingCaret)) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const node = sel.getRangeAt(0).startContainer;
+          const page = (node instanceof Element ? node : node.parentElement)
+            ?.closest<HTMLElement>("[data-page-content='1']");
+          if (page) {
+            const idx = parseInt(page.getAttribute("data-page-index") || "-1", 10);
+            if (idx >= 0) activePageIndexRef.current = idx;
+          }
+        }
+        return;
+      }
+    }
+
+    const desc = savedSelectionDescriptorRef.current;
+    if (desc) {
+      const resolved = resolveGlobalRange(pagesRoot, desc.start, desc.end);
+      if (resolved) {
+        const sel = window.getSelection();
+        if (sel) {
+          try { sel.removeAllRanges(); sel.addRange(resolved); } catch {}
+        }
+        savedRangeRef.current = null;
+
+        const page = (resolved.startContainer instanceof Element
+          ? resolved.startContainer
+          : resolved.startContainer.parentElement
+        )?.closest<HTMLElement>("[data-page-content='1']");
+        if (page) {
+          const idx = parseInt(page.getAttribute("data-page-index") || "-1", 10);
+          if (idx >= 0) activePageIndexRef.current = idx;
+        }
+      }
+    }
+  }, [previewFragments]);
+
+  useEffect(() => {
+    if (view !== "editor") return;
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return;
+    const pageEls = pagesRoot.querySelectorAll("[data-page-content='1']");
+    if (pageEls.length === 0) return;
+    repaginateFromDom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageSize, docFont, docFontSize, lineSpacing, docAlign, headerImage, footerImage]);
+
+  useEffect(() => {
+    const text = previewFragments.join(" ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ");
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    setWordCount(words);
+  }, [previewFragments]);
+
+  const readCurrentDocumentHtml = (): string => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return previewFragments.join("");
+    const pageEls = getPageElements(pagesRoot);
+    if (pageEls.length === 0) return previewFragments.join("");
+    return pageEls.map((el) => el.innerHTML).join("");
+  };
+
+  const saveHistorySnapshotFromDom = () => {
+    const snapshot = readCurrentDocumentHtml();
+    if (!snapshot) return;
+    if (historyIndexRef.current >= 0 && historyStackRef.current[historyIndexRef.current] === snapshot) return;
+    historyStackRef.current = historyStackRef.current.slice(0, historyIndexRef.current + 1);
+    historyStackRef.current.push(snapshot);
+    historyIndexRef.current = historyStackRef.current.length - 1;
+  };
+
+  const handleUndo = () => {
+    if (historyIndexRef.current > 0) {
+      historyIndexRef.current--;
+      loadHtmlIntoPreview(historyStackRef.current[historyIndexRef.current]);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndexRef.current < historyStackRef.current.length - 1) {
+      historyIndexRef.current++;
+      loadHtmlIntoPreview(historyStackRef.current[historyIndexRef.current]);
+    }
+  };
+
+  const placeCaretAtStart = (node: Node) => {
+    const r = document.createRange();
+    r.setStart(node, 0);
+    r.collapse(true);
+    const s = window.getSelection();
+    if (s) { s.removeAllRanges(); s.addRange(r); }
+  };
+
+  const handlePageInput = (pageIndex: number, html: string) => {
+    hasUserEditedRef.current = true;
+    setPreviewFragments((prev) => {
+      if (prev[pageIndex] === html) return prev;
+      const next = [...prev];
+      next[pageIndex] = html;
+      return next;
+    });
+    scheduleRepaginate();
+  };
+
+  const handlePageFocus = (pageIndex: number) => {
+    activePageIndexRef.current = pageIndex;
+  };
+
+  const handlePageBlur = (_pageIndex: number, e: React.FocusEvent<HTMLDivElement>) => {
+    const related = e.relatedTarget as HTMLElement | null;
+    if (related && related.closest && related.closest("[data-page-content='1']")) {
+      return;
+    }
+    cancelScheduledRepaginate();
+    saveHistorySnapshotFromDom();
+    repaginateFromDom();
+  };
+
+  const getPageIndexFromEl = (el: HTMLElement | null): number => {
+    if (!el) return -1;
+    const v = el.getAttribute("data-page-index");
+    if (v === null) return -1;
+    const n = parseInt(v, 10);
+    return isNaN(n) ? -1 : n;
+  };
+
+  const handleEnterInHeading = (e: React.KeyboardEvent<HTMLDivElement>): boolean => {
+    const ed = e.currentTarget;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false;
+
+    const anchor = sel.anchorNode;
+    const anchorEl = anchor instanceof Element ? anchor : anchor?.parentElement;
+    const heading = anchorEl?.closest("h1, h2, h3") as HTMLElement | null;
+    if (!heading || !ed.contains(heading)) return false;
+
+    e.preventDefault();
+    const range = sel.getRangeAt(0);
+    const before = document.createRange();
+    before.selectNodeContents(heading);
+    before.setEnd(range.startContainer, range.startOffset);
+    const after = document.createRange();
+    after.selectNodeContents(heading);
+    after.setStart(range.startContainer, range.startOffset);
+    const atStart = before.toString().length === 0;
+    const atEnd = after.toString().length === 0;
+
+    const p = document.createElement("p");
+    if (atStart && atEnd) {
+      p.innerHTML = "<br>";
+      heading.replaceWith(p);
+      placeCaretAtStart(p);
+    } else if (atStart) {
+      p.innerHTML = "<br>";
+      heading.before(p);
+    } else if (atEnd) {
+      p.innerHTML = "<br>";
+      heading.after(p);
+      placeCaretAtStart(p);
+    } else {
+      const tail = document.createRange();
+      tail.setStart(range.startContainer, range.startOffset);
+      tail.setEnd(heading, heading.childNodes.length);
+      p.appendChild(tail.extractContents());
+      heading.after(p);
+      placeCaretAtStart(p);
+    }
+
+    const pageIndex = getPageIndexFromEl(ed);
+    if (pageIndex >= 0) {
+      const html = ed.innerHTML;
+      setPreviewFragments((prev) => {
+        if (prev[pageIndex] === html) return prev;
+        const next = [...prev];
+        next[pageIndex] = html;
+        return next;
+      });
+    }
+    hasUserEditedRef.current = true;
+    scheduleRepaginate();
+    return true;
+  };
+
+  const handlePageKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !e.nativeEvent.isComposing) {
+      if (handleEnterInHeading(e)) return;
+    }
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === "z" || e.key === "Z") {
+        e.preventDefault();
+        if (e.shiftKey) handleRedo(); else handleUndo();
+      } else if (e.key === "y" || e.key === "Y") {
+        e.preventDefault();
+        handleRedo();
+      }
+    }
+  };
+
+  const captureActiveSelectionFromRange = (range: Range) => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return;
+    savedRangeRef.current = range.cloneRange();
+    const desc = computeGlobalRangeOffsets(range, pagesRoot);
+    if (desc) savedSelectionDescriptorRef.current = desc;
+  };
+
+  const clearActiveSelection = () => {
+    savedRangeRef.current = null;
+    savedSelectionDescriptorRef.current = null;
+  };
+
+  const getActiveLiveRange = (): Range | null => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return null;
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      const range = sel.getRangeAt(0);
+      if (
+        !range.collapsed &&
+        range.toString().trim().length > 0 &&
+        pagesRoot.contains(range.startContainer) &&
+        pagesRoot.contains(range.endContainer)
+      ) {
+        return range;
+      }
+    }
+
+    if (
+      savedRangeRef.current &&
+      !savedRangeRef.current.collapsed &&
+      savedRangeRef.current.toString().trim().length > 0 &&
+      isRangeAttachedToPages(savedRangeRef.current, pagesRoot)
+    ) {
+      return savedRangeRef.current;
+    }
+
+    const desc = savedSelectionDescriptorRef.current;
+    if (desc) {
+      const resolved = resolveGlobalRange(pagesRoot, desc.start, desc.end);
+      if (resolved && !resolved.collapsed && resolved.toString().trim().length > 0) {
+        return resolved;
+      }
+    }
+
+    return null;
+  };
+
+  /**
+   * Return the range to act on for toolbar commands that should also work
+   * from a collapsed caret (alignment, list toggles, block-level styles).
+   */
+  const getActiveRangeOrCaret = (): Range | null => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return null;
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (
+        pagesRoot.contains(range.startContainer) &&
+        pagesRoot.contains(range.endContainer)
+      ) {
+        return range;
+      }
+    }
+
+    if (
+      savedRangeRef.current &&
+      isRangeAttachedToPages(savedRangeRef.current, pagesRoot)
+    ) {
+      return savedRangeRef.current;
+    }
+
+    const desc = savedSelectionDescriptorRef.current;
+    if (desc) {
+      const resolved = resolveGlobalRange(pagesRoot, desc.start, desc.end);
+      if (resolved) return resolved;
+    }
+
+    return null;
+  };
+
+  const saveCurrentSelection = () => {
+    const sel = window.getSelection();
+    const pagesRoot = previewPagesRef.current;
+    if (
+      sel && sel.rangeCount > 0 && !sel.isCollapsed &&
+      sel.toString().trim().length > 0 &&
+      pagesRoot && pagesRoot.contains(sel.anchorNode)
+    ) {
+      captureActiveSelectionFromRange(sel.getRangeAt(0));
+    }
+  };
+
+  const restoreSelection = () => {
+    const range = getActiveLiveRange();
+    if (!range) return;
+    const sel = window.getSelection();
+    if (sel) {
+      try { sel.removeAllRanges(); sel.addRange(range); } catch {}
+    }
+  };
+
+  const getPageElFromRange = (range: Range): HTMLElement | null => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return null;
+    const node = range.startContainer;
+    const el = (node instanceof Element ? node : node.parentElement)
+      ?.closest<HTMLElement>("[data-page-content='1']");
+    if (!el || !pagesRoot.contains(el)) return null;
+    return el;
+  };
+
+  const getFocusedPageEl = (): HTMLElement | null => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return null;
+    const idx = activePageIndexRef.current;
+    if (idx < 0) return null;
+    const pageEls = getPageElements(pagesRoot);
+    return pageEls[idx] || null;
+  };
+
+  const syncAllPageState = () => {
+    const pagesRoot = previewPagesRef.current;
+    if (!pagesRoot) return;
+    const pageEls = getPageElements(pagesRoot);
+    if (pageEls.length === 0) return;
+    const nextFragments = pageEls.map((el) => el.innerHTML);
+    setPreviewFragments((prev) => {
+      if (prev.length === nextFragments.length && prev.every((p, i) => p === nextFragments[i])) return prev;
+      return nextFragments;
+    });
+  };
+
+  const handleSelectionSync = () => {
+    saveCurrentSelection();
+    updateActiveSelectionStyles();
+  };
+
+  const updateActiveSelectionStyles = () => {
+    if (suppressNextStyleSyncRef.current) { suppressNextStyleSyncRef.current = false; return; }
+    try {
+      const sel = window.getSelection();
+      const pagesRoot = previewPagesRef.current;
+      if (!pagesRoot) return;
+
+      if (sel && sel.rangeCount > 0 && pagesRoot.contains(sel.anchorNode)) {
+        if (!sel.isCollapsed && sel.toString().trim().length > 0) {
+          captureActiveSelectionFromRange(sel.getRangeAt(0));
+        } else if (sel.isCollapsed) {
+          clearActiveSelection();
+        }
+      }
+
+      if (sel && sel.rangeCount > 0 && pagesRoot.contains(sel.anchorNode)) {
+        const isBold = document.queryCommandState("bold");
+        const isItalic = document.queryCommandState("italic");
+        const isUnderline = document.queryCommandState("underline");
+        const isStrike = document.queryCommandState("strikeThrough");
+        const isUl = document.queryCommandState("insertUnorderedList");
+        const isOl = document.queryCommandState("insertOrderedList");
+
+        let node: Node | null = sel.anchorNode;
+        if (node && node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+
+        let detectedFont: DocFont = docFont;
+        let detectedSize: number = docFontSize;
+        let blockAlign: "left" | "center" | "right" | "justify" = "left";
+
+        if (node && node instanceof HTMLElement) {
+          const fs = window.getComputedStyle(node);
+          const ff = fs.fontFamily.toLowerCase();
+          if (ff.includes("times")) detectedFont = "serif";
+          else if (ff.includes("arial") || ff.includes("calibri") || ff.includes("sans-serif")) detectedFont = "sans";
+          else if (ff.includes("georgia")) detectedFont = "georgia";
+          else if (ff.includes("courier")) detectedFont = "mono";
+
+          const px = parseFloat(fs.fontSize);
+          if (px) detectedSize = Math.round((px * 72) / 96);
+
+          const alignNode = node.closest(
+            "p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote"
+          ) as HTMLElement | null;
+          const cssAlign = (alignNode ? window.getComputedStyle(alignNode).textAlign : "").toLowerCase();
+          if (cssAlign === "center") blockAlign = "center";
+          else if (cssAlign === "right" || cssAlign === "end") blockAlign = "right";
+          else if (cssAlign === "justify") blockAlign = "justify";
+          else blockAlign = "left";
+        }
+
+        setActiveStyles({
+          bold: isBold, italic: isItalic, underline: isUnderline, strike: isStrike,
+          ul: isUl, ol: isOl,
+          alignLeft: blockAlign === "left",
+          alignCenter: blockAlign === "center",
+          alignRight: blockAlign === "right",
+          alignJustify: blockAlign === "justify",
+          font: detectedFont,
+        });
+        setDisplayedFontSize(detectedSize);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    const handler = () => { if (view === "editor") updateActiveSelectionStyles(); };
+    document.addEventListener("selectionchange", handler);
+    return () => document.removeEventListener("selectionchange", handler);
+  }, [view, docAlign]);
+
+  const handleLineSpacingChange = (ls: LineSpacing) => {
+    hasUserEditedRef.current = true;
+    setLineSpacing(ls);
+  };
+
+  const handlePageSizeChange = (ps: PageSize) => {
+    hasUserEditedRef.current = true;
+    setPageSize(ps);
+  };
 
   const handleHeaderUpload = async (file: File | undefined) => {
     if (!file) return;
     setHeaderError(null);
-    try {
-      const asset = await fileToImageAsset(file);
-      setHeaderImage(asset);
-      setNoHeader(false);
-    } catch (err) {
-      setHeaderError(err instanceof Error ? err.message : "Could not process header image.");
-    } finally {
-      if (headerInputRef.current) headerInputRef.current.value = "";
-    }
+    try { setHeaderImage(await fileToImageAsset(file)); }
+    catch (err) { setHeaderError(err instanceof Error ? err.message : "Could not process image."); }
   };
 
   const handleFooterUpload = async (file: File | undefined) => {
     if (!file) return;
     setFooterError(null);
+    try { setFooterImage(await fileToImageAsset(file)); }
+    catch (err) { setFooterError(err instanceof Error ? err.message : "Could not process image."); }
+  };
+
+  const removeHeaderLetterhead = () => { setHeaderImage(null); setHeaderError(null); };
+  const removeFooterLetterhead = () => { setFooterImage(null); setFooterError(null); };
+
+  const resolveFileNameBase = (): string => {
+    if (entryMode === "template" && activeTemplateId) {
+      return sanitizeFileName(activeTemplateId);
+    }
+    return sanitizeFileName(prompt);
+  };
+
+  const loadRepositoryDocument = async (doc: RepositoryDocument) => {
+    if (repositoryLoading) {
+      console.warn("[loadRepositoryDocument] ignoring click — already loading:", repositoryLoading);
+      return;
+    }
+
+    setErrorMessage(null);
+    setRepositoryLoading(doc.name);
+
     try {
-      const asset = await fileToImageAsset(file);
-      setFooterImage(asset);
-      setNoFooter(false);
+      const url = `/api/repository-documents/${encodeURIComponent(doc.name)}/content`;
+      console.log("[loadRepositoryDocument] →", url);
+
+      const resp = await fetch(url);
+      console.log("[loadRepositoryDocument] ←", resp.status, resp.headers.get("content-type"));
+
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        const snippet = errText ? ` — ${errText.slice(0, 200)}` : "";
+        throw new Error(`Could not load document content (HTTP ${resp.status})${snippet}`);
+      }
+
+      const payload: RepositoryDocumentContent = await resp.json();
+      console.log("[loadRepositoryDocument] payload keys:", Object.keys(payload || {}));
+
+      if (!payload.content_html || !payload.content_html.trim()) {
+        throw new Error(
+          `"${doc.name}" could not be reconstructed as an editable document. ` +
+          "The original file may be missing from storage. " +
+          "Re-upload it via the accreditation evidence flow."
+        );
+      }
+
+      // The repository's stored header_image_url / footer_image_url are
+      // intentionally ignored — the editor always uses the local
+      // /public/ctu-argao-header.jpg and /public/ctu-argao-footer.jpg files
+      // loaded by the mount-time bootstrap.
+      if (payload.page_size && ["short", "a4", "long"].includes(payload.page_size)) {
+        setPageSize(payload.page_size as PageSize);
+      }
+      if (payload.line_spacing && ["1.15", "1.5", "2.0"].includes(payload.line_spacing)) {
+        setLineSpacing(payload.line_spacing as LineSpacing);
+      }
+
+      historyStackRef.current = [payload.content_html];
+      historyIndexRef.current = 0;
+
+      setPrompt(payload.name || doc.name);
+      setEntryMode("template");
+      setActiveTemplateId(doc.name);
+      setStatus("success");
+      setErrorMessage(null);
+      setView("editor");
+      loadHtmlIntoPreview(payload.content_html);
+
+      console.log("[loadRepositoryDocument] ✓ opened:", doc.name);
     } catch (err) {
-      setFooterError(err instanceof Error ? err.message : "Could not process footer image.");
+      console.error("[loadRepositoryDocument] ✗ failed:", err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to open document."
+      );
+      setStatus("error");
     } finally {
-      if (footerInputRef.current) footerInputRef.current.value = "";
+      setRepositoryLoading(null);
     }
   };
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-
     setStatus("generating");
     setErrorMessage(null);
 
     try {
-      const response = await apiClient.post("/api/generate-document", {
-        prompt: prompt.trim()
-      });
-      setGeneratedContent(response.data.content);
-      setStatus("success");
-    } catch (err: any) {
-      console.warn("Backend generate error, trying fallback generation...", err);
-      try {
-        const fallbackContent = generateFallbackDocument(prompt.trim());
-        setGeneratedContent(fallbackContent);
-        setStatus("success");
-      } catch (fallbackErr) {
-        setErrorMessage(
-          err.response?.data?.detail || "Something went wrong while generating your document."
-        );
-        setStatus("error");
+      let rawContent = "";
+      const headerFooterInfo: string[] = [];
+      if (headerImage) headerFooterInfo.push("Header letterhead image attached.");
+      if (footerImage) headerFooterInfo.push("Footer letterhead image attached.");
+
+      const targetPages = parseTargetPageCount(prompt);
+      const WORDS_PER_PAGE = 275;
+      let pagePromptInstruction = "";
+      if (targetPages === 1) {
+        pagePromptInstruction =
+          "CRITICAL: The generated text MUST FIT ON EXACTLY ONE (1) PAGE. " +
+          "Aim for 250–300 words total, no more. Be concise and executive — " +
+          "every extra word risks spilling onto a second page.";
+      } else if (targetPages !== null && targetPages > 1) {
+        const targetWords = targetPages * WORDS_PER_PAGE;
+        pagePromptInstruction =
+          `PAGE LIMIT: Produce content of approximately ${targetPages} pages ` +
+          `(~250–300 words per page, ~${targetWords} words total). Do not exceed this.`;
       }
+
+      const fullPromptPayload = `${prompt}\n\n${pagePromptInstruction} ${headerFooterInfo.join(" ")}`.trim();
+
+      try {
+        const { apiClient } = await import("@/app/api/client");
+        const response = await apiClient.post("/generate-document", { 
+          prompt: fullPromptPayload, targetPages 
+        });
+        if (response.ok) {
+          const data = await response.json();
+          rawContent = data.content ?? "";
+        } else throw new Error("Server returned error status");
+      } catch {
+        rawContent = `# ${prompt.toUpperCase()}\n\n**DOCUMENT REF NO.:** CTU-ARG-DOC-2026-001\n**DATE:** ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}\n\n## 1.0 PURPOSE AND SCOPE\nThis document outlines official guidelines and procedural terms regarding ${prompt}.\n\n## 2.0 DIRECTIVES AND PROVISIONS\n- All concerned personnel shall adhere to university governance standards.\n- Regular compliance reports must be submitted to the Office of the Dean.\n\n## 3.0 SIGNATORIES\n\n**Prepared by:**\n____________________________________\nFaculty Member / Proponent\n\n**Approved by:**\n____________________________________\nCampus Director`;
+      }
+
+      const parsedHtml = markdownToHtml(rawContent);
+      historyStackRef.current = [parsedHtml];
+      historyIndexRef.current = 0;
+
+      setEntryMode("ai");
+      setActiveTemplateId(null);
+      setStatus("success");
+
+      setView("editor");
+      loadHtmlIntoPreview(parsedHtml);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to draft document.");
+      setStatus("error");
     }
   };
 
-  function generateFallbackDocument(userPrompt: string): string {
-    const titleMatch = userPrompt.replace(/^(generate|create|draft|write)\s+(a|an|the)?\s*/i, "").trim();
-    const cleanTitle = titleMatch.charAt(0).toUpperCase() + titleMatch.slice(1);
+  const restoreSelectionAroundSpans = (spans: HTMLElement[]): Range | null => {
+    if (spans.length === 0) return null;
+    const first = spans[0];
+    const last = spans[spans.length - 1];
+    const firstText = first.firstChild;
+    const lastText = last.lastChild;
 
-    return `# ${cleanTitle || "Official Institutional Document"}
-
-## 1. Document Overview & Purpose
-This document has been drafted by the CTU Institutional Knowledge System to address the requirements specified: "${userPrompt}".
-
-## 2. General Provisions & Policies
-- All activities covered by this draft must strictly comply with official university memoranda and quality standards.
-- Primary point of contact for execution: __________________________________________________
-- Responsible Department / Program Unit: __________________________________________________
-- Effective Date / Term: __________________________________________________
-
-## 3. Operational Requirements & Guidelines
-The designated officers and departments shall ensure proper documentation and fulfillment of all stated deliverables:
-- Item 1: Complete and verify all supporting documents and compliance checklists.
-- Item 2: Facilitate departmental coordination and administrative review.
-- Item 3: Submit quarterly milestone reports to the Quality Assurance Office.
-
-## 4. Endorsement & Signatures
-In witness whereof, the authorized parties have executed this document on this _____ day of _______________, 2026 at Cebu Technological University - Argao Campus.
-
-
-__________________________________________
-Authorized Department Representative
-
-__________________________________________
-Campus Quality Assurance Director`;
-  }
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(generatedContent);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    } catch {
-      setErrorMessage("Could not copy to clipboard. Please copy manually.");
+    const nr = document.createRange();
+    if (firstText && firstText.nodeType === Node.TEXT_NODE && lastText && lastText.nodeType === Node.TEXT_NODE) {
+      nr.setStart(firstText, 0);
+      nr.setEnd(lastText, (lastText.textContent ?? "").length);
+    } else {
+      nr.selectNodeContents(first);
     }
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(nr); }
+    return nr;
+  };
+
+  const commitPageMutation = () => {
+    hasUserEditedRef.current = true;
+
+    const sel = window.getSelection();
+    const pagesRoot = previewPagesRef.current;
+    if (
+      sel && sel.rangeCount > 0 && !sel.isCollapsed &&
+      sel.toString().trim().length > 0 &&
+      pagesRoot && pagesRoot.contains(sel.anchorNode) && pagesRoot.contains(sel.focusNode)
+    ) {
+      captureActiveSelectionFromRange(sel.getRangeAt(0));
+    } else {
+      clearActiveSelection();
+    }
+
+    syncAllPageState();
+    scheduleRepaginate();
+    saveHistorySnapshotFromDom();
+  };
+
+  const applyFontToSelection = (fontKey: DocFont): boolean => {
+    const range = getActiveLiveRange();
+    if (!range || range.collapsed) return false;
+    const pageEl = getPageElFromRange(range);
+    if (!pageEl) return false;
+
+    pageEl.focus();
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+
+    const spans = wrapRangeInStyledSpans(range, "font-family", FONT_CONFIG[fontKey].css);
+    if (spans.length === 0) return false;
+
+    const nr = restoreSelectionAroundSpans(spans);
+    if (nr) suppressNextStyleSyncRef.current = true;
+    setActiveStyles((prev) => ({ ...prev, font: fontKey }));
+    commitPageMutation();
+    return true;
+  };
+
+  const applyFontSizeToSelection = (deltaOrSize: number, isAbsolute = false): boolean => {
+    const range = getActiveLiveRange();
+    if (!range || range.collapsed) return false;
+    const pageEl = getPageElFromRange(range);
+    if (!pageEl) return false;
+
+    const targetPt = isAbsolute
+      ? Math.max(8, Math.min(124, deltaOrSize))
+      : Math.max(8, Math.min(124, displayedFontSize + deltaOrSize));
+
+    pageEl.focus();
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+
+    const spans = wrapRangeInStyledSpans(range, "font-size", `${targetPt}pt`);
+    if (spans.length === 0) return false;
+
+    const nr = restoreSelectionAroundSpans(spans);
+    if (nr) suppressNextStyleSyncRef.current = true;
+    setDisplayedFontSize(targetPt);
+    commitPageMutation();
+    return true;
+  };
+
+  const applyFormattingCommand = (command: string, value?: string) => {
+    // Caret-tolerant range so list toggles work from a bare caret.
+    const range = getActiveRangeOrCaret();
+    if (!range) return;
+    const pageEl = getPageElFromRange(range);
+    if (!pageEl) return;
+
+    pageEl.focus();
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+
+    document.execCommand(command, false, value);
+
+    // Cancel any debounced repaginate scheduled during execCommand's input
+    // events, and commit synchronously so the state we persist IS the DOM
+    // we just mutated. A stale fragment can no longer overwrite the change.
+    cancelScheduledRepaginate();
+    hasUserEditedRef.current = true;
+
+    const sel2 = window.getSelection();
+    const pagesRoot = previewPagesRef.current;
+    if (
+      sel2 && sel2.rangeCount > 0 && !sel2.isCollapsed &&
+      sel2.toString().trim().length > 0 &&
+      pagesRoot && pagesRoot.contains(sel2.anchorNode) && pagesRoot.contains(sel2.focusNode)
+    ) {
+      captureActiveSelectionFromRange(sel2.getRangeAt(0));
+    } else {
+      clearActiveSelection();
+    }
+
+    syncAllPageState();
+    saveHistorySnapshotFromDom();
+    repaginateFromDom();
+    updateActiveSelectionStyles();
+  };
+
+  const handleFontFamilyChange = (newFont: DocFont) => {
+    applyFontToSelection(newFont);
+    setShowFontDropdown(false);
+  };
+
+  const handleFontSizeChange = (deltaOrSize: number, isAbsolute = false) => {
+    applyFontSizeToSelection(deltaOrSize, isAbsolute);
+  };
+
+  /**
+   * Apply text-align directly to the block-level elements intersecting the
+   * current selection. Bypasses document.execCommand, whose justifyFull
+   * silently no-ops inside a CSS-transformed contentEditable and whose
+   * behaviour varies for the other three alignments across browsers.
+   *
+   * Block detection recognizes standard block tags (P, H1-H6, LI, TD, TH,
+   * BLOCKQUOTE, PRE) plus direct-child DIVs — Chrome's contentEditable wraps
+   * Enter-generated paragraphs in a bare <div> when the initial content did
+   * not start as a <p>. Without the DIV case, selecting such a paragraph
+   * and clicking Justify would find no target and silently do nothing.
+   */
+  const applyParagraphAlignment = (align: DocAlign): boolean => {
+    const range = getActiveRangeOrCaret();
+    if (!range) return false;
+    const pageEl = getPageElFromRange(range);
+    if (!pageEl) return false;
+
+    const BLOCK_TAGS = new Set([
+      "P", "H1", "H2", "H3", "H4", "H5", "H6",
+      "LI", "TD", "TH", "BLOCKQUOTE", "PRE",
+    ]);
+
+    const isBlockElement = (el: HTMLElement): boolean => {
+      if (BLOCK_TAGS.has(el.tagName)) return true;
+      // A direct-child DIV of the page content element is a contentEditable
+      // paragraph wrapper (from Enter in a plain-text region). Nested divs
+      // — styling wrappers, table cells, etc. — are not alignment targets.
+      if (el.tagName === "DIV" && el.parentNode === pageEl) return true;
+      return false;
+    };
+
+    const findEnclosingBlock = (node: Node): HTMLElement | null => {
+      let cur: Node | null = node;
+      while (cur && cur !== pageEl) {
+        if (cur instanceof HTMLElement && isBlockElement(cur)) return cur;
+        cur = cur.parentNode;
+      }
+      return null;
+    };
+
+    const startBlock = findEnclosingBlock(range.startContainer);
+    const endBlock = findEnclosingBlock(range.endContainer);
+
+    const targets = new Set<HTMLElement>();
+    if (startBlock) targets.add(startBlock);
+
+    if (startBlock && endBlock && startBlock !== endBlock) {
+      // Build an ordered list of block-level descendants of the page,
+      // including direct-child DIVs, by walking every element in document
+      // order and keeping the ones that qualify.
+      const allBlocks = Array.from(pageEl.querySelectorAll<HTMLElement>("*"))
+        .filter(isBlockElement);
+
+      const lo = allBlocks.indexOf(startBlock);
+      const hi = allBlocks.indexOf(endBlock);
+      if (lo >= 0 && hi >= 0) {
+        const [a, b] = lo <= hi ? [lo, hi] : [hi, lo];
+        for (let i = a; i <= b; i++) targets.add(allBlocks[i]);
+      }
+    }
+
+    if (targets.size === 0) return false;
+
+    targets.forEach((block) => {
+      // For non-left alignments, remove PDF/DOCX extraction artifacts —
+      // the <br> tags that break each visual line — so the chosen
+      // alignment can actually take visual effect. The strip is
+      // position-based, so intentional short-line breaks (headers,
+      // signature blocks, addresses) are preserved.
+      if (align !== "left") {
+        stripExtractionBrTags(block);
+      }
+
+      if (align === "left") {
+        block.style.removeProperty("text-align");
+        if (block.getAttribute("style") === "") block.removeAttribute("style");
+      } else {
+        block.style.textAlign = align;
+      }
+    });
+
+    const arr = Array.from(targets);
+    const newRange = document.createRange();
+    newRange.setStartBefore(arr[0]);
+    newRange.setEndAfter(arr[arr.length - 1]);
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(newRange); }
+    savedRangeRef.current = newRange.cloneRange();
+    const pagesRoot = previewPagesRef.current;
+    if (pagesRoot) {
+      const desc = computeGlobalRangeOffsets(newRange, pagesRoot);
+      if (desc) savedSelectionDescriptorRef.current = desc;
+    }
+
+    hasUserEditedRef.current = true;
+    cancelScheduledRepaginate();
+    syncAllPageState();
+    saveHistorySnapshotFromDom();
+    repaginateFromDom();
+    updateActiveSelectionStyles();
+    return true;
+  };
+
+  const handleAlignmentChange = (align: DocAlign) => {
+    applyParagraphAlignment(align);
+  };
+
+  const insertTextAtCaret = (text: string) => {
+    const range = getActiveLiveRange();
+    let pageEl = range ? getPageElFromRange(range) : null;
+    if (!pageEl) pageEl = getFocusedPageEl();
+    if (!pageEl) return;
+
+    pageEl.focus();
+    if (range) {
+      const sel = window.getSelection();
+      if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+    }
+    document.execCommand("insertText", false, text);
+    clearActiveSelection();
+    commitPageMutation();
+  };
+
+  const insertSignatureBlank = () => insertTextAtCaret("____________________________________");
+  const insertDateStamp = () =>
+    insertTextAtCaret(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+
+  const handlePrint = () => {
+    const fragments = previewFragments.length ? previewFragments : [""];
+    const cfg = PAGE_SIZES[pageSize];
+
+    const pagesHtml = fragments
+      .map((frag, idx) =>
+        buildSinglePageHtml({
+          fragment: frag,
+          pageNum: idx + 1,
+          totalPages: fragments.length,
+          cfg,
+          fontCss: FONT_CONFIG[docFont].css,
+          fontSizePt: fit?.fontPt ?? docFontSize,
+          lineSpacing: fit?.lineHeight ?? lineSpacing,
+          alignment: docAlign,
+          headerImage,
+          footerImage,
+        })
+      )
+      .join("");
+
+    const printWindow = window.open("", "_blank", "width=900,height=750");
+    if (!printWindow) return setErrorMessage("Please allow pop-ups to print the document.");
+
+    printWindow.document.write(`<!DOCTYPE html><html><head>
+      <title>${resolveFileNameBase()}</title>
+      <style>
+        @page { size: ${cfg.cssWidth}px ${cfg.cssHeight}px; margin: 0; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: #ffffff; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .print-pages { display: flex; flex-direction: column; align-items: center; }
+        ${CONTENT_STYLES}
+      </style>
+    </head><body><div class="print-pages">${pagesHtml}</div></body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
   };
 
   const handleDownloadDocx = async () => {
-    if (!generatedContent.trim()) return;
     setDownloading("docx");
     setErrorMessage(null);
-
     try {
-      const blocks = parseContentToBlocks(generatedContent);
-
-      const bodyParagraphs = blocks.map((block) => {
-        switch (block.type) {
-          case "h1":
-            return new Paragraph({
-              alignment: AlignmentType.CENTER,
-              spacing: { before: 120, after: 280 },
-              children: [
-                new TextRun({
-                  text: block.text.toUpperCase(),
-                  bold: true,
-                  size: 30,
-                  font: "Calibri",
-                }),
-              ],
-            });
-          case "h2":
-            return new Paragraph({
-              spacing: { before: 240, after: 120 },
-              children: [
-                new TextRun({
-                  text: block.text,
-                  bold: true,
-                  underline: {},
-                  size: 24,
-                  font: "Calibri",
-                }),
-              ],
-            });
-          case "h3":
-            return new Paragraph({
-              spacing: { before: 180, after: 100 },
-              children: [
-                new TextRun({
-                  text: block.text,
-                  bold: true,
-                  underline: {},
-                  size: 22,
-                  font: "Calibri",
-                }),
-              ],
-            });
-          case "bullet":
-            return new Paragraph({
-              text: block.text,
-              bullet: { level: 0 },
-              spacing: { after: 80 },
-            });
-          case "paragraph":
-            return new Paragraph({
-              spacing: { after: 140, line: 276 },
-              children: [new TextRun({ text: block.text, size: 22, font: "Calibri" })],
-            });
-          case "blank":
-            return new Paragraph({ spacing: { after: 100 } });
-        }
-      });
-
-      const headerConfig =
-        !noHeader && headerImage
-          ? {
-              default: new Header({
-                children: [
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    children: [
-                      new ImageRun({
-                        data: Uint8Array.from(atob(headerImage.base64), (c) => c.charCodeAt(0)),
-                        transformation: {
-                          width: Math.round(
-                            (headerImage.width / headerImage.height) * HEADER_FOOTER_DISPLAY_HEIGHT_PX
-                          ),
-                          height: HEADER_FOOTER_DISPLAY_HEIGHT_PX,
-                        },
-                        type: headerImage.mimeType === "png" ? "png" : "jpg",
-                      }),
-                    ],
-                  }),
-                ],
-              }),
-            }
-          : undefined;
-
-      const footerConfig =
-        !noFooter && footerImage
-          ? {
-              default: new Footer({
-                children: [
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    children: [
-                      new ImageRun({
-                        data: Uint8Array.from(atob(footerImage.base64), (c) => c.charCodeAt(0)),
-                        transformation: {
-                          width: Math.round(
-                            (footerImage.width / footerImage.height) * HEADER_FOOTER_DISPLAY_HEIGHT_PX
-                          ),
-                          height: HEADER_FOOTER_DISPLAY_HEIGHT_PX,
-                        },
-                        type: footerImage.mimeType === "png" ? "png" : "jpg",
-                      }),
-                    ],
-                  }),
-                ],
-              }),
-            }
-          : undefined;
-
-      const doc = new Document({
-        sections: [
-          {
-            properties: {
-              page: {
-                margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-              },
-            },
-            headers: headerConfig,
-            footers: footerConfig,
-            children: bodyParagraphs,
-          },
-        ],
-      });
-
-      const blob = await Packer.toBlob(doc);
-      saveAs(blob, "CTU_Generated_Document.docx");
+      const masterHtml = readCurrentDocumentHtml();
+      const docxBlob = await buildDocxBlobFromHtml(
+        masterHtml, docFont, Math.round((fit?.fontPt ?? docFontSize) * 2) / 2, pageSize, docAlign,
+        headerImage, !headerImage, footerImage, !footerImage
+      );
+      saveAs(docxBlob, `${resolveFileNameBase()}_${new Date().toISOString().slice(0, 10)}.docx`);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Could not generate DOCX file.");
-    } finally {
-      setDownloading(null);
-    }
+      setErrorMessage(err instanceof Error ? err.message : "Failed to generate DOCX.");
+    } finally { setDownloading(null); }
   };
 
-  const handleDownloadPdf = async () => {
-    if (!generatedContent.trim()) return;
-    setDownloading("pdf");
-    setErrorMessage(null);
+  const handleDownloadPdf = () => handlePrint();
 
-    try {
-      const pdf = new jsPDF({ unit: "pt", format: "letter" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 54;
-      const contentWidth = pageWidth - margin * 2;
-      let y = margin;
+  if (view === "chooser") {
+    return (
+      <ChooserScreen
+        onPickAI={() => { setEntryMode("ai"); setActiveTemplateId(null); setView("compose"); }}
+        onPickTemplate={() => {
+          setErrorMessage(null);
+          setRepositoryLoading(null);
+          setView("templates");
+        }}
+      />
+    );
+  }
 
-      const topMarginForContent = !noHeader && headerImage ? margin + 70 : margin;
-      const bottomLimit = !noFooter && footerImage ? pageHeight - margin - 70 : pageHeight - margin;
+  if (view === "templates") {
+    return (
+      <TemplatesScreen
+        onBack={() => {
+          setErrorMessage(null);
+          setRepositoryLoading(null);
+          setView("chooser");
+        }}
+        onSelect={(doc) => loadRepositoryDocument(doc)}
+        errorMessage={errorMessage}
+        onDismissError={() => setErrorMessage(null)}
+        loadingDocName={repositoryLoading}
+        headerImage={headerImage}
+        footerImage={footerImage}
+        headerError={headerError}
+        footerError={footerError}
+        onHeaderUpload={handleHeaderUpload}
+        onFooterUpload={handleFooterUpload}
+        onRemoveHeader={removeHeaderLetterhead}
+        onRemoveFooter={removeFooterLetterhead}
+      />
+    );
+  }
 
-      const drawHeader = () => {
-        if (!noHeader && headerImage) {
-          const imgAspect = headerImage.width / headerImage.height;
-          const targetHeight = 45;
-          const targetWidth = targetHeight * imgAspect;
-          const x = (pageWidth - targetWidth) / 2;
-          pdf.addImage(headerImage.dataUrl, headerImage.mimeType.toUpperCase(), x, 20, targetWidth, targetHeight);
-        }
-      };
+  if (view === "editor") {
+    const cfg = PAGE_SIZES[pageSize];
+    const fragments = previewFragments.length ? previewFragments : [""];
 
-      const drawFooter = () => {
-        if (!noFooter && footerImage) {
-          const imgAspect = footerImage.width / footerImage.height;
-          const targetHeight = 40;
-          const targetWidth = targetHeight * imgAspect;
-          const x = (pageWidth - targetWidth) / 2;
-          pdf.addImage(footerImage.dataUrl, footerImage.mimeType.toUpperCase(), x, pageHeight - 50, targetWidth, targetHeight);
-        }
-      };
-
-      drawHeader();
-      drawFooter();
-      y = topMarginForContent;
-
-      const blocks = parseContentToBlocks(generatedContent);
-
-      for (const block of blocks) {
-        if (y > bottomLimit - 40) {
-          pdf.addPage();
-          drawHeader();
-          drawFooter();
-          y = topMarginForContent;
-        }
-
-        switch (block.type) {
-          case "h1":
-            pdf.setFont("helvetica", "bold");
-            pdf.setFontSize(14);
-            pdf.setTextColor(29, 41, 55);
-            pdf.text(block.text.toUpperCase(), pageWidth / 2, y, { align: "center" });
-            y += 24;
-            break;
-          case "h2":
-            pdf.setFont("helvetica", "bold");
-            pdf.setFontSize(11);
-            pdf.setTextColor(221, 114, 48);
-            pdf.text(block.text, margin, y);
-            y += 18;
-            break;
-          case "h3":
-            pdf.setFont("helvetica", "bold");
-            pdf.setFontSize(10);
-            pdf.setTextColor(29, 41, 55);
-            pdf.text(block.text, margin, y);
-            y += 15;
-            break;
-          case "bullet": {
-            pdf.setFont("helvetica", "normal");
-            pdf.setFontSize(9.5);
-            pdf.setTextColor(55, 65, 81);
-            const wrapped = pdf.splitTextToSize(`•  ${block.text}`, contentWidth - 10);
-            pdf.text(wrapped, margin + 10, y);
-            y += wrapped.length * 13 + 4;
-            break;
-          }
-          case "paragraph": {
-            pdf.setFont("helvetica", "normal");
-            pdf.setFontSize(9.5);
-            pdf.setTextColor(55, 65, 81);
-            const wrapped = pdf.splitTextToSize(block.text, contentWidth);
-            pdf.text(wrapped, margin, y);
-            y += wrapped.length * 13 + 6;
-            break;
-          }
-          case "blank":
-            y += 10;
-            break;
-        }
-      }
-
-      pdf.save("CTU_Generated_Document.pdf");
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Could not export PDF file.");
-    } finally {
-      setDownloading(null);
-    }
-  };
-
-  return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Document Generator</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFF4E5] text-[#DD7230] border border-[#FFE0B2]">
-              Qwen2.5 Powered
-            </span>
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Draft customized institutional policies, syllabi, resolutions, contracts, and export to DOCX or PDF
-          </p>
-        </div>
-
-        {generatedContent && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopy}
-              className="px-3.5 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm font-semibold rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-98"
-            >
-              {copySuccess ? (
-                <>
-                  <Check className="h-4 w-4 text-emerald-600" />
-                  <span className="text-emerald-600">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4 text-gray-400" />
-                  <span>Copy Text</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={handleDownloadDocx}
-              disabled={downloading === "docx"}
-              className="px-3.5 py-2 bg-[#DD7230] text-white hover:bg-[#c66224] text-sm font-semibold rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-98 disabled:opacity-50"
-            >
-              {downloading === "docx" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4" />
-              )}
-              <span>Export Word (.docx)</span>
-            </button>
-            <button
-              onClick={handleDownloadPdf}
-              disabled={downloading === "pdf"}
-              className="px-3.5 py-2 bg-gray-900 text-white hover:bg-black text-sm font-semibold rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-98 disabled:opacity-50"
-            >
-              {downloading === "pdf" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileDown className="h-4 w-4" />
-              )}
-              <span>Export PDF</span>
-            </button>
+    return (
+      <div className="space-y-4">
+        {errorMessage && (
+          <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+            <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-rose-700">{errorMessage}</p>
           </div>
         )}
+
+        <style dangerouslySetInnerHTML={{ __html: CONTENT_STYLES }} />
+
+        <div className="sticky top-16 z-30 space-y-3 bg-[#F3F4F6] pt-2 pb-3 shadow-md -mx-4 px-4 sm:-mx-6 sm:px-6">
+          <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setView(entryMode === "template" ? "templates" : "compose")}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#374151] transition-all shadow-sm active:scale-95"
+                >
+                  <ArrowLeft className="h-4 w-4 text-[#dd7230]" />
+                  <span>{entryMode === "template" ? "Back to Repository" : "New Prompt"}</span>
+                </button>
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#dd7230] flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {entryMode === "template" ? "KNOWLEDGE REPOSITORY DOCUMENT" : "AI DOCUMENT GENERATOR"}
+                  </span>
+                  <p className="text-sm font-semibold text-[#1F2937] truncate max-w-[260px] sm:max-w-md">
+                    {prompt || "Institutional Document"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={handleDownloadDocx}
+                  disabled={downloading !== null}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {downloading === "docx" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                  <span>Download DOCX</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadPdf}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Download PDF</span>
+                </button>
+
+                <button
+                  onClick={handlePrint}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[#1D6FA3] hover:bg-[#0B3C5D] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>Print</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm relative z-20">
+            <div className="flex items-center border-b border-[#E5E7EB] bg-[#F9FAFB] px-3 pt-1 gap-1">
+              {(["home", "layout", "insert"] as RibbonTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveRibbonTab(tab)}
+                  className={`px-4 py-2 text-xs font-bold rounded-t-lg transition-all ${
+                    activeRibbonTab === tab
+                      ? "bg-white text-[#dd7230] border-t-2 border-t-[#dd7230] shadow-sm"
+                      : "text-[#6B7280] hover:text-[#1F2937]"
+                  }`}
+                >
+                  {tab === "home" ? "Home & Font" : tab === "layout" ? "Page Layout & Size" : "Letterhead & Inserts"}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-3 sm:p-4 bg-white flex flex-wrap items-center gap-4 sm:gap-6 text-xs">
+              {activeRibbonTab === "home" && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">History</span>
+                    <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB] p-0.5 gap-0.5">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleUndo(); }} className="p-1.5 rounded hover:bg-[#E5E7EB] text-[#374151] hover:text-[#dd7230]">
+                        <Undo className="h-4 w-4" />
+                      </button>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleRedo(); }} className="p-1.5 rounded hover:bg-[#E5E7EB] text-[#374151] hover:text-[#dd7230]">
+                        <Redo className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="h-8 w-px bg-[#E5E7EB] hidden sm:block" />
+
+                  <div className="flex flex-col gap-1 relative" ref={fontDropdownRef}>
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Font Family</span>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); setShowFontDropdown((v) => !v); }}
+                        className="px-3 py-1.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#1F2937] hover:bg-[#F3F4F6] flex items-center justify-between gap-3 min-w-[168px]"
+                      >
+                        <span className={getActiveLiveRange() ? "text-[#dd7230]" : ""}>{FONT_CONFIG[activeStyles.font || docFont].name}</span>
+                        <ChevronDown className="h-3.5 w-3.5 text-[#6B7280]" />
+                      </button>
+                      {showFontDropdown && (
+                        <div className="absolute top-full left-0 mt-1.5 w-56 bg-white border border-[#E5E7EB] rounded-xl shadow-2xl z-50 py-1.5">
+                          {(Object.keys(FONT_CONFIG) as DocFont[]).map((fKey) => (
+                            <button
+                              key={fKey}
+                              type="button"
+                              onMouseDown={(e) => { e.preventDefault(); handleFontFamilyChange(fKey); }}
+                              className={`w-full text-left px-3.5 py-2 text-xs font-semibold hover:bg-[#FFF4E5] hover:text-[#dd7230] flex items-center justify-between ${
+                                (activeStyles.font || docFont) === fKey ? "bg-[#FFF4E5] text-[#dd7230] font-bold" : "text-[#374151]"
+                              }`}
+                            >
+                              <span>{FONT_CONFIG[fKey].name}</span>
+                              {(activeStyles.font || docFont) === fKey && <Check className="h-3.5 w-3.5 text-[#dd7230]" />}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="h-8 w-px bg-[#E5E7EB] hidden sm:block" />
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Font Size (8–124)</span>
+                    <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB]">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(-1, false); }} className="px-2 py-1.5 hover:bg-[#E5E7EB] text-[#6B7280] hover:text-[#dd7230] border-r border-[#E5E7EB]">
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <div className="flex items-center px-1">
+                        <input
+                          type="number" min={8} max={124} value={displayedFontSize}
+                          onMouseDown={(e) => { e.preventDefault(); saveCurrentSelection(); }}
+                          onFocus={() => { saveCurrentSelection(); }}
+                          onChange={(e) => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) setDisplayedFontSize(v); }}
+                          onBlur={(e) => {
+                            let v = parseInt(e.target.value, 10);
+                            if (isNaN(v) || v < 8) v = 8;
+                            if (v > 124) v = 124;
+                            setDisplayedFontSize(v);
+                            handleFontSizeChange(v, true);
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+                          className="w-10 text-center py-1 text-xs font-extrabold text-[#1F2937] focus:text-[#dd7230] outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-[10px] font-bold text-gray-400 select-none mr-1">pt</span>
+                      </div>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(1, false); }} className="px-2 py-1.5 hover:bg-[#E5E7EB] text-[#6B7280] hover:text-[#dd7230] border-l border-[#E5E7EB]">
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="h-8 w-px bg-[#E5E7EB] hidden sm:block" />
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Text Style (Selection Only)</span>
+                    <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB] p-0.5 gap-0.5">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("bold"); }} className={`p-1.5 rounded ${activeStyles.bold ? "text-[#dd7230] font-black" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                        <Bold className={`h-4 w-4 ${activeStyles.bold ? "stroke-[3.4]" : "stroke-[2]"}`} />
+                      </button>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("italic"); }} className={`p-1.5 rounded ${activeStyles.italic ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                        <Italic className={`h-4 w-4 ${activeStyles.italic ? "stroke-[3.4]" : "stroke-[2]"}`} />
+                      </button>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("underline"); }} className={`p-1.5 rounded ${activeStyles.underline ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                        <UnderlineIcon className={`h-4 w-4 ${activeStyles.underline ? "stroke-[3.4]" : "stroke-[2]"}`} />
+                      </button>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("strikeThrough"); }} className={`p-1.5 rounded ${activeStyles.strike ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                        <Strikethrough className={`h-4 w-4 ${activeStyles.strike ? "stroke-[3.4]" : "stroke-[2]"}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="h-8 w-px bg-[#E5E7EB] hidden sm:block" />
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Alignment</span>
+                    <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB] p-0.5 gap-0.5">
+                      {([
+                        { key: "left", Icon: AlignLeft, active: activeStyles.alignLeft },
+                        { key: "center", Icon: AlignCenter, active: activeStyles.alignCenter },
+                        { key: "right", Icon: AlignRight, active: activeStyles.alignRight },
+                        { key: "justify", Icon: AlignJustify, active: activeStyles.alignJustify },
+                      ] as const).map(({ key, Icon, active }) => (
+                        <button key={key} type="button" onMouseDown={(e) => { e.preventDefault(); handleAlignmentChange(key); }} className={`p-1.5 rounded ${active ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                          <Icon className={`h-4 w-4 ${active ? "stroke-[3]" : "stroke-[2]"}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="h-8 w-px bg-[#E5E7EB] hidden sm:block" />
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Lists</span>
+                    <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB]">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("insertUnorderedList"); }} className={`p-2 border-r border-[#E5E7EB] ${activeStyles.ul ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                        <List className={`h-3.5 w-3.5 ${activeStyles.ul ? "stroke-[3]" : "stroke-[2]"}`} />
+                      </button>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("insertOrderedList"); }} className={`p-2 ${activeStyles.ol ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                        <ListOrdered className={`h-3.5 w-3.5 ${activeStyles.ol ? "stroke-[3]" : "stroke-[2]"}`} />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeRibbonTab === "layout" && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Page Size / Paper</span>
+                    <div className="flex items-center gap-2">
+                      {(["short", "a4", "long"] as PageSize[]).map((psKey) => {
+                        const c = PAGE_SIZES[psKey];
+                        const isSelected = pageSize === psKey;
+                        return (
+                          <button
+                            key={psKey}
+                            type="button"
+                            onClick={() => handlePageSizeChange(psKey)}
+                            className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all text-left flex items-center gap-2.5 ${
+                              isSelected
+                                ? "bg-[#FFF4E5] border-[#dd7230] text-[#dd7230] shadow-sm ring-1 ring-[#dd7230]"
+                                : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
+                            }`}
+                          >
+                            <FileSpreadsheet className={`h-4 w-4 ${isSelected ? "text-[#dd7230]" : "text-[#6B7280]"}`} />
+                            <div>
+                              <span className="block leading-none">{c.label}</span>
+                              <span className="text-[10px] font-normal text-[#6B7280] block mt-0.5">{c.subLabel}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="h-8 w-px bg-[#E5E7EB] hidden sm:block" />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Line Spacing</span>
+                    <div className="flex items-center gap-1.5">
+                      {(["1.15", "1.5", "2.0"] as const).map((ls) => (
+                        <button
+                          key={ls}
+                          type="button"
+                          onClick={() => handleLineSpacingChange(ls)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                            lineSpacing === ls
+                              ? "bg-[#FFF4E5] text-[#dd7230] border-[#dd7230] font-extrabold"
+                              : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
+                          }`}
+                        >
+                          {ls}x
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-[#9CA3AF] mt-0.5">
+                      Changing spacing disables auto-fit — the document flows at its natural size.
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {activeRibbonTab === "insert" && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Header Letterhead</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => headerInputRef.current?.click()}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
+                          headerImage ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-bold" : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
+                        }`}
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        <span>{headerImage ? "Header Attached" : "Upload Header"}</span>
+                      </button>
+                      {headerImage && (
+                        <button type="button" onClick={removeHeaderLetterhead} className="px-2.5 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1">
+                          <Trash2 className="h-3.5 w-3.5" /><span>Remove</span>
+                        </button>
+                      )}
+                      <input ref={headerInputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(",")} className="hidden"
+                        onChange={(e) => { handleHeaderUpload(e.target.files?.[0]); e.target.value = ""; }} />
+                    </div>
+                  </div>
+                  <div className="h-8 w-px bg-[#E5E7EB] hidden sm:block" />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Footer Letterhead</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => footerInputRef.current?.click()}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
+                          footerImage ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-bold" : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
+                        }`}
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        <span>{footerImage ? "Footer Attached" : "Upload Footer"}</span>
+                      </button>
+                      {footerImage && (
+                        <button type="button" onClick={removeFooterLetterhead} className="px-2.5 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1">
+                          <Trash2 className="h-3.5 w-3.5" /><span>Remove</span>
+                        </button>
+                      )}
+                      <input ref={footerInputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(",")} className="hidden"
+                        onChange={(e) => { handleFooterUpload(e.target.files?.[0]); e.target.value = ""; }} />
+                    </div>
+                  </div>
+                  <div className="h-8 w-px bg-[#E5E7EB] hidden sm:block" />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Signatories &amp; Stamps</span>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); insertSignatureBlank(); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] hover:bg-[#F3F4F6] text-[#374151] font-semibold">
+                        <PenTool className="h-3.5 w-3.5" /><span>+ Signature Line</span>
+                      </button>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); insertDateStamp(); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] hover:bg-[#F3F4F6] text-[#374151] font-semibold">
+                        <Calendar className="h-3.5 w-3.5" /><span>+ Date Stamp</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="rounded-2xl border border-[#E5E7EB] shadow-sm overflow-hidden bg-white flex flex-col"
+          style={{ height: "calc(100vh - 320px)", minHeight: "600px" }}
+        >
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#E5E7EB] bg-[#F9FAFB] flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <Eye className="h-3.5 w-3.5 text-[#dd7230]" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#374151]">
+                Document — click any page to edit
+              </span>
+            </div>
+            <span className="text-[10px] font-semibold text-[#9CA3AF]">
+              {fragments.length} {fragments.length === 1 ? "page" : "pages"} · {cfg.label}
+            </span>
+          </div>
+
+          <div
+            ref={previewWrapRef}
+            className="flex-1 min-h-0 overflow-auto"
+            style={{ backgroundColor: "#D4D9E2" }}
+          >
+            <div
+              ref={previewPagesRef}
+              className="py-8 flex flex-col items-center gap-6"
+            >
+              {fragments.map((frag, idx) => (
+                <div key={idx} className="flex flex-col items-center flex-shrink-0">
+                  <div
+                    className="shadow-2xl border border-[#C5CBD5] bg-white"
+                    style={{
+                      width: cfg.cssWidth * previewScale,
+                      height: cfg.cssHeight * previewScale,
+                      boxSizing: "content-box",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: cfg.cssWidth,
+                        height: cfg.cssHeight,
+                        transform: `scale(${previewScale})`,
+                        transformOrigin: "top left",
+                      }}
+                    >
+                      <PreviewPage
+                        fragment={frag}
+                        pageIndex={idx}
+                        totalPages={fragments.length}
+                        cfg={cfg}
+                        fontCss={FONT_CONFIG[docFont].css}
+                        fontSizePt={fit?.fontPt ?? docFontSize}
+                        lineSpacing={fit?.lineHeight ?? lineSpacing}
+                        alignment={docAlign}
+                        headerImage={headerImage}
+                        footerImage={footerImage}
+                        onInput={handlePageInput}
+                        onFocus={handlePageFocus}
+                        onBlur={handlePageBlur}
+                        onKeyDown={handlePageKeyDown}
+                        onSelectionSync={handleSelectionSync}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[10px] font-bold text-[#6B7280] mt-2 uppercase tracking-wider">
+                    Page {idx + 1} of {fragments.length}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm p-4 flex flex-wrap items-center justify-between text-xs text-[#6B7280]">
+          <div className="flex items-center gap-4">
+            <span className="font-extrabold text-[#1F2937] flex items-center gap-1.5 bg-[#FFF4E5] text-[#dd7230] px-3 py-1 rounded-lg border border-[#dd7230]/30">
+              <Layers className="h-4 w-4 text-[#dd7230]" />
+              {fragments.length} {fragments.length === 1 ? "Page" : "Pages"}
+            </span>
+            <span>·</span>
+            <span className="font-semibold text-[#374151]">Paper: {cfg.label} ({cfg.subLabel})</span>
+            <span>·</span>
+            <span>{wordCount} Words</span>
+            <span>·</span>
+            <span>Line spacing: {lineSpacing}×</span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF]">
+            <span>Cebu Technological University · CTU DOCUMENT</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setView("chooser")}
+          className="flex items-center gap-2 px-3.5 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#374151] transition-all shadow-sm active:scale-95"
+        >
+          <ArrowLeft className="h-4 w-4 text-[#dd7230]" />
+          <span>Back</span>
+        </button>
+        <div>
+          <h1 className="text-2xl font-semibold text-[#1F2937]">Draft with AI</h1>
+          <p className="text-sm text-[#6B7280] mt-0.5">
+            Describe the institutional document you need and the AI will draft it for you.
+          </p>
+        </div>
       </div>
 
-      {/* Error Alert */}
       {errorMessage && (
-        <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-rose-700 leading-relaxed font-medium">{errorMessage}</p>
+        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+          <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-rose-700">{errorMessage}</p>
         </div>
       )}
 
-      {/* Main Grid: Left Controls & Right Document Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: Input Prompt & Letterhead Controls */}
-        <div className="lg:col-span-5 space-y-5">
-          
-          {/* Prompt Box Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between">
-              <label htmlFor="promptInput" className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-[#DD7230]" />
-                Describe Your Document
-              </label>
-              <span className="text-xs text-gray-400">Natural language input</span>
-            </div>
+      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+        <div className="px-5 pt-5 pb-3 border-b border-[#E5E7EB] border-l-4 border-l-[#dd7230]">
+          <h2 className="text-base font-semibold text-[#1F2937]">Describe Your Document</h2>
+          <p className="text-sm text-[#6B7280] mt-0.5">
+            Specify the document type, purpose, target office/audience, and specific sections needed.
+          </p>
+        </div>
 
+        <div className="p-5 space-y-4">
+          <div>
             <textarea
-              id="promptInput"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g. Draft a formal memorandum regarding the suspension of classes for faculty and students due to regional weather..."
-              rows={4}
-              className="w-full p-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all placeholder-gray-400 resize-none leading-relaxed"
+              rows={6}
+              className="w-full px-4 py-3 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#dd7230] focus:border-transparent transition-shadow resize-none"
+              placeholder="Example: Draft an Official Campus Memorandum announcing the schedule for Midterm Examinations..."
+              disabled={status === "generating"}
             />
+            <div className="flex justify-between items-center mt-1.5 text-xs text-[#9CA3AF]">
+              <span>Use standard academic terms or describe specific sections</span>
+              <span>{prompt.length} characters</span>
+            </div>
+          </div>
 
-            {/* Quick Prompts Chips */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span className="font-semibold">Quick Suggestions:</span>
-                <button
-                  type="button"
-                  onClick={() => setShowAllPrompts(!showAllPrompts)}
-                  className="text-[#DD7230] hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
-                >
-                  {showAllPrompts ? (
-                    <>
-                      <span>Show Less</span>
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </>
-                  ) : (
-                    <>
-                      <span>Show More</span>
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </>
-                  )}
-                </button>
+          <div className="border border-[#E5E7EB] rounded-xl p-4 bg-[#F9FAFB]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-4 w-4 text-[#dd7230]" />
+                <span className="text-xs font-bold uppercase tracking-wider text-[#374151]">
+                  Official Letterhead &amp; Seals
+                </span>
               </div>
-
-              <div className="flex flex-wrap gap-2">
-                {visiblePrompts.map((p, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setPrompt(p)}
-                    className="text-left px-3 py-1.5 bg-gray-50 hover:bg-[#FFF4E5] hover:text-[#DD7230] hover:border-[#FFE0B2] border border-gray-200 rounded-lg text-xs text-gray-600 transition-all cursor-pointer font-medium"
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
+              <span className="text-xs text-[#9CA3AF]">Default CTU letterhead pre-loaded · drag &amp; drop to replace</span>
             </div>
 
-            {/* Generate CTA Button */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <ImageUploadField
+                label="Header Image"
+                helperText="Default CTU Argao header is pre-loaded. Drag & drop a PNG/JPG here to replace it."
+                image={headerImage}
+                error={headerError}
+                inputRef={headerInputRef}
+                onFileSelected={handleHeaderUpload}
+                onRemove={removeHeaderLetterhead}
+              />
+              <ImageUploadField
+                label="Footer Image"
+                helperText="Default CTU Argao footer is pre-loaded. Drag & drop a PNG/JPG here to replace it."
+                image={footerImage}
+                error={footerError}
+                inputRef={footerInputRef}
+                onFileSelected={handleFooterUpload}
+                onRemove={removeFooterLetterhead}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleGenerate}
+            disabled={status === "generating" || !prompt.trim()}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-[#dd7230] text-white rounded-lg font-bold text-sm transition-all hover:bg-[#c4612a] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm active:scale-[0.99]"
+          >
+            {status === "generating" ? (
+              <><RefreshCw className="h-5 w-5 animate-spin" />Drafting Institutional Document…</>
+            ) : (
+              <><Sparkles className="h-5 w-5" />Generate Document with AI</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+        <div className="px-5 pt-5 pb-3 border-b border-[#E5E7EB] flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-[#1F2937]">Institutional &amp; Academic Templates</h2>
+            <p className="text-xs text-[#6B7280] mt-0.5">Click any template to populate the drafting prompt</p>
+          </div>
+          <button
+            onClick={() => setShowAllPrompts((v) => !v)}
+            className="flex items-center gap-1 text-xs font-semibold text-[#dd7230] hover:text-[#c4612a]"
+          >
+            {showAllPrompts ? <>Show Less <ChevronUp className="h-3.5 w-3.5" /></> : <>Show All ({QUICK_PROMPTS.length}) <ChevronDown className="h-3.5 w-3.5" /></>}
+          </button>
+        </div>
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {(showAllPrompts ? QUICK_PROMPTS : QUICK_PROMPTS.slice(0, 4)).map((t, idx) => (
+            <button
+              key={idx}
+              onClick={() => setPrompt(t.prompt)}
+              className="p-3.5 text-left rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] hover:bg-[#FFF4E5] hover:border-[#dd7230] transition-all group"
+            >
+              <span className="text-xs font-bold text-[#1F2937] group-hover:text-[#dd7230] block">{t.title}</span>
+              <p className="text-[11px] text-[#6B7280] mt-1 line-clamp-2 leading-relaxed">{t.prompt}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+ * SUBCOMPONENT: Chooser Screen
+ * ==========================================================================*/
+function ChooserScreen(props: { onPickAI: () => void; onPickTemplate: () => void }) {
+  const { onPickAI, onPickTemplate } = props;
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-[#dd7230] rounded-xl flex items-center justify-center shadow-sm">
+          <Sparkles className="h-5 w-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold text-[#1F2937]">CTU DOCUMENT Studio</h1>
+          <p className="text-sm text-[#6B7280] mt-0.5">Choose how you&apos;d like to begin your institutional document.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <button onClick={onPickAI} className="group text-left p-6 bg-white border border-[#E5E7EB] hover:border-[#dd7230] hover:shadow-lg rounded-2xl transition-all">
+          <div className="w-12 h-12 rounded-xl bg-[#FFF4E5] flex items-center justify-center mb-4 group-hover:bg-[#dd7230] transition-colors">
+            <Sparkles className="h-6 w-6 text-[#dd7230] group-hover:text-white transition-colors" />
+          </div>
+          <h2 className="text-lg font-bold text-[#1F2937] mb-1">Draft with AI</h2>
+          <p className="text-sm text-[#6B7280] leading-relaxed">
+            Describe the memorandum, proposal, syllabus, or letter you need. The AI will draft a complete institutional document.
+          </p>
+        </button>
+
+        <button onClick={onPickTemplate} className="group text-left p-6 bg-white border border-[#E5E7EB] hover:border-[#dd7230] hover:shadow-lg rounded-2xl transition-all">
+          <div className="w-12 h-12 rounded-xl bg-[#FFF4E5] flex items-center justify-center mb-4 group-hover:bg-[#dd7230] transition-colors">
+            <FolderOpen className="h-6 w-6 text-[#dd7230] group-hover:text-white transition-colors" />
+          </div>
+          <h2 className="text-lg font-bold text-[#1F2937] mb-1">Open Existing Document</h2>
+          <p className="text-sm text-[#6B7280] leading-relaxed">
+            Browse <strong>active</strong> Accreditation Evidence in the Knowledge Repository.
+            Edit, reprint, or export exactly as it was originally issued.
+          </p>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+ * SUBCOMPONENT: Templates Screen
+ * ==========================================================================*/
+function TemplatesScreen(props: {
+  onBack: () => void;
+  onSelect: (doc: RepositoryDocument) => void;
+  errorMessage: string | null;
+  onDismissError: () => void;
+  loadingDocName: string | null;
+  headerImage: ImageAsset | null;
+  footerImage: ImageAsset | null;
+  headerError: string | null;
+  footerError: string | null;
+  onHeaderUpload: (file: File | undefined) => void;
+  onFooterUpload: (file: File | undefined) => void;
+  onRemoveHeader: () => void;
+  onRemoveFooter: () => void;
+}) {
+  const {
+    onBack, onSelect, errorMessage, onDismissError, loadingDocName,
+    headerImage, footerImage, headerError, footerError,
+    onHeaderUpload, onFooterUpload, onRemoveHeader, onRemoveFooter,
+  } = props;
+
+  const [documents, setDocuments] = useState<RepositoryDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showLetterheadModal, setShowLetterheadModal] = useState(false);
+
+  const modalHeaderInputRef = useRef<HTMLInputElement>(null);
+  const modalFooterInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const url =
+          "/api/repository-documents" +
+          "?category=" + encodeURIComponent("Accreditation Evidence") +
+          "&status="   + encodeURIComponent("Active");
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          throw new Error(`Failed to load repository (HTTP ${resp.status}).`);
+        }
+        const data = await resp.json();
+        if (!cancelled) setDocuments(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load documents.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const filteredDocuments = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return documents;
+    return documents.filter((d) => (d.name || "").toLowerCase().includes(q));
+  }, [documents, searchQuery]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 px-3.5 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#374151] transition-all shadow-sm active:scale-95"
+          >
+            <ArrowLeft className="h-4 w-4 text-[#dd7230]" />
+            <span>Back</span>
+          </button>
+          <div>
+            <h1 className="text-xl font-semibold text-[#1F2937]">Accreditation Evidence</h1>
+            <p className="text-sm text-[#6B7280] mt-0.5">
+              Live from the Knowledge Repository — showing <strong>Active</strong> documents only.
+              Select a document to open it in the editor.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setShowLetterheadModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#FFF4E5] border border-[#E5E7EB] hover:border-[#dd7230] rounded-lg text-xs font-bold text-[#374151] hover:text-[#dd7230] transition-all shadow-sm active:scale-95"
+          title="Change the header and footer letterhead applied to documents you open"
+        >
+          <ImageIcon className="h-4 w-4 text-[#dd7230]" />
+          <span>Change Header &amp; Footer</span>
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm p-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF] pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by document title…"
+            className="w-full pl-10 pr-10 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#dd7230] focus:border-transparent transition-shadow"
+          />
+          {searchQuery && (
             <button
               type="button"
-              onClick={handleGenerate}
-              disabled={status === "generating" || !prompt.trim()}
-              className="w-full py-3 bg-[#DD7230] text-white hover:bg-[#c66224] rounded-xl text-sm font-bold transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[#E5E7EB] text-[#6B7280] hover:text-[#374151] transition-colors"
+              aria-label="Clear search"
             >
-              {status === "generating" ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Drafting with AI...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Generate Document Draft
-                </>
-              )}
+              <X className="h-3.5 w-3.5" />
             </button>
-          </div>
+          )}
+        </div>
+        {searchQuery && !loading && !error && (
+          <p className="text-[11px] text-[#9CA3AF] mt-2">
+            Showing {filteredDocuments.length} of {documents.length} document{documents.length === 1 ? "" : "s"}
+          </p>
+        )}
+      </div>
 
-          {/* Letterhead & Branding Images Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
-                  <SlidersHorizontal className="h-4 w-4 text-[#DD7230]" />
-                  Letterhead & Image Overlay
+      {errorMessage && (
+        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+          <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-rose-700">Could not open document</p>
+            <p className="text-xs text-rose-600 mt-0.5 break-words">{errorMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onDismissError}
+            className="flex-shrink-0 p-1.5 rounded-lg hover:bg-rose-100 text-rose-500 hover:text-rose-700 transition-colors"
+            aria-label="Dismiss error"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="flex items-center justify-center gap-3 p-8 bg-white rounded-2xl border border-[#E5E7EB]">
+          <RefreshCw className="h-4 w-4 text-[#dd7230] animate-spin" />
+          <span className="text-sm text-[#6B7280]">Loading documents…</span>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+          <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-rose-700">Could not load documents</p>
+            <p className="text-xs text-rose-600 mt-0.5">{error}</p>
+            <p className="text-[11px] text-rose-500 mt-1">
+              Ensure <code className="font-mono">main.py</code> is running and{" "}
+              <code className="font-mono">REPOSITORY_BACKEND_URL</code> is set on server.js.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && documents.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-2 p-10 bg-white rounded-2xl border border-dashed border-[#E5E7EB]">
+          <FolderOpen className="h-8 w-8 text-[#9CA3AF]" />
+          <p className="text-sm font-semibold text-[#374151]">No active accreditation evidence found</p>
+          <p className="text-xs text-[#9CA3AF] max-w-md text-center">
+            Only documents with category <strong>Accreditation Evidence</strong> and status{" "}
+            <strong>Active</strong> appear here. Upload new evidence or activate existing
+            documents via the accreditation workflow.
+          </p>
+        </div>
+      )}
+
+      {!loading && !error && documents.length > 0 && filteredDocuments.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-2 p-10 bg-white rounded-2xl border border-dashed border-[#E5E7EB]">
+          <Search className="h-8 w-8 text-[#9CA3AF]" />
+          <p className="text-sm font-semibold text-[#374151]">No documents match &ldquo;{searchQuery}&rdquo;</p>
+          <p className="text-xs text-[#9CA3AF]">Try a different search term.</p>
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="mt-1 text-xs font-semibold text-[#dd7230] hover:text-[#c4612a]"
+          >
+            Clear search
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && filteredDocuments.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {filteredDocuments.map((doc) => {
+            const isOpeningThis = loadingDocName === doc.name;
+            const anyLoading = loadingDocName !== null;
+            const disabled = anyLoading;
+            return (
+              <button
+                key={doc.name}
+                onClick={() => { if (!disabled) onSelect(doc); }}
+                disabled={disabled}
+                aria-busy={isOpeningThis}
+                className={`group text-left p-5 bg-white border border-[#E5E7EB] rounded-2xl transition-all ${
+                  disabled
+                    ? "opacity-60 cursor-not-allowed"
+                    : "hover:border-[#dd7230] hover:shadow-lg"
+                } ${isOpeningThis ? "ring-2 ring-[#dd7230] ring-offset-1" : ""}`}
+              >
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#dd7230] bg-[#FFF4E5] px-2 py-1 rounded">
+                    {doc.category || "Accreditation Evidence"}
+                  </span>
+                  {doc.office && (
+                    <span className="text-[10px] font-semibold text-[#9CA3AF]">{doc.office}</span>
+                  )}
+                  {doc.version && (
+                    <span className="text-[10px] font-semibold text-[#9CA3AF]">v{doc.version}</span>
+                  )}
+                  {doc.status && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-1 rounded">
+                      {doc.status}
+                    </span>
+                  )}
+                </div>
+                <h3 className={`text-base font-bold mb-1.5 transition-colors ${
+                  disabled ? "text-[#6B7280]" : "text-[#1F2937] group-hover:text-[#dd7230]"
+                }`}>
+                  {doc.name}
                 </h3>
-                <p className="text-xs text-gray-500 mt-0.5">Optional official header and footer images for export</p>
-              </div>
-            </div>
-
-            {/* Header Image Upload */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-gray-700">Header Letterhead</label>
-                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={noHeader}
-                    onChange={(e) => setNoHeader(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-[#DD7230] focus:ring-[#DD7230]"
-                  />
-                  <span>No Header</span>
-                </label>
-              </div>
-
-              {!noHeader && (
-                <div>
-                  {headerImage ? (
-                    <div className="relative border border-gray-200 rounded-xl p-2.5 bg-gray-50 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <img src={headerImage.dataUrl} alt="Header" className="h-9 max-w-[140px] object-contain rounded" />
-                        <span className="text-xs text-gray-600 truncate">{headerImage.fileName}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setHeaderImage(null)}
-                        className="p-1 hover:bg-gray-200 rounded text-gray-500 cursor-pointer"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
+                <p className="text-xs text-[#6B7280] leading-relaxed">
+                  {doc.effectivity_date
+                    ? `Effectivity: ${doc.effectivity_date}`
+                    : doc.upload_date
+                      ? `Uploaded: ${doc.upload_date.split("T")[0]}`
+                      : "No date recorded."}
+                </p>
+                {doc.uploaded_by && (
+                  <p className="text-[11px] text-[#9CA3AF] mt-1">Uploaded by {doc.uploaded_by}</p>
+                )}
+                <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-[#dd7230]">
+                  {isOpeningThis ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <span>Opening…</span>
+                    </>
                   ) : (
-                    <div
-                      onClick={() => headerInputRef.current?.click()}
-                      className="border border-dashed border-gray-300 hover:border-[#DD7230] hover:bg-[#FFF4E5]/20 rounded-xl p-4 text-center cursor-pointer transition-all"
-                    >
-                      <ImageIcon className="h-5 w-5 text-gray-400 mx-auto mb-1" />
-                      <p className="text-xs text-gray-600 font-semibold">Click to upload header image</p>
-                      <p className="text-xs text-gray-400 mt-0.5">PNG, JPG up to 5MB</p>
-                    </div>
+                    <>
+                      <FileText className="h-3.5 w-3.5" />
+                      <span>Open in Editor →</span>
+                    </>
                   )}
-                  <input
-                    ref={headerInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleHeaderUpload(e.target.files?.[0])}
-                    className="hidden"
-                  />
-                  {headerError && <p className="text-xs text-rose-600 mt-1">{headerError}</p>}
                 </div>
-              )}
-            </div>
-
-            {/* Footer Image Upload */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-gray-700">Footer Letterhead</label>
-                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={noFooter}
-                    onChange={(e) => setNoFooter(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-[#DD7230] focus:ring-[#DD7230]"
-                  />
-                  <span>No Footer</span>
-                </label>
-              </div>
-
-              {!noFooter && (
-                <div>
-                  {footerImage ? (
-                    <div className="relative border border-gray-200 rounded-xl p-2.5 bg-gray-50 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <img src={footerImage.dataUrl} alt="Footer" className="h-9 max-w-[140px] object-contain rounded" />
-                        <span className="text-xs text-gray-600 truncate">{footerImage.fileName}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setFooterImage(null)}
-                        className="p-1 hover:bg-gray-200 rounded text-gray-500 cursor-pointer"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => footerInputRef.current?.click()}
-                      className="border border-dashed border-gray-300 hover:border-[#DD7230] hover:bg-[#FFF4E5]/20 rounded-xl p-4 text-center cursor-pointer transition-all"
-                    >
-                      <ImageIcon className="h-5 w-5 text-gray-400 mx-auto mb-1" />
-                      <p className="text-xs text-gray-600 font-semibold">Click to upload footer image</p>
-                      <p className="text-xs text-gray-400 mt-0.5">PNG, JPG up to 5MB</p>
-                    </div>
-                  )}
-                  <input
-                    ref={footerInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFooterUpload(e.target.files?.[0])}
-                    className="hidden"
-                  />
-                  {footerError && <p className="text-xs text-rose-600 mt-1">{footerError}</p>}
-                </div>
-              )}
-            </div>
-          </div>
+              </button>
+            );
+          })}
         </div>
+      )}
 
-        {/* Right Column: Live Document Preview */}
-        <div className="lg:col-span-7">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden flex flex-col min-h-[580px]">
-            {/* Document Toolbar Header */}
-            <div className="px-6 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+      {showLetterheadModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowLetterheadModal(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB]">
               <div className="flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-[#DD7230]" />
-                <span className="text-sm font-bold text-gray-800">Document Live Preview</span>
+                <ImageIcon className="h-4 w-4 text-[#dd7230]" />
+                <h2 className="text-base font-bold text-[#1F2937]">Header &amp; Footer Letterhead</h2>
               </div>
-              {generatedContent && (
-                <span className="text-xs text-gray-400">
-                  {parseContentToBlocks(generatedContent).length} parsed blocks
-                </span>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowLetterheadModal(false)}
+                className="p-1.5 rounded-lg hover:bg-[#F3F4F6] text-[#6B7280] hover:text-[#374151] transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
-            {/* Document Paper Container */}
-            <div className="p-6 sm:p-8 flex-1 bg-gray-100/60 overflow-y-auto flex justify-center">
-              <div className="w-full max-w-2xl bg-white shadow-md border border-gray-200/80 rounded-xl p-8 sm:p-12 min-h-[500px] flex flex-col justify-between">
-                
-                {/* Header Letterhead Preview */}
-                {!noHeader && headerImage && (
-                  <div className="mb-6 pb-4 border-b border-gray-200 text-center flex justify-center">
-                    <img src={headerImage.dataUrl} alt="Header Preview" className="max-h-16 object-contain" />
-                  </div>
-                )}
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-[#6B7280] leading-relaxed">
+                These letterheads apply to <strong>any document you open next</strong> from this picker.
+                Leave either one empty (click <em>Remove</em>) to open documents with no letterhead on that
+                side. You can always change or clear it later from the editor's{" "}
+                <strong>Insert → Letterhead</strong> ribbon.
+              </p>
 
-                {/* Body Content */}
-                <div className="flex-1 space-y-3.5">
-                  {status === "generating" ? (
-                    <div className="py-24 text-center space-y-3">
-                      <Loader2 className="h-8 w-8 text-[#DD7230] animate-spin mx-auto" />
-                      <p className="text-sm font-semibold text-gray-700">Synthesizing institutional draft with Qwen2.5...</p>
-                      <p className="text-xs text-gray-400">Formatting structure, clauses, and required signature blocks</p>
-                    </div>
-                  ) : generatedContent ? (
-                    parseContentToBlocks(generatedContent).map((block, idx) => {
-                      switch (block.type) {
-                        case "h1":
-                          return (
-                            <h1 key={idx} className="text-center font-bold text-base sm:text-lg text-gray-900 uppercase tracking-wide border-b pb-2.5 pt-1">
-                              {block.text}
-                            </h1>
-                          );
-                        case "h2":
-                          return (
-                            <h2 key={idx} className="font-bold text-sm text-[#DD7230] uppercase tracking-wider pt-3 border-b border-gray-100 pb-1">
-                              {block.text}
-                            </h2>
-                          );
-                        case "h3":
-                          return (
-                            <h3 key={idx} className="font-semibold text-sm text-gray-800 pt-1.5">
-                              {block.text}
-                            </h3>
-                          );
-                        case "bullet":
-                          return (
-                            <li key={idx} className="text-sm text-gray-700 ml-5 list-disc leading-relaxed">
-                              {block.text}
-                            </li>
-                          );
-                        case "paragraph":
-                          return (
-                            <p key={idx} className="text-sm text-gray-700 leading-relaxed font-normal">
-                              {block.text}
-                            </p>
-                          );
-                        case "blank":
-                          return <div key={idx} className="h-2.5" />;
-                      }
-                    })
-                  ) : (
-                    <div className="py-24 text-center space-y-2.5">
-                      <div className="w-14 h-14 rounded-2xl bg-[#FFF4E5] flex items-center justify-center mx-auto text-[#DD7230]">
-                        <FileText className="h-7 w-7" />
-                      </div>
-                      <p className="text-sm font-bold text-gray-700">No Document Generated Yet</p>
-                      <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                        Type instructions or pick a quick suggestion from the left panel to draft your document.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer Letterhead Preview */}
-                {!noFooter && footerImage && (
-                  <div className="mt-8 pt-4 border-t border-gray-200 text-center flex justify-center">
-                    <img src={footerImage.dataUrl} alt="Footer Preview" className="max-h-14 object-contain" />
-                  </div>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <ImageUploadField
+                  label="Header Image"
+                  helperText="Default CTU Argao header is pre-loaded. Drag & drop a PNG/JPG here to replace it, or click Remove to have no header."
+                  image={headerImage}
+                  error={headerError}
+                  inputRef={modalHeaderInputRef}
+                  onFileSelected={onHeaderUpload}
+                  onRemove={onRemoveHeader}
+                />
+                <ImageUploadField
+                  label="Footer Image"
+                  helperText="Default CTU Argao footer is pre-loaded. Drag & drop a PNG/JPG here to replace it, or click Remove to have no footer."
+                  image={footerImage}
+                  error={footerError}
+                  inputRef={modalFooterInputRef}
+                  onFileSelected={onFooterUpload}
+                  onRemove={onRemoveFooter}
+                />
               </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#E5E7EB] bg-[#F9FAFB]">
+              <button
+                type="button"
+                onClick={() => setShowLetterheadModal(false)}
+                className="px-4 py-2 bg-[#dd7230] hover:bg-[#c4612a] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================================
+ * SUBCOMPONENT: Image Upload Field
+ * ==========================================================================*/
+function ImageUploadField(props: {
+  label: string;
+  helperText: string;
+  image: ImageAsset | null;
+  error: string | null;
+  inputRef: RefObject<HTMLInputElement | null>;
+  onFileSelected: (file: File | undefined) => void;
+  onRemove: () => void;
+}) {
+  const { label, helperText, image, error, inputRef, onFileSelected, onRemove } = props;
+  const [dragActive, setDragActive] = useState(false);
+
+  const preventDefaults = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+
+  return (
+    <div
+      onDragEnter={(e) => { preventDefaults(e); setDragActive(true); }}
+      onDragOver={(e) => { preventDefaults(e); if (!dragActive) setDragActive(true); }}
+      onDragLeave={(e) => {
+        preventDefaults(e);
+        const related = e.relatedTarget as Node | null;
+        if (related && (e.currentTarget as Node).contains(related)) return;
+        setDragActive(false);
+      }}
+      onDrop={(e) => {
+        preventDefaults(e); setDragActive(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) onFileSelected(file);
+      }}
+      className={`border rounded-xl overflow-hidden bg-white transition-all ${dragActive ? "border-[#dd7230] ring-2 ring-[#dd7230]/40 shadow-md" : "border-[#E5E7EB]"}`}
+    >
+      <div className="flex items-center justify-between px-3.5 py-2 bg-[#F9FAFB] border-b border-[#E5E7EB]">
+        <span className="text-xs font-bold text-[#374151]">{label}</span>
+        {image && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Active</span>}
+      </div>
+
+      <div className="p-3">
+        <p className="text-[11px] text-[#9CA3AF] mb-2">{helperText}</p>
+        {error && <p className="text-xs text-rose-500 mb-2">{error}</p>}
+
+        {!image ? (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className={`w-full flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-lg transition-colors ${
+              dragActive ? "border-[#dd7230] bg-[#FFF4E5] text-[#dd7230]" : "border-[#E5E7EB] text-[#9CA3AF] hover:text-[#6B7280] hover:border-[#dd7230]"
+            }`}
+          >
+            <UploadCloud className="h-4 w-4" />
+            <span className="text-xs font-medium">{dragActive ? "Drop image here" : "Drag & drop or click to upload PNG/JPG"}</span>
+          </button>
+        ) : (
+          <div className="relative inline-block">
+            <img src={image.dataUrl} alt={`${label} preview`} className="max-h-16 rounded border border-[#E5E7EB] p-1 bg-white" />
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label="Remove image"
+              className="absolute -top-1.5 -right-1.5 h-5 w-5 flex items-center justify-center rounded-full bg-rose-500 text-white shadow"
+            >
+              <X className="h-3 w-3" />
+            </button>
+            <div className={`mt-2 text-[10px] font-semibold ${dragActive ? "text-[#dd7230]" : "text-[#9CA3AF]"}`}>
+              {dragActive ? "Drop to replace" : "Drag & drop a new image here to replace"}
+            </div>
+          </div>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPTED_IMAGE_TYPES.join(",")}
+          className="hidden"
+          onChange={(e) => { onFileSelected(e.target.files?.[0]); e.target.value = ""; }}
+        />
       </div>
     </div>
   );
