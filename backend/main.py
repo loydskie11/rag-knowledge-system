@@ -8,7 +8,7 @@ from typing import List, Optional
 
 # Third-party imports
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form, Body, Request, Response, Query, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form, Body, Request, Response, Query, BackgroundTasks, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -3183,6 +3183,65 @@ async def evaluate_grades(file: UploadFile = File(...)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+
+# -----------------------------------------------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------------------------------------------
+# CAR FORMS (Form 1) CRUD
+# -----------------------------------------------------------------------------------------------------------------------
+
+@app.get("/car-forms", response_model=List[schemas.CARFormResponse])
+def get_car_forms(
+    cycle_year: str = Query("2025 Surveillance"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.CARForm).filter(models.CARForm.cycle_year == cycle_year)
+    return query.order_by(models.CARForm.created_at.desc()).all()
+
+
+@app.post("/car-forms", response_model=schemas.CARFormResponse, status_code=status.HTTP_201_CREATED)
+def create_car_form(
+    payload: schemas.CARFormCreate,
+    db: Session = Depends(get_db)
+):
+    new_car = models.CARForm(**payload.dict())
+    db.add(new_car)
+    db.commit()
+    db.refresh(new_car)
+    return new_car
+
+
+@app.put("/car-forms/{car_id}", response_model=schemas.CARFormResponse)
+def update_car_form(
+    car_id: str,
+    payload: schemas.CARFormUpdate,
+    db: Session = Depends(get_db)
+):
+    car = db.query(models.CARForm).filter(models.CARForm.id == car_id).first()
+    if not car:
+        raise HTTPException(status_code=404, detail="CAR Form not found")
+        
+    update_data = payload.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(car, key, value)
+        
+    db.commit()
+    db.refresh(car)
+    return car
+
+@app.delete("/car-forms/{car_id}")
+def delete_car_form(
+    car_id: str,
+    db: Session = Depends(get_db)
+):
+    car = db.query(models.CARForm).filter(models.CARForm.id == car_id).first()
+    if not car:
+        raise HTTPException(status_code=404, detail="CAR Form not found")
+        
+    db.delete(car)
+    db.commit()
+    return {"message": "CAR Form successfully deleted."}
+
 # CAR FORM OCR EXTRACTION
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -3211,28 +3270,27 @@ async def extract_car_form(file: UploadFile = File(...)):
             raise HTTPException(status_code=422, detail="Could not extract any text from the uploaded file.")
 
         system_prompt = """
-        You are a meticulous Quality Assurance Data Extractor for an ISO 9001:2015 system at Cebu Technological University.
-        Your job is to parse scrambled OCR text from a Corrective Action Request (CAR) Form 1 and extract specific fields.
+        You are a meticulous Quality Assurance Data Extractor for an ISO 9001:2015 system.
+        Your job is to parse a scanned Corrective Action Request (CAR) Form 1. 
+        
+        CRITICAL CONTEXT: Only the TOP HALF of this form is filled out. The bottom sections (Immediate Action, Root Cause, Corrective Measure, Target Date) are completely blank. DO NOT try to extract them; return empty strings for those fields.
+        
+        Focus entirely on the top headers and checkboxes. For checkboxes (MAJOR, MINOR, OBSERVATION, QMS Related, etc.), look for an 'X' or checkmark.
 
-        The CAR Form has these labeled sections in this order:
-        1. "Statement/Finding(s)" — The audit finding or non-conformity statement.
-        2. "Non-Conformity Root Cause(s)" — The identified root causes.
-        3. "Immediate Action(s)" — Actions taken immediately to address the issue.
-        4. "Proposed Corrective Measure(s)" — Long-term corrective actions planned.
-
-        RULES:
-        - Extract ONLY the text content that appears UNDER each labeled section heading.
-        - Do NOT include the section headings themselves in the extracted text.
-        - Do NOT invent or assume details that are not present in the OCR text.
-        - If a section is blank or unclear, return an empty string "".
-        - Preserve meaningful line breaks using \\n within fields.
-
-        You MUST respond with a pure JSON object in this EXACT format (no markdown, no extra text):
+        Return a pure JSON object exactly like this:
         {
-          "findings": "Extracted statement/finding text here...",
-          "root_cause": "Extracted root cause text here...",
-          "immediate_action": "Extracted immediate action text here...",
-          "corrective_measure": "Extracted corrective measure text here..."
+          "car_no": "Extracted CAR No",
+          "date_issued": "Extracted Date",
+          "campus": "Extracted Campus",
+          "area": "Extracted Area",
+          "findings": "Extracted Statement/Finding(s)",
+          "finding_category": "MAJOR or MINOR or OBSERVATION or UNKNOWN",
+          "auditor_name": "Extracted Auditor/Complainant",
+          "acknowledged_by": "Extracted Acknowledged by",
+          "type_of_non_conformity": "QMS Related or Security Related or Customer Feedback or Customer Complaint or Other",
+          "root_cause": "",
+          "immediate_action": "",
+          "corrective_measure": ""
         }
         """
 
@@ -3247,15 +3305,10 @@ async def extract_car_form(file: UploadFile = File(...)):
         )
 
         result_json = response.choices[0].message.content
+        import json
         parsed = json.loads(result_json)
 
-        # Ensure all required keys are present with string fallbacks
-        return {
-            "findings":           str(parsed.get("findings", "")),
-            "root_cause":         str(parsed.get("root_cause", "")),
-            "immediate_action":   str(parsed.get("immediate_action", "")),
-            "corrective_measure": str(parsed.get("corrective_measure", ""))
-        }
+        return parsed
 
     except HTTPException:
         raise
@@ -4781,8 +4834,10 @@ def update_iso_status(
                 cycle_year=req.cycle_year,
                 process_area=f"CAR: {req.iso_clause} ({req.title})",
                 opportunity_type="Paper",
-                opportunity_description=f"Audit Non-Conformity under {req.iso_clause}: {req.description}",
-                action_plan=f"Formulate root-cause analysis and corrective measures to close out non-conformity for {req.iso_clause}.",
+                findings=f"Audit Non-Conformity under {req.iso_clause}: {req.description}",
+                corrective_measure=f"Formulate root-cause analysis and corrective measures to close out non-conformity for {req.iso_clause}.",
+                root_cause="",
+                immediate_action="",
                 personnel_responsible=f"{req.auditee_office} Head / Designated Quality Officer",
                 target_date=target_date_str,
                 auditee_office=req.auditee_office,
@@ -4979,8 +5034,10 @@ def create_qms_action_plan(
         auditee_office=payload.auditee_office,
         process_area=payload.process_area,
         opportunity_type=payload.opportunity_type,
-        opportunity_description=payload.opportunity_description,
-        action_plan=payload.action_plan,
+        findings=payload.findings,
+        root_cause=payload.root_cause,
+        immediate_action=payload.immediate_action,
+        corrective_measure=payload.corrective_measure,
         target_date=payload.target_date,
         personnel_responsible=payload.personnel_responsible,
         status=payload.status or "In Progress",
@@ -5007,8 +5064,10 @@ def update_qms_action_plan(
     if payload.auditee_office is not None: plan.auditee_office = payload.auditee_office
     if payload.process_area is not None: plan.process_area = payload.process_area
     if payload.opportunity_type is not None: plan.opportunity_type = payload.opportunity_type
-    if payload.opportunity_description is not None: plan.opportunity_description = payload.opportunity_description
-    if payload.action_plan is not None: plan.action_plan = payload.action_plan
+    if payload.findings is not None: plan.findings = payload.findings
+    if payload.root_cause is not None: plan.root_cause = payload.root_cause
+    if payload.immediate_action is not None: plan.immediate_action = payload.immediate_action
+    if payload.corrective_measure is not None: plan.corrective_measure = payload.corrective_measure
     if payload.target_date is not None: plan.target_date = payload.target_date
     if payload.personnel_responsible is not None: plan.personnel_responsible = payload.personnel_responsible
     if payload.status is not None: 

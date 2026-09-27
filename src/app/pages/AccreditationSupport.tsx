@@ -814,7 +814,16 @@ export const IsoTabContent = ({
   setIsoPendingStatus,
   setShowIsoFeedbackModal,
   setIsoFeedbackText,
-  handleDeleteQmsEvidence
+  handleDeleteQmsEvidence,
+  carForms,
+  isLoadingCarForms,
+  setShowAddCarModal,
+  setShowEditCarModal,
+  setShowDeleteCarModal,
+  setEditingCarForm,
+  setCarFormToDelete,
+  newCarForm,
+  setNewCarForm
 }: any) => {
   // Strict ISO Rule: Clause can only be approved if it has evidence, and ALL evidence is approved.
   const evidenceList = (expandedIsoClause?.evidences && expandedIsoClause.evidences.length > 0)
@@ -952,10 +961,101 @@ export const IsoTabContent = ({
                 }`}
               >
                 QMS Action Plans ({qmsStats.total})
-              </button>
-            </div>
+                </button>
+                <button
+                  onClick={() => setIsoSubTab("car_logsheet")}
+                  className={`pb-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isoSubTab === "car_logsheet"
+                      ? "border-[#DD7230] text-gray-900 font-bold"
+                      : "border-transparent text-gray-500 hover:text-gray-800"
+                  }`}
+                >
+                  CAR Logsheet ({carForms ? carForms.length : 0})
+                </button>
+              </div>
 
-            {isoSubTab === "clauses" ? (
+            
+              
+
+              
+              {isoSubTab === "car_logsheet" && (
+                <div className="p-6 space-y-6">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">CAR / PAR Form 3 — Master Logsheet</h3>
+                      <p className="text-xs text-gray-500 mt-1">Summary of all issued Corrective Action Requests for this audit cycle.</p>
+                    </div>
+                    <button
+                      onClick={() => { setNewCarForm((prev: any) => ({...prev, area: "", iso_clause_id: ""})); setShowAddCarModal(true); }}
+                      className="w-full md:w-auto px-4 py-2.5 bg-[#DD7230] hover:bg-[#c45e22] text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    >
+                      <Plus className="h-4 w-4" /> Issue CAR Form 1
+                    </button>
+                  </div>
+
+                  {isLoadingCarForms ? (
+                    <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-[#DD7230]" />
+                      <span className="text-sm font-semibold">Loading CAR Forms...</span>
+                    </div>
+                  ) : (!carForms || carForms.length === 0) ? (
+                    <div className="py-16 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs font-medium">
+                      No Corrective Action Requests issued for this cycle.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-2xs">
+                      <table className="min-w-full text-left">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">CAR No.</th>
+                            <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Date</th>
+                            <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Category</th>
+                            <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Dept / Area Affected</th>
+                            <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Auditor</th>
+                            <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                            <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {carForms.map((car: any) => (
+                            <tr key={car.id} className="hover:bg-orange-50/30 transition-colors">
+                              <td className="p-3 text-sm font-bold text-gray-900">{car.car_no || "—"}</td>
+                              <td className="p-3 text-sm text-gray-600">{car.date_issued || "—"}</td>
+                              <td className="p-3">
+                                <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full ${
+                                  car.finding_category === 'MAJOR' ? 'bg-rose-100 text-rose-800' :
+                                  car.finding_category === 'MINOR' ? 'bg-orange-100 text-orange-800' :
+                                  car.finding_category === 'OBSERVATION' ? 'bg-amber-100 text-amber-800' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{car.finding_category || "—"}</span>
+                              </td>
+                              <td className="p-3 text-sm text-gray-700 max-w-xs truncate">{car.area || "—"}</td>
+                              <td className="p-3 text-sm text-gray-700">{car.auditor_name || "—"}</td>
+                              <td className="p-3">
+                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
+                                  car.status === 'Closed' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+                                }`}>{car.status}</span>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex gap-1">
+                                  <button onClick={() => { setEditingCarForm(car); setShowEditCarModal(true); }} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 cursor-pointer" title="Edit">
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                  <button onClick={() => { setCarFormToDelete(car); setShowDeleteCarModal(true); }} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg cursor-pointer" title="Delete">
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isoSubTab === "clauses" ? (
               /* --- CLAUSES TAB CONTENT --- */
               <div className="p-5 space-y-5">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
@@ -1325,8 +1425,8 @@ export const IsoTabContent = ({
                                   <div>{plan.auditee_office}</div>
                                   <span className="text-[10px] text-gray-400 font-normal block mt-0.5">{plan.finding_type || 'Opportunity'}</span>
                                 </td>
-                                <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.opportunity_description}</td>
-                                <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.action_plan}</td>
+                                <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.findings}</td>
+                                <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.corrective_measure}</td>
                                 <td className="p-3.5 text-gray-700 max-w-xs align-top">
                                   {plan.evidences && plan.evidences.length > 0 ? (
                                     <div className="flex flex-col gap-1.5">
@@ -1468,11 +1568,15 @@ export const IsoTabContent = ({
                   
                   {expandedIsoClause.status !== "Not Compliant" && (
                     <button
-                      onClick={() => confirmIsoStatusUpdate && confirmIsoStatusUpdate(expandedIsoClause.id, "Not Compliant", `${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}`)}
+                      onClick={() => {
+                        confirmIsoStatusUpdate && confirmIsoStatusUpdate(expandedIsoClause.id, "Not Compliant", `${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}`);
+                        setNewCarForm((prev: any) => ({...prev, area: expandedIsoClause.auditee_office || "", iso_clause_id: expandedIsoClause.id || "", findings: `Non-conformity under ${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}. ${expandedIsoClause.description || ""}`}));
+                        setShowAddCarModal(true);
+                      }}
                       className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                      title="Mark clause non-compliant and trigger Corrective Action Plan (CAR)"
+                      title="Mark clause non-compliant and issue a Corrective Action Request (CAR)"
                     >
-                      <AlertTriangle className="h-4 w-4 text-rose-600" /> Decline / CAR
+                      <AlertTriangle className="h-4 w-4 text-rose-600" /> Issue CAR
                     </button>
                   )}
                 </>
@@ -1622,6 +1726,43 @@ export const ResultsTabContent = ({
   setShowCertModal,
   handleViewDocument
 }: any) => {
+  const handleDownloadScorecard = () => {
+    try {
+      const rows = [
+        ["Institutional QA Scorecard Report"],
+        ["Generated on:", new Date().toLocaleDateString()],
+        [],
+        ["Program", selectedProgram],
+        ["AACCUP Standing", programAccreditation?.current_level || currentData.level || "Candidate Status"],
+        ["Validity Period", programAccreditation?.valid_until ? programAccreditation.valid_until.split("T")[0] : 'N/A'],
+        ["Overall AACCUP Score", `${currentData.overall || 0}%`],
+        [],
+        ["Area Code", "Area Title", "Compliance Rate (%)"]
+      ];
+
+      currentData.areas?.forEach((a: any) => {
+        rows.push([a.code, `"${a.title.replace(/"/g, '""')}"`, `${a.compliance || 0}`]);
+      });
+
+      const csvContent = rows.map(e => e.join(",")).join("\\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `QA_Scorecard_${selectedProgram.replace(/\\s+/g, '_')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast("Institutional QA Scorecard Report downloaded!", "success");
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to generate scorecard report.", "error");
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Left Column: Timeline & History */}
@@ -1750,9 +1891,9 @@ export const ResultsTabContent = ({
               <Award className="w-5 h-5 text-[#DD7230]" /> Institutional Scorecard
             </h3>
             <button
-              onClick={() => showToast(`Institutional QA Scorecard Report generated!`, "success")}
+              onClick={handleDownloadScorecard}
               className="p-2 text-gray-500 hover:text-[#DD7230] hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
-              title="Download Scorecard"
+              title="Download Scorecard CSV"
             >
               <Download className="w-4 h-4" />
             </button>
@@ -1893,7 +2034,7 @@ export const ReusableUploadModal = ({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
       <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-orange-50 text-[#DD7230] rounded-xl">
               <Upload className="h-5 w-5" />
@@ -2128,8 +2269,9 @@ export function AccreditationSupport() {
   const [showIsoStatusModal, setShowIsoStatusModal] = useState(false);
   const [pendingIsoStatus, setPendingIsoStatus] = useState<{ reqId: string; status: string; title: string } | null>(null);
 
+  
   // --- QMS ACTION PLAN STATES (MRC Form 6) ---
-  const [isoSubTab, setIsoSubTab] = useState<"clauses" | "qms">("clauses");
+  const [isoSubTab, setIsoSubTab] = useState<"clauses" | "qms" | "car_logsheet">("clauses");
   const [qmsActionPlans, setQmsActionPlans] = useState<any[]>(() => {
     return qmsPlansCache.get("2026 Recertification") || [];
   });
@@ -2142,12 +2284,108 @@ export function AccreditationSupport() {
   const [showAddQmsModal, setShowAddQmsModal] = useState(false);
   const [isAddingQms, setIsAddingQms] = useState(false);
   const [isExtractingCar, setIsExtractingCar] = useState(false);
+  // --- CAR FORMS STATES (Form 1 & Form 3 Logsheet) ---
+  const [carForms, setCarForms] = useState<any[]>([]);
+  const [isLoadingCarForms, setIsLoadingCarForms] = useState(false);
+  const [showAddCarModal, setShowAddCarModal] = useState(false);
+  const [showEditCarModal, setShowEditCarModal] = useState(false);
+  const [showDeleteCarModal, setShowDeleteCarModal] = useState(false);
+  const [isAddingCar, setIsAddingCar] = useState(false);
+  const [isEditingCar, setIsEditingCar] = useState(false);
+  const [isDeletingCar, setIsDeletingCar] = useState(false);
+  const [editingCarForm, setEditingCarForm] = useState<any>(null);
+  const [carFormToDelete, setCarFormToDelete] = useState<any>(null);
+  const [newCarForm, setNewCarForm] = useState({
+    iso_clause_id: "", car_no: "", date_issued: "", revision: "", finding_category: "UNKNOWN",
+    type_of_non_conformity: "QMS Related", auditor_name: "", acknowledged_by: "", campus: "",
+    area: "", findings: "", root_cause: "", immediate_action: "", corrective_measure: "",
+    measures_proposed_by: "", target_date: "", status: "Open"
+  });
+
+  const fetchCarForms = async (cycleYear: string) => {
+    setIsLoadingCarForms(true);
+    try {
+      const { data } = await apiClient.get(`/car-forms?cycle_year=${encodeURIComponent(cycleYear)}`);
+      setCarForms(data);
+    } catch (error) {
+      console.error("Failed to fetch CAR forms", error);
+    } finally {
+      setIsLoadingCarForms(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCarForms(selectedIsoCycleYear);
+  }, [selectedIsoCycleYear]);
+
+  const handleCreateCarSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCarForm.findings.trim()) {
+      showToast("Statement of findings is required.", "error");
+      return;
+    }
+    setIsAddingCar(true);
+    try {
+      await apiClient.post("/car-forms", { ...newCarForm, cycle_year: selectedIsoCycleYear });
+      showToast("CAR Form 1 created successfully!", "success");
+      setShowAddCarModal(false);
+      setNewCarForm({
+        iso_clause_id: "", car_no: "", date_issued: "", revision: "", finding_category: "UNKNOWN",
+        type_of_non_conformity: "QMS Related", auditor_name: "", acknowledged_by: "", campus: "",
+        area: "", findings: "", root_cause: "", immediate_action: "", corrective_measure: "",
+        measures_proposed_by: "", target_date: "", status: "Open"
+      });
+      setAttachedCarFile(null);
+      fetchCarForms(selectedIsoCycleYear);
+    } catch (error) {
+      showToast("Failed to create CAR Form.", "error");
+    } finally {
+      setIsAddingCar(false);
+    }
+  };
+
+  const handleEditCarSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCarForm) return;
+    setIsEditingCar(true);
+    try {
+      await apiClient.put(`/car-forms/${editingCarForm.id}`, editingCarForm);
+      showToast("CAR Form updated!", "success");
+      setShowEditCarModal(false);
+      setEditingCarForm(null);
+      fetchCarForms(selectedIsoCycleYear);
+    } catch (error) {
+      showToast("Failed to update CAR Form.", "error");
+    } finally {
+      setIsEditingCar(false);
+    }
+  };
+
+  const handleDeleteCarSubmit = async () => {
+    if (!carFormToDelete) return;
+    setIsDeletingCar(true);
+    try {
+      await apiClient.delete(`/car-forms/${carFormToDelete.id}`);
+      showToast("CAR Form deleted.", "success");
+      setShowDeleteCarModal(false);
+      setCarFormToDelete(null);
+      fetchCarForms(selectedIsoCycleYear);
+    } catch (error) {
+      showToast("Failed to delete CAR Form.", "error");
+    } finally {
+      setIsDeletingCar(false);
+    }
+  };
+
+  const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   const [newQmsPlan, setNewQmsPlan] = useState({
     auditee_office: "HRMO",
     process_area: "",
     opportunity_type: "Process",
-    opportunity_description: "",
-    action_plan: "",
+    findings: "",
+        root_cause: "",
+        immediate_action: "",
+        corrective_measure: "",
     target_date: "",
     personnel_responsible: "",
     status: "In Progress"
@@ -2574,28 +2812,47 @@ export function AccreditationSupport() {
 
   const handleCreateQmsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQmsPlan.opportunity_description.trim() || !newQmsPlan.action_plan.trim() || !newQmsPlan.target_date.trim()) {
+    if (!newQmsPlan.findings.trim() || !newQmsPlan.corrective_measure.trim() || !newQmsPlan.target_date.trim()) {
       showToast("Please fill out all required fields.", "error");
       return;
     }
     setIsAddingQms(true);
     try {
-      await apiClient.post("/qms/action-plans", {
+      // 1. Create the Action Plan
+      const res = await apiClient.post("/qms/action-plans", {
         ...newQmsPlan,
         cycle_year: selectedIsoCycleYear
       });
-      showToast("Digital QMS Action Plan created successfully!", "success");
+      
+      const newPlanId = res.data.id;
+
+      // 2. Automatically attach the CAR Form PDF as evidence if one was used for OCR extraction
+      if (attachedCarFile) {
+        const formData = new FormData();
+        formData.append("file", attachedCarFile);
+        formData.append("document_name", "Origin Document: CAR Form 1");
+        formData.append("uploaded_by", userName);
+
+        await apiClient.post(`/qms/action-plans/${newPlanId}/upload-evidence`, formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
+      }
+
+      showToast("Digital QMS Action Plan created and evidence linked!", "success");
       setShowAddQmsModal(false);
       setNewQmsPlan({
         auditee_office: sessionStorage.getItem('userAdministrativeOffice') || "HRMO",
         process_area: "",
         opportunity_type: "Process",
-        opportunity_description: "",
-        action_plan: "",
+        findings: "",
+        root_cause: "",
+        immediate_action: "",
+        corrective_measure: "",
         target_date: "",
         personnel_responsible: "",
         status: "In Progress"
       });
+      setAttachedCarFile(null);
       fetchQmsActionPlans(selectedIsoCycleYear, true);
     } catch (error) {
       showToast("Failed to create QMS Action Plan.", "error");
@@ -2606,7 +2863,7 @@ export function AccreditationSupport() {
 
   const handleEditQmsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingQmsPlan || !editingQmsPlan.opportunity_description.trim() || !editingQmsPlan.action_plan.trim()) {
+    if (!editingQmsPlan || !editingQmsPlan.findings.trim() || !editingQmsPlan.corrective_measure.trim()) {
       showToast("Please fill out all required fields.", "error");
       return;
     }
@@ -3429,8 +3686,8 @@ export function AccreditationSupport() {
     const q = qmsSearchQuery.toLowerCase().trim();
     const matchesQuery = !q ||
       (p.process_area && p.process_area.toLowerCase().includes(q)) ||
-      (p.opportunity_description && p.opportunity_description.toLowerCase().includes(q)) ||
-      (p.action_plan && p.action_plan.toLowerCase().includes(q)) ||
+      (p.findings && p.findings.toLowerCase().includes(q)) ||
+      (p.corrective_measure && p.corrective_measure.toLowerCase().includes(q)) ||
       (p.personnel_responsible && p.personnel_responsible.toLowerCase().includes(q)) ||
       (p.auditee_office && p.auditee_office.toLowerCase().includes(q));
     return matchesOffice && matchesType && matchesStatus && matchesQuery;
@@ -3919,6 +4176,15 @@ export function AccreditationSupport() {
             setIsoPendingStatus={setIsoPendingStatus}
             setShowIsoFeedbackModal={setShowIsoFeedbackModal}
             setIsoFeedbackText={setIsoFeedbackText}
+            carForms={carForms}
+            isLoadingCarForms={isLoadingCarForms}
+            setShowAddCarModal={setShowAddCarModal}
+            setShowEditCarModal={setShowEditCarModal}
+            setShowDeleteCarModal={setShowDeleteCarModal}
+            setEditingCarForm={setEditingCarForm}
+            setCarFormToDelete={setCarFormToDelete}
+            newCarForm={newCarForm}
+            setNewCarForm={setNewCarForm}
           />
         </TabsContent>
 
@@ -3945,7 +4211,7 @@ export function AccreditationSupport() {
       {showAddAaccupReqModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Add AACCUP Area Requirement</h2>
                 <p className="text-xs text-[#DD7230] font-semibold mt-0.5">{newAaccupReq.area_code} — {newAaccupReq.area_title}</p>
@@ -4019,7 +4285,7 @@ export function AccreditationSupport() {
       {showEditAaccupReqModal && editingAaccupReq && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Edit AACCUP Requirement</h2>
                 <p className="text-xs text-[#DD7230] font-semibold mt-0.5">{editingAaccupReq.area_code} — {editingAaccupReq.area_title}</p>
@@ -4523,7 +4789,7 @@ export function AccreditationSupport() {
       {showIsoUploadModal && selectedIsoReq && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Upload ISO Clause Evidence</h2>
                 <p className="text-xs font-semibold text-[#DD7230] mt-1">{selectedIsoReq.iso_clause}: {selectedIsoReq.title}</p>
@@ -4587,7 +4853,7 @@ export function AccreditationSupport() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowIsoUploadModal(false)} disabled={isUploading} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -4604,7 +4870,7 @@ export function AccreditationSupport() {
       {showAddIsoReqModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Add ISO 9001:2015 Clause Requirement</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Configure a new quality audit checklist item for {selectedProgram}</p>
@@ -4689,7 +4955,7 @@ export function AccreditationSupport() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowAddIsoReqModal(false)} disabled={isAddingIsoReq} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -4706,7 +4972,7 @@ export function AccreditationSupport() {
       {showEditIsoModal && editingIsoReq && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Edit ISO Clause Requirement</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Modify clause details, auditee office, or risk classification</p>
@@ -4789,7 +5055,7 @@ export function AccreditationSupport() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowEditIsoModal(false)} disabled={isEditingIsoReq} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -4993,7 +5259,7 @@ export function AccreditationSupport() {
       {showAddIqaDayModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Add IQA Audit Day</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Configure a new audit phase date and scope for CTU Argao Campus QMS</p>
@@ -5061,7 +5327,7 @@ export function AccreditationSupport() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowAddIqaDayModal(false)} disabled={isSavingIqaDay} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -5078,7 +5344,7 @@ export function AccreditationSupport() {
       {showEditIqaDayModal && editingIqaDay && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Edit IQA Audit Day</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Modify date, phase title, or audit focus scope</p>
@@ -5144,7 +5410,7 @@ export function AccreditationSupport() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowEditIqaDayModal(false)} disabled={isSavingIqaDay} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -5319,7 +5585,7 @@ export function AccreditationSupport() {
       {showAddIsoCycleModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-[#1F2937]">Initialize New Audit Cycle</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Start a fresh annual ISO 9001:2015 audit cycle year</p>
@@ -5347,7 +5613,7 @@ export function AccreditationSupport() {
                 </p>
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowAddIsoCycleModal(false)} disabled={isCreatingCycle} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -5363,18 +5629,18 @@ export function AccreditationSupport() {
       {/* --- ADD DIGITAL QMS ACTION PLAN MODAL --- */}
       {showAddQmsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Create QMS Action Plan (MRC Form 6)</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Digitize an Opportunity for Improvement across Process, People, or Paper</p>
               </div>
-              <button onClick={() => setShowAddQmsModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
+              <button onClick={() => { setShowAddQmsModal(false); setAttachedCarFile(null); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateQmsSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCreateQmsSubmit} className="p-6 space-y-4 overflow-y-auto flex-grow">
               {/* --- OCR AUTO-FILL SECTION --- */}
               <div className="p-4 bg-orange-50/50 border border-[#DD7230]/30 rounded-xl">
                 <label className="text-xs font-bold text-[#DD7230] uppercase tracking-wider flex items-center gap-1.5 mb-2">
@@ -5399,8 +5665,10 @@ export function AccreditationSupport() {
                         setNewQmsPlan((prev: any) => ({
                           ...prev,
                           opportunity_type: "Process",
-                          opportunity_description: combinedOpportunity.trim(),
-                          action_plan: combinedAction.trim()
+                          findings: data.findings || "",
+                            root_cause: data.root_cause || "",
+                            immediate_action: data.immediate_action || "",
+                            corrective_measure: data.corrective_measure || ""
                         }));
                         showToast("CAR Form successfully extracted and populated!", "success");
                       } catch {
@@ -5473,32 +5741,57 @@ export function AccreditationSupport() {
                 </div>
               </div>
 
-              <div>
+                            <div>
                 <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
-                  Opportunity Identification (MRC Form 6) <span className="text-red-500">*</span>
+                  Statement of Finding(s) <span className="text-red-500">*</span>
                 </label>
                 <textarea
-                  required
-                  rows={2}
-                  value={newQmsPlan.opportunity_description}
-                  onChange={(e) => setNewQmsPlan({ ...newQmsPlan, opportunity_description: e.target.value })}
-                  placeholder="Describe the opportunity for improvement, gap, or area needing action..."
-                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                  required rows={2}
+                  value={newQmsPlan.findings}
+                  onChange={(e) => setNewQmsPlan({ ...newQmsPlan, findings: e.target.value })}
+                  placeholder="Describe the opportunity for improvement or audit finding..."
+                  className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:ring-[#DD7230]"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
-                  Proposed Action Plan <span className="text-red-500">*</span>
+                  Root Cause Analysis
                 </label>
                 <textarea
-                  required
                   rows={2}
-                  value={newQmsPlan.action_plan}
-                  onChange={(e) => setNewQmsPlan({ ...newQmsPlan, action_plan: e.target.value })}
-                  placeholder="Detail step-by-step corrective or preventive actions..."
-                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                  value={newQmsPlan.root_cause}
+                  onChange={(e) => setNewQmsPlan({ ...newQmsPlan, root_cause: e.target.value })}
+                  placeholder="Analyze the underlying root cause..."
+                  className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:ring-[#DD7230]"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
+                    Immediate Action(s)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newQmsPlan.immediate_action}
+                    onChange={(e) => setNewQmsPlan({ ...newQmsPlan, immediate_action: e.target.value })}
+                    placeholder="Short-term fixes..."
+                    className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:ring-[#DD7230]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
+                    Proposed Corrective Measure(s) <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required rows={2}
+                    value={newQmsPlan.corrective_measure}
+                    onChange={(e) => setNewQmsPlan({ ...newQmsPlan, corrective_measure: e.target.value })}
+                    placeholder="Long-term systemic correction..."
+                    className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:ring-[#DD7230]"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -5530,8 +5823,8 @@ export function AccreditationSupport() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowAddQmsModal(false)} disabled={isAddingQms} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
+                <button type="button" onClick={() => { setShowAddQmsModal(false); setAttachedCarFile(null); }} disabled={isAddingQms} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
                 <button type="submit" disabled={isAddingQms} className="px-5 py-2.5 text-xs font-bold text-white bg-[#DD7230] hover:bg-[#DD7230] rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2 uppercase tracking-widest cursor-pointer">
@@ -5546,10 +5839,10 @@ export function AccreditationSupport() {
       {/* --- EDIT DIGITAL QMS ACTION PLAN MODAL --- */}
       {showEditQmsModal && editingQmsPlan && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
-                <h2 className="text-xl font-bold text-[#1F2937]">Edit QMS Action Plan</h2>
+                <h2 className="text-xl font-bold text-[#1F2937] shrink-0">Edit QMS Action Plan</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Update Opportunity or Action Plan details</p>
               </div>
               <button onClick={() => setShowEditQmsModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
@@ -5557,7 +5850,7 @@ export function AccreditationSupport() {
               </button>
             </div>
 
-            <form onSubmit={handleEditQmsSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleEditQmsSubmit} className="p-6 space-y-4 overflow-y-auto flex-grow">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">Auditee Office</label>
@@ -5585,25 +5878,52 @@ export function AccreditationSupport() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">Opportunity Identification</label>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
+                  Statement of Finding(s) <span className="text-red-500">*</span>
+                </label>
                 <textarea
-                  required
-                  rows={2}
-                  value={editingQmsPlan.opportunity_description}
-                  onChange={(e) => setEditingQmsPlan({ ...editingQmsPlan, opportunity_description: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                  required rows={2}
+                  value={editingQmsPlan.findings}
+                  onChange={(e) => setEditingQmsPlan({ ...editingQmsPlan, findings: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:ring-[#DD7230]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">Proposed Action Plan</label>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
+                  Root Cause Analysis
+                </label>
                 <textarea
-                  required
                   rows={2}
-                  value={editingQmsPlan.action_plan}
-                  onChange={(e) => setEditingQmsPlan({ ...editingQmsPlan, action_plan: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                  value={editingQmsPlan.root_cause}
+                  onChange={(e) => setEditingQmsPlan({ ...editingQmsPlan, root_cause: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:ring-[#DD7230]"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
+                    Immediate Action(s)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editingQmsPlan.immediate_action}
+                    onChange={(e) => setEditingQmsPlan({ ...editingQmsPlan, immediate_action: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:ring-[#DD7230]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
+                    Proposed Corrective Measure(s) <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required rows={2}
+                    value={editingQmsPlan.corrective_measure}
+                    onChange={(e) => setEditingQmsPlan({ ...editingQmsPlan, corrective_measure: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm focus:ring-[#DD7230]"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -5630,7 +5950,7 @@ export function AccreditationSupport() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowEditQmsModal(false)} disabled={isEditingQms} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -5660,7 +5980,274 @@ export function AccreditationSupport() {
             {qmsPlanToDelete && (
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex flex-col gap-1">
                 <span className="font-bold text-gray-900">{qmsPlanToDelete.auditee_office}</span>
-                <span>{qmsPlanToDelete.opportunity_description}</span>
+                <span>{qmsPlanToDelete.findings}</span>
+              </div>
+            )}
+          </>
+        }
+      />
+
+      
+      
+      {/* === ADD CAR FORM 1 MODAL === */}
+      {showAddCarModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] my-8 flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-[#1F2937]">Issue Corrective Action Request (CAR Form 1)</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Record auditor findings and auditee corrective response.</p>
+              </div>
+              <button onClick={() => { setShowAddCarModal(false); setAttachedCarFile(null); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCarSubmit} className="overflow-y-auto flex-grow">
+              {/* --- SECTION 1: AUDITOR FINDINGS (SCANNED TOP HALF) --- */}
+              <div className="p-6 space-y-4 border-b-2 border-dashed border-orange-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center">
+                    <AlertTriangle className="h-4 w-4 text-rose-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Section 1: Auditor Findings</h3>
+                    <p className="text-[10px] text-gray-500">Scanned from the top half of the physical CAR Form 1</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-orange-50/50 border border-[#DD7230]/30 rounded-xl">
+                  <label className="text-xs font-bold text-[#DD7230] uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                    <Sparkles className="h-3.5 w-3.5" /> AI Auto-Fill from Scanned Form
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      disabled={isExtractingCar}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setIsExtractingCar(true);
+                        try {
+                          const formData = new FormData();
+                          formData.append("file", file);
+                          const res = await apiClient.post("/api/extract-car-form", formData);
+                          const data = res.data;
+                          setNewCarForm((prev: any) => ({
+                            ...prev,
+                            car_no: data.car_no || "",
+                            date_issued: data.date_issued || data.date || "",
+                            campus: data.campus || "",
+                            area: data.area || prev.area || "",
+                            findings: data.findings || prev.findings || "",
+                            finding_category: data.finding_category || "UNKNOWN",
+                            auditor_name: data.auditor_name || "",
+                            acknowledged_by: data.acknowledged_by || "",
+                            type_of_non_conformity: data.type_of_non_conformity || "QMS Related"
+                          }));
+                          setAttachedCarFile(file);
+                          showToast("CAR Form scanned and fields populated!", "success");
+                        } catch {
+                          showToast("Failed to parse CAR form. Please fill manually.", "error");
+                        } finally {
+                          setIsExtractingCar(false);
+                          e.target.value = "";
+                        }
+                      }}
+                      className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#DD7230] file:text-white hover:file:bg-[#c45e22] file:cursor-pointer cursor-pointer disabled:opacity-50"
+                    />
+                    {isExtractingCar && <Loader2 className="h-4 w-4 animate-spin text-[#DD7230] shrink-0" />}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">CAR No.</label>
+                    <input type="text" value={newCarForm.car_no} onChange={(e) => setNewCarForm({...newCarForm, car_no: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="e.g. 23-001" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Date Issued</label>
+                    <input type="date" value={newCarForm.date_issued} onChange={(e) => setNewCarForm({...newCarForm, date_issued: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Finding Category</label>
+                    <select value={newCarForm.finding_category} onChange={(e) => setNewCarForm({...newCarForm, finding_category: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
+                      <option value="MAJOR">MAJOR</option>
+                      <option value="MINOR">MINOR</option>
+                      <option value="OBSERVATION">OBSERVATION</option>
+                      <option value="UNKNOWN">UNKNOWN</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Type of Non-Conformity</label>
+                    <select value={newCarForm.type_of_non_conformity} onChange={(e) => setNewCarForm({...newCarForm, type_of_non_conformity: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
+                      <option value="QMS Related">QMS Related</option>
+                      <option value="Security Related">Security Related</option>
+                      <option value="Customer Feedback">Customer Feedback</option>
+                      <option value="Customer Complaint">Customer Complaint</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Department / Area</label>
+                    <input type="text" value={newCarForm.area} onChange={(e) => setNewCarForm({...newCarForm, area: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Auditor / Complainant</label>
+                    <input type="text" value={newCarForm.auditor_name} onChange={(e) => setNewCarForm({...newCarForm, auditor_name: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Acknowledged By</label>
+                    <input type="text" value={newCarForm.acknowledged_by} onChange={(e) => setNewCarForm({...newCarForm, acknowledged_by: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Statement of Finding(s) <span className="text-red-500">*</span></label>
+                  <textarea required rows={3} value={newCarForm.findings} onChange={(e) => setNewCarForm({...newCarForm, findings: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="Describe the non-conformity or audit finding..." />
+                </div>
+              </div>
+
+              {/* --- SECTION 2: AUDITEE CORRECTIVE ACTION RESPONSE (MANUAL) --- */}
+              <div className="p-6 space-y-4 bg-emerald-50/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <Edit className="h-4 w-4 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Section 2: Auditee Corrective Action Response</h3>
+                    <p className="text-[10px] text-gray-500">To be filled in manually by the responsible department</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Root Cause(s)</label>
+                  <textarea rows={2} value={newCarForm.root_cause} onChange={(e) => setNewCarForm({...newCarForm, root_cause: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm" placeholder="Analyze the underlying root cause..." />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Immediate Action(s)</label>
+                  <textarea rows={2} value={newCarForm.immediate_action} onChange={(e) => setNewCarForm({...newCarForm, immediate_action: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm" placeholder="Short-term containment actions taken..." />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Proposed Corrective Measure(s)</label>
+                  <textarea rows={2} value={newCarForm.corrective_measure} onChange={(e) => setNewCarForm({...newCarForm, corrective_measure: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm" placeholder="Long-term systemic correction..." />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Measure(s) Proposed By</label>
+                    <input type="text" value={newCarForm.measures_proposed_by} onChange={(e) => setNewCarForm({...newCarForm, measures_proposed_by: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm" placeholder="Name and position" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Target Date</label>
+                    <input type="date" value={newCarForm.target_date} onChange={(e) => setNewCarForm({...newCarForm, target_date: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 flex justify-end shrink-0 gap-3">
+                <button type="button" onClick={() => { setShowAddCarModal(false); setAttachedCarFile(null); }} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">Cancel</button>
+                <button type="submit" disabled={isAddingCar} className="px-6 py-2.5 bg-[#DD7230] text-white rounded-xl font-bold text-sm hover:bg-[#c45e22] transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer">
+                  {isAddingCar && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save CAR Form 1
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* === EDIT CAR FORM 1 MODAL === */}
+      {showEditCarModal && editingCarForm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] my-8 flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-[#1F2937]">Edit CAR Form 1</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Update findings or corrective response.</p>
+              </div>
+              <button onClick={() => setShowEditCarModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditCarSubmit} className="p-6 space-y-4 overflow-y-auto flex-grow">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Status</label>
+                  <select value={editingCarForm.status} onChange={(e) => setEditingCarForm({...editingCarForm, status: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-bold text-[#DD7230]">
+                    <option value="Open">Open</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">CAR No.</label>
+                  <input type="text" value={editingCarForm.car_no || ""} onChange={(e) => setEditingCarForm({...editingCarForm, car_no: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Category</label>
+                  <select value={editingCarForm.finding_category} onChange={(e) => setEditingCarForm({...editingCarForm, finding_category: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
+                    <option value="MAJOR">MAJOR</option>
+                    <option value="MINOR">MINOR</option>
+                    <option value="OBSERVATION">OBSERVATION</option>
+                    <option value="UNKNOWN">UNKNOWN</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Statement of Finding(s)</label>
+                <textarea rows={2} value={editingCarForm.findings || ""} onChange={(e) => setEditingCarForm({...editingCarForm, findings: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Root Cause(s)</label>
+                <textarea rows={2} value={editingCarForm.root_cause || ""} onChange={(e) => setEditingCarForm({...editingCarForm, root_cause: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Immediate Action(s)</label>
+                  <textarea rows={2} value={editingCarForm.immediate_action || ""} onChange={(e) => setEditingCarForm({...editingCarForm, immediate_action: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Corrective Measure(s)</label>
+                  <textarea rows={2} value={editingCarForm.corrective_measure || ""} onChange={(e) => setEditingCarForm({...editingCarForm, corrective_measure: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                </div>
+              </div>
+              <div className="pt-4 border-t border-gray-100 flex justify-end shrink-0">
+                <button type="submit" disabled={isEditingCar} className="px-6 py-2.5 bg-[#DD7230] text-white rounded-xl font-bold text-sm hover:bg-[#c45e22] transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer">
+                  {isEditingCar && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* === DELETE CAR FORM MODAL === */}
+      <ReusableConfirmModal
+        isOpen={showDeleteCarModal && !!carFormToDelete}
+        onClose={() => setShowDeleteCarModal(false)}
+        onConfirm={handleDeleteCarSubmit}
+        isProcessing={isDeletingCar}
+        title="Delete CAR Form 1"
+        confirmText="Yes, Delete"
+        icon={Trash2}
+        description={
+          <>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Are you sure you want to delete this CAR Form?
+            </p>
+            {carFormToDelete && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex flex-col gap-1">
+                <span className="font-bold text-gray-900">{carFormToDelete.car_no || 'Unknown CAR No'}</span>
+                <span className="line-clamp-2">{carFormToDelete.findings}</span>
               </div>
             )}
           </>
@@ -5695,7 +6282,7 @@ export function AccreditationSupport() {
       {showQmsEvidenceUploadModal && targetQmsPlanForEvidence && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Attach Proof of Execution</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Upload evidence file for {targetQmsPlanForEvidence.auditee_office} Action Plan</p>
@@ -5733,7 +6320,7 @@ export function AccreditationSupport() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowQmsEvidenceUploadModal(false)} disabled={isUploadingQmsEvidence} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -5763,7 +6350,7 @@ export function AccreditationSupport() {
             <form onSubmit={handleSaveCloseoutSubmit} className="p-6 space-y-4">
               <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs space-y-1">
                 <p className="font-bold text-gray-900">{targetQmsPlanForCloseout.auditee_office} — {targetQmsPlanForCloseout.process_area}</p>
-                <p className="text-gray-600 line-clamp-2">"{targetQmsPlanForCloseout.action_plan}"</p>
+                <p className="text-gray-600 line-clamp-2">"{targetQmsPlanForCloseout.corrective_measure}"</p>
                 <p className="text-[#DD7230] font-bold">Target Date: {targetQmsPlanForCloseout.target_date}</p>
               </div>
 
@@ -5807,7 +6394,7 @@ export function AccreditationSupport() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowQmsCloseoutModal(false)} disabled={isSavingCloseout} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
                 </button>
@@ -5898,7 +6485,7 @@ export function AccreditationSupport() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowUpgradeModal(false)}
@@ -5973,7 +6560,7 @@ export function AccreditationSupport() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowEditStandingModal(false)}
@@ -6031,7 +6618,7 @@ export function AccreditationSupport() {
                 <p className="text-[11px] text-gray-500 mt-1.5">Supported formats: PDF, JPG, PNG (Max 25MB)</p>
               </div>
 
-              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => { setShowCertModal(false); setCertFile(null); setTargetHistoryId(null); }}

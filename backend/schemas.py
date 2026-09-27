@@ -296,8 +296,10 @@ class QMSActionPlanCreate(BaseModel):
     auditee_office: str
     process_area: str
     opportunity_type: str = "Process"
-    opportunity_description: str
-    action_plan: str
+    findings: str
+    root_cause: Optional[str] = None
+    immediate_action: Optional[str] = None
+    corrective_measure: str
     target_date: str
     personnel_responsible: str
     status: str = "In Progress"
@@ -309,8 +311,10 @@ class QMSActionPlanUpdate(BaseModel):
     auditee_office: Optional[str] = None
     process_area: Optional[str] = None
     opportunity_type: Optional[str] = None
-    opportunity_description: Optional[str] = None
-    action_plan: Optional[str] = None
+    findings: Optional[str] = None
+    root_cause: Optional[str] = None
+    immediate_action: Optional[str] = None
+    corrective_measure: Optional[str] = None
     target_date: Optional[str] = None
     personnel_responsible: Optional[str] = None
     status: Optional[str] = None
@@ -324,8 +328,10 @@ class QMSActionPlanResponse(BaseModel):
     auditee_office: str
     process_area: str
     opportunity_type: str
-    opportunity_description: str
-    action_plan: str
+    findings: str
+    root_cause: Optional[str] = None
+    immediate_action: Optional[str] = None
+    corrective_measure: str
     target_date: str
     personnel_responsible: str
     status: str
@@ -442,6 +448,69 @@ class CssResponseOut(BaseModel):
     suggestions: Optional[str] = None
     full_name: Optional[str] = None
     email: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class CARFormCreate(BaseModel):
+    cycle_year: str = "2025 Surveillance"
+    iso_clause_id: Optional[str] = None
+    car_no: Optional[str] = None
+    date_issued: Optional[str] = None
+    revision: Optional[str] = None
+    finding_category: Optional[str] = "UNKNOWN"
+    type_of_non_conformity: Optional[str] = None
+    auditor_name: Optional[str] = None
+    acknowledged_by: Optional[str] = None
+    campus: Optional[str] = None
+    area: Optional[str] = None
+    findings: Optional[str] = None
+    root_cause: Optional[str] = None
+    immediate_action: Optional[str] = None
+    corrective_measure: Optional[str] = None
+    measures_proposed_by: Optional[str] = None
+    target_date: Optional[str] = None
+    status: str = "Open"
+
+class CARFormUpdate(BaseModel):
+    car_no: Optional[str] = None
+    date_issued: Optional[str] = None
+    revision: Optional[str] = None
+    finding_category: Optional[str] = None
+    type_of_non_conformity: Optional[str] = None
+    auditor_name: Optional[str] = None
+    acknowledged_by: Optional[str] = None
+    campus: Optional[str] = None
+    area: Optional[str] = None
+    findings: Optional[str] = None
+    root_cause: Optional[str] = None
+    immediate_action: Optional[str] = None
+    corrective_measure: Optional[str] = None
+    measures_proposed_by: Optional[str] = None
+    target_date: Optional[str] = None
+    status: Optional[str] = None
+
+class CARFormResponse(BaseModel):
+    id: uuid.UUID
+    cycle_year: str
+    iso_clause_id: Optional[str] = None
+    car_no: Optional[str] = None
+    date_issued: Optional[str] = None
+    revision: Optional[str] = None
+    finding_category: Optional[str] = None
+    type_of_non_conformity: Optional[str] = None
+    auditor_name: Optional[str] = None
+    acknowledged_by: Optional[str] = None
+    campus: Optional[str] = None
+    area: Optional[str] = None
+    findings: Optional[str] = None
+    root_cause: Optional[str] = None
+    immediate_action: Optional[str] = None
+    corrective_measure: Optional[str] = None
+    measures_proposed_by: Optional[str] = None
+    target_date: Optional[str] = None
+    status: str
+    created_at: datetime
 
     class Config:
         from_attributes = True
