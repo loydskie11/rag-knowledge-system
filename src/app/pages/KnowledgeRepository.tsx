@@ -84,15 +84,16 @@ export function KnowledgeRepository() {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const loadDocs = async () => {
+    try {
+      const res = await apiClient.get(`/documents?t=${Date.now()}`);
+      setDocuments(res.data);
+    } catch (error) {
+      console.error("Failed to fetch documents", error);
+    }
+  };
+
   useEffect(() => {
-    const loadDocs = async () => {
-      try {
-        const res = await apiClient.get("/documents");
-        setDocuments(res.data);
-      } catch (error) {
-        console.error("Failed to fetch documents", error);
-      }
-    };
     loadDocs();
   }, []);
 
@@ -301,7 +302,7 @@ export function KnowledgeRepository() {
       formData: submitData,
       isVersionUpdate: true,
       onComplete: (name, isVersionUpdate) => {
-        apiClient.get("/documents").then(res => setDocuments(res.data)).catch(console.error)
+        loadDocs()
         showToast(`New version of "${name}" successfully published!`, 'success')
       },
     })
@@ -362,7 +363,7 @@ export function KnowledgeRepository() {
       formData: submitData,
       isVersionUpdate: false,
       onComplete: (name) => {
-        apiClient.get("/documents").then(res => setDocuments(res.data)).catch(console.error)
+        loadDocs()
         showToast(`"${name}" successfully added to repository!`, 'success')
       },
     })
@@ -458,6 +459,7 @@ export function KnowledgeRepository() {
                 <option value="Resolution">Resolution</option>
                 <option value="Accreditation Evidence">Accreditation Evidence</option>
                 <option value="Forms / Templates">Forms / Templates</option>
+                  <option value="Branding Asset">Branding Asset</option>
                 <option value="Other">Other</option>
               </select>
               
@@ -732,6 +734,7 @@ export function KnowledgeRepository() {
                     <select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
                       <option>Policy</option>
                       <option>Procedure / Guideline</option>
+                      <option>Branding Asset</option>
                       <option>Memorandum</option>
                       <option>Resolution</option>
                       <option>Accreditation Evidence</option>
@@ -864,6 +867,7 @@ export function KnowledgeRepository() {
                   <select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
                     <option>Policy</option>
                     <option>Procedure / Guideline</option>
+                      <option>Branding Asset</option>
                     <option>Memorandum</option>
                     <option>Resolution</option>
                     <option>Accreditation Evidence</option>

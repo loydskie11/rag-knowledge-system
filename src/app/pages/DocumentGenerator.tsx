@@ -54,18 +54,19 @@ import React, {
   type RefObject,
 } from "react";
 import {
-  Sparkles, RefreshCw, Image as ImageIcon, X, FileText, AlertCircle,
+  Sparkles, RefreshCw, Image as ImageIcon, X, FileText, CheckCircle2, AlertCircle,
   ChevronDown, ChevronUp, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Printer, ArrowLeft, Plus, Minus, Bold, Italic,
   Underline as UnderlineIcon, Strikethrough, List, ListOrdered,
   PenTool, Calendar, Layers, FileSpreadsheet, Trash2, Check,
-  Undo, Redo, FolderOpen, UploadCloud, Eye, Search,
+  Undo, Redo, FolderOpen, UploadCloud, Eye, Search, Loader2
 } from "lucide-react";
 import {
   Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType,
   Header, Footer, Table, TableRow, TableCell, WidthType, BorderStyle,
 } from "docx";
 import { saveAs } from "file-saver";
+import apiClient from "@/app/api/client";
 
 /* ============================================================================
  * LOCAL TYPE ALIASES
@@ -1680,11 +1681,141 @@ function PreviewPage(props: PreviewPageProps) {
  * MAIN COMPONENT
  * ==========================================================================*/
 export function DocumentGenerator() {
-  const [view, setView] = useState<AppView>("chooser");
-  const [entryMode, setEntryMode] = useState<"ai" | "template">("ai");
+  const [view, setView] = useState<"wizard" | "editor">("wizard");
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
-
   const [prompt, setPrompt] = useState("");
+  
+  // Wizard states
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [wizardTemplate, setWizardTemplate] = useState<any | null>(null);
+  const [wizardHtml, setWizardHtml] = useState<string>("");
+  const [wizardPlaceholders, setWizardPlaceholders] = useState<{norm: string, exact: string[]}[]>([]);
+  const [wizardForm, setWizardForm] = useState<Record<string, string>>({});
+  const [wizardLoading, setWizardLoading] = useState(false);
+  
+  useEffect(() => {
+    let active = true;
+    apiClient.get("/documents", { params: { category: "Template" } }).then(res => {
+      if (active && Array.isArray(res.data)) {
+        const filtered = res.data.filter(d => 
+          d.category === "Template" || 
+          d.category === "Accreditation Evidence" || 
+          (d.name && d.name.toUpperCase().includes("TEMPLATE"))
+        );
+        setTemplates(filtered);
+      }
+    }).catch(console.error);
+    return () => { active = false; };
+  }, []);
+  
+  const handleWizardTemplateSelect = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const tName = e.target.value;
+    if (!tName) {
+      setWizardTemplate(null);
+      setWizardHtml("");
+      setWizardPlaceholders([]);
+      setWizardForm({});
+      return;
+    }
+    const t = templates.find(x => x.name === tName);
+    setWizardTemplate(t || null);
+    if (!t) return;
+    
+    setWizardLoading(true);
+    try {
+      const url = `/documents/${encodeURIComponent(tName)}/content`;
+      const resp = await apiClient.get(url);
+      const payload = resp.data;
+      if (payload && payload.content_html) {
+        setWizardHtml(payload.content_html);
+        
+        const clean = payload.content_html.replace(/<[^>]+>/g, "");
+        const matches = clean.match(/\[.*?\]/g) || [];
+        const unique = Array.from(new Set(matches)) as string[];
+        
+        // Exclude body/content placeholders
+        const fields = unique.filter(x => !x.toLowerCase().includes("body") && !x.toLowerCase().includes("content") && !x.toLowerCase().includes("prompt"));
+        
+        // Group by normalized name so "Sender Name" and "SENDER NAME" don't show up twice
+        const groups: Record<string, string[]> = {};
+        for (const ph of fields) {
+            let norm = ph.replace(/\[|\]/g, "").replace(/^(insert\s+)/i, "").trim().toLowerCase();
+            // clean up weird characters from bad OCR or artifacts
+            norm = norm.replace(/[^a-z0-9\s,]/gi, "").trim();
+            if (!groups[norm]) groups[norm] = [];
+            groups[norm].push(ph);
+        }
+        
+        const groupedPlaceholders = Object.keys(groups).map(k => ({ norm: k, exact: groups[k] }));
+        
+        setWizardPlaceholders(groupedPlaceholders);
+        setWizardForm({});
+        setPrompt("");
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Failed to load template HTML.");
+    } finally {
+      setWizardLoading(false);
+    }
+  };
+  
+  const handleWizardGenerate = async () => {
+    if (!wizardTemplate) return;
+    setStatus("generating");
+    setErrorMessage(null);
+    try {
+      const targetPages = 1;
+      const WORDS_PER_PAGE = 275;
+      const pagePromptInstruction = "CRITICAL: The generated text MUST FIT ON EXACTLY ONE (1) PAGE. Aim for 250-300 words total, no more. Be concise and executive.";
+      
+      const fullPromptPayload = `I need you to generate the MAIN BODY CONTENT for this document.
+Instructions: ${prompt}
+${pagePromptInstruction}
+IMPORTANT: Output ONLY the paragraphs of the body. Do not output any Markdown, no headers, no To/From/Date (I already have those). Just the raw text/HTML for the body paragraphs.`;
+
+      const resp = await apiClient.post("/generate-document", { prompt: fullPromptPayload, targetPages });
+      const aiBody = resp.data.content || "";
+      
+      let finalHtml = wizardHtml;
+      
+      // 1. Map grouped form fields using split/join to avoid RegExp escaping issues entirely!
+      for (const group of wizardPlaceholders) {
+        const val = wizardForm[group.norm];
+        for (const exactPh of group.exact) {
+            // If they left it completely blank, just keep the placeholder so they can edit it later
+            const replaceVal = (val !== undefined && val.trim() !== "") ? val : exactPh;
+            finalHtml = finalHtml.split(exactPh).join(replaceVal);
+        }
+      }
+      
+      // 2. Map AI Body
+      const clean = wizardHtml.replace(/<[^>]+>/g, "");
+      const matches = clean.match(/\[.*?\]/g) || [];
+      const unique = Array.from(new Set(matches)) as string[];
+      const bodyPh = unique.find(x => x.toLowerCase().includes("body") || x.toLowerCase().includes("content") || x.toLowerCase().includes("prompt"));
+      
+      if (bodyPh) {
+        finalHtml = finalHtml.split(bodyPh).join(aiBody);
+      } else {
+        finalHtml += `<br/><br/>${aiBody}`;
+      }
+      
+      historyStackRef.current = [finalHtml];
+      historyIndexRef.current = 0;
+      setActiveTemplateId(wizardTemplate.name);
+      setStatus("success");
+      setView("editor");
+      loadHtmlIntoPreview(finalHtml);
+      
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(err instanceof Error ? err.message : "Generation failed.");
+      setStatus("error");
+    }
+  };
+
+
   const [showAllPrompts, setShowAllPrompts] = useState(false);
   const [activeRibbonTab, setActiveRibbonTab] = useState<RibbonTab>("home");
 
@@ -1762,13 +1893,32 @@ export function DocumentGenerator() {
     defaultsAppliedRef.current = true;
 
     (async () => {
-      const [defHeader, defFooter] = await Promise.all([
-        loadImageAssetFromUrl(DEFAULT_HEADER_URL),
-        loadImageAssetFromUrl(DEFAULT_FOOTER_URL),
-      ]);
+      try {
+        const res = await apiClient.get("/documents", { params: { category: "Branding Asset" } });
+        const assets = res.data || [];
+        
+        const headerDoc = assets.find((a: any) => a.name.toLowerCase().includes("header"));
+        const footerDoc = assets.find((a: any) => a.name.toLowerCase().includes("footer"));
+        
+        const headerUrl = headerDoc ? headerDoc.file_url : DEFAULT_HEADER_URL;
+        const footerUrl = footerDoc ? footerDoc.file_url : DEFAULT_FOOTER_URL;
 
-      if (defHeader) setHeaderImage((prev) => prev ?? defHeader);
-      if (defFooter) setFooterImage((prev) => prev ?? defFooter);
+        const [defHeader, defFooter] = await Promise.all([
+          loadImageAssetFromUrl(headerUrl).catch(() => null),
+          loadImageAssetFromUrl(footerUrl).catch(() => null),
+        ]);
+
+        if (defHeader) setHeaderImage((prev) => prev ?? defHeader);
+        if (defFooter) setFooterImage((prev) => prev ?? defFooter);
+      } catch (err) {
+        // fallback
+        const [defHeader, defFooter] = await Promise.all([
+          loadImageAssetFromUrl(DEFAULT_HEADER_URL).catch(() => null),
+          loadImageAssetFromUrl(DEFAULT_FOOTER_URL).catch(() => null),
+        ]);
+        if (defHeader) setHeaderImage((prev) => prev ?? defHeader);
+        if (defFooter) setFooterImage((prev) => prev ?? defFooter);
+      }
     })();
   }, []);
 
@@ -1814,7 +1964,7 @@ export function DocumentGenerator() {
     measure.innerHTML = sourceHtml;
     document.body.appendChild(measure);
 
-    const honourAiPageTarget = entryMode === "ai" && !hasUserEditedRef.current;
+    const honourAiPageTarget = !activeTemplateId && !hasUserEditedRef.current;
     let targetPageCount: number | null = honourAiPageTarget ? parseTargetPageCount(prompt) : null;
     if (!honourAiPageTarget && measure.offsetHeight <= effectiveContentHeight * SMALL_OVERFLOW_FIT_RATIO) {
       targetPageCount = 1;
@@ -2371,7 +2521,7 @@ export function DocumentGenerator() {
   const removeFooterLetterhead = () => { setFooterImage(null); setFooterError(null); };
 
   const resolveFileNameBase = (): string => {
-    if (entryMode === "template" && activeTemplateId) {
+    if (activeTemplateId && activeTemplateId !== "Blank Document") {
       return sanitizeFileName(activeTemplateId);
     }
     return sanitizeFileName(prompt);
@@ -2387,19 +2537,9 @@ export function DocumentGenerator() {
     setRepositoryLoading(doc.name);
 
     try {
-      const url = `/api/repository-documents/${encodeURIComponent(doc.name)}/content`;
-      console.log("[loadRepositoryDocument] →", url);
-
-      const resp = await fetch(url);
-      console.log("[loadRepositoryDocument] ←", resp.status, resp.headers.get("content-type"));
-
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        const snippet = errText ? ` — ${errText.slice(0, 200)}` : "";
-        throw new Error(`Could not load document content (HTTP ${resp.status})${snippet}`);
-      }
-
-      const payload: RepositoryDocumentContent = await resp.json();
+      const url = `/documents/${encodeURIComponent(doc.name)}/content`;
+      const resp = await apiClient.get(url);
+      const payload: RepositoryDocumentContent = resp.data;
       console.log("[loadRepositoryDocument] payload keys:", Object.keys(payload || {}));
 
       if (!payload.content_html || !payload.content_html.trim()) {
@@ -2424,8 +2564,8 @@ export function DocumentGenerator() {
       historyStackRef.current = [payload.content_html];
       historyIndexRef.current = 0;
 
-      setPrompt(payload.name || doc.name);
-      setEntryMode("template");
+      setPrompt("");
+      // removed setEntryMode
       setActiveTemplateId(doc.name);
       setStatus("success");
       setErrorMessage(null);
@@ -2473,10 +2613,7 @@ export function DocumentGenerator() {
       const fullPromptPayload = `${prompt}\n\n${pagePromptInstruction} ${headerFooterInfo.join(" ")}`.trim();
 
       try {
-        const { apiClient } = await import("@/app/api/client");
-        const response = await apiClient.post("/generate-document", { 
-          prompt: fullPromptPayload, targetPages 
-        });
+        const response = await apiClient.post("/generate-document", { prompt: fullPromptPayload, targetPages });
         if (response.ok) {
           const data = await response.json();
           rawContent = data.content ?? "";
@@ -2489,7 +2626,7 @@ export function DocumentGenerator() {
       historyStackRef.current = [parsedHtml];
       historyIndexRef.current = 0;
 
-      setEntryMode("ai");
+      // removed setEntryMode
       setActiveTemplateId(null);
       setStatus("success");
 
@@ -2815,43 +2952,6 @@ export function DocumentGenerator() {
 
   const handleDownloadPdf = () => handlePrint();
 
-  if (view === "chooser") {
-    return (
-      <ChooserScreen
-        onPickAI={() => { setEntryMode("ai"); setActiveTemplateId(null); setView("compose"); }}
-        onPickTemplate={() => {
-          setErrorMessage(null);
-          setRepositoryLoading(null);
-          setView("templates");
-        }}
-      />
-    );
-  }
-
-  if (view === "templates") {
-    return (
-      <TemplatesScreen
-        onBack={() => {
-          setErrorMessage(null);
-          setRepositoryLoading(null);
-          setView("chooser");
-        }}
-        onSelect={(doc) => loadRepositoryDocument(doc)}
-        errorMessage={errorMessage}
-        onDismissError={() => setErrorMessage(null)}
-        loadingDocName={repositoryLoading}
-        headerImage={headerImage}
-        footerImage={footerImage}
-        headerError={headerError}
-        footerError={footerError}
-        onHeaderUpload={handleHeaderUpload}
-        onFooterUpload={handleFooterUpload}
-        onRemoveHeader={removeHeaderLetterhead}
-        onRemoveFooter={removeFooterLetterhead}
-      />
-    );
-  }
-
   if (view === "editor") {
     const cfg = PAGE_SIZES[pageSize];
     const fragments = previewFragments.length ? previewFragments : [""];
@@ -2872,16 +2972,19 @@ export function DocumentGenerator() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setView(entryMode === "template" ? "templates" : "compose")}
+                  onClick={() => {
+                    setView("wizard");
+                    
+                  }}
                   className="flex items-center gap-2 px-3.5 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#374151] transition-all shadow-sm active:scale-95"
                 >
                   <ArrowLeft className="h-4 w-4 text-[#dd7230]" />
-                  <span>{entryMode === "template" ? "Back to Repository" : "New Prompt"}</span>
+                  <span>"Back to Wizard"</span>
                 </button>
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#dd7230] flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5" />
-                    {entryMode === "template" ? "KNOWLEDGE REPOSITORY DOCUMENT" : "AI DOCUMENT GENERATOR"}
+                    {activeTemplateId ? "TEMPLATE DOCUMENT" : "AI DOCUMENT GENERATOR"}
                   </span>
                   <p className="text-sm font-semibold text-[#1F2937] truncate max-w-[260px] sm:max-w-md">
                     {prompt || "Institutional Document"}
@@ -3282,503 +3385,171 @@ export function DocumentGenerator() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setView("chooser")}
-          className="flex items-center gap-2 px-3.5 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#374151] transition-all shadow-sm active:scale-95"
-        >
-          <ArrowLeft className="h-4 w-4 text-[#dd7230]" />
-          <span>Back</span>
-        </button>
-        <div>
-          <h1 className="text-2xl font-semibold text-[#1F2937]">Draft with AI</h1>
-          <p className="text-sm text-[#6B7280] mt-0.5">
-            Describe the institutional document you need and the AI will draft it for you.
-          </p>
-        </div>
-      </div>
-
-      {errorMessage && (
-        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
-          <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-rose-700">{errorMessage}</p>
-        </div>
-      )}
-
-      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
-        <div className="px-5 pt-5 pb-3 border-b border-[#E5E7EB] border-l-4 border-l-[#dd7230]">
-          <h2 className="text-base font-semibold text-[#1F2937]">Describe Your Document</h2>
-          <p className="text-sm text-[#6B7280] mt-0.5">
-            Specify the document type, purpose, target office/audience, and specific sections needed.
-          </p>
-        </div>
-
-        <div className="p-5 space-y-4">
+  if (view === "wizard") {
+    return (
+      <div className="space-y-6 flex flex-col min-h-[calc(100vh-6rem)] relative max-w-6xl mx-auto w-full animate-in fade-in duration-300">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={6}
-              className="w-full px-4 py-3 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#dd7230] focus:border-transparent transition-shadow resize-none"
-              placeholder="Example: Draft an Official Campus Memorandum announcing the schedule for Midterm Examinations..."
-              disabled={status === "generating"}
-            />
-            <div className="flex justify-between items-center mt-1.5 text-xs text-[#9CA3AF]">
-              <span>Use standard academic terms or describe specific sections</span>
-              <span>{prompt.length} characters</span>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Draft New Document</h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Select a template, configure details, and let AI generate the content.</p>
+          </div>
+        </div>
+
+        {errorMessage && (
+          <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl">
+            <AlertCircle className="h-4 w-4 text-rose-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-xs font-semibold text-rose-800">Error</h3>
+              <p className="text-[11px] text-rose-600 mt-0.5">{errorMessage}</p>
             </div>
           </div>
-
-          <div className="border border-[#E5E7EB] rounded-xl p-4 bg-[#F9FAFB]">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-[#dd7230]" />
-                <span className="text-xs font-bold uppercase tracking-wider text-[#374151]">
-                  Official Letterhead &amp; Seals
-                </span>
-              </div>
-              <span className="text-xs text-[#9CA3AF]">Default CTU letterhead pre-loaded · drag &amp; drop to replace</span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <ImageUploadField
-                label="Header Image"
-                helperText="Default CTU Argao header is pre-loaded. Drag & drop a PNG/JPG here to replace it."
-                image={headerImage}
-                error={headerError}
-                inputRef={headerInputRef}
-                onFileSelected={handleHeaderUpload}
-                onRemove={removeHeaderLetterhead}
-              />
-              <ImageUploadField
-                label="Footer Image"
-                helperText="Default CTU Argao footer is pre-loaded. Drag & drop a PNG/JPG here to replace it."
-                image={footerImage}
-                error={footerError}
-                inputRef={footerInputRef}
-                onFileSelected={handleFooterUpload}
-                onRemove={removeFooterLetterhead}
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={handleGenerate}
-            disabled={status === "generating" || !prompt.trim()}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-[#dd7230] text-white rounded-lg font-bold text-sm transition-all hover:bg-[#c4612a] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm active:scale-[0.99]"
-          >
-            {status === "generating" ? (
-              <><RefreshCw className="h-5 w-5 animate-spin" />Drafting Institutional Document…</>
-            ) : (
-              <><Sparkles className="h-5 w-5" />Generate Document with AI</>
-            )}
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
-        <div className="px-5 pt-5 pb-3 border-b border-[#E5E7EB] flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-[#1F2937]">Institutional &amp; Academic Templates</h2>
-            <p className="text-xs text-[#6B7280] mt-0.5">Click any template to populate the drafting prompt</p>
-          </div>
-          <button
-            onClick={() => setShowAllPrompts((v) => !v)}
-            className="flex items-center gap-1 text-xs font-semibold text-[#dd7230] hover:text-[#c4612a]"
-          >
-            {showAllPrompts ? <>Show Less <ChevronUp className="h-3.5 w-3.5" /></> : <>Show All ({QUICK_PROMPTS.length}) <ChevronDown className="h-3.5 w-3.5" /></>}
-          </button>
-        </div>
-        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {(showAllPrompts ? QUICK_PROMPTS : QUICK_PROMPTS.slice(0, 4)).map((t, idx) => (
-            <button
-              key={idx}
-              onClick={() => setPrompt(t.prompt)}
-              className="p-3.5 text-left rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] hover:bg-[#FFF4E5] hover:border-[#dd7230] transition-all group"
-            >
-              <span className="text-xs font-bold text-[#1F2937] group-hover:text-[#dd7230] block">{t.title}</span>
-              <p className="text-[11px] text-[#6B7280] mt-1 line-clamp-2 leading-relaxed">{t.prompt}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================================
- * SUBCOMPONENT: Chooser Screen
- * ==========================================================================*/
-function ChooserScreen(props: { onPickAI: () => void; onPickTemplate: () => void }) {
-  const { onPickAI, onPickTemplate } = props;
-  return (
-    <div className="space-y-8">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-[#dd7230] rounded-xl flex items-center justify-center shadow-sm">
-          <Sparkles className="h-5 w-5 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-[#1F2937]">CTU DOCUMENT Studio</h1>
-          <p className="text-sm text-[#6B7280] mt-0.5">Choose how you&apos;d like to begin your institutional document.</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <button onClick={onPickAI} className="group text-left p-6 bg-white border border-[#E5E7EB] hover:border-[#dd7230] hover:shadow-lg rounded-2xl transition-all">
-          <div className="w-12 h-12 rounded-xl bg-[#FFF4E5] flex items-center justify-center mb-4 group-hover:bg-[#dd7230] transition-colors">
-            <Sparkles className="h-6 w-6 text-[#dd7230] group-hover:text-white transition-colors" />
-          </div>
-          <h2 className="text-lg font-bold text-[#1F2937] mb-1">Draft with AI</h2>
-          <p className="text-sm text-[#6B7280] leading-relaxed">
-            Describe the memorandum, proposal, syllabus, or letter you need. The AI will draft a complete institutional document.
-          </p>
-        </button>
-
-        <button onClick={onPickTemplate} className="group text-left p-6 bg-white border border-[#E5E7EB] hover:border-[#dd7230] hover:shadow-lg rounded-2xl transition-all">
-          <div className="w-12 h-12 rounded-xl bg-[#FFF4E5] flex items-center justify-center mb-4 group-hover:bg-[#dd7230] transition-colors">
-            <FolderOpen className="h-6 w-6 text-[#dd7230] group-hover:text-white transition-colors" />
-          </div>
-          <h2 className="text-lg font-bold text-[#1F2937] mb-1">Open Existing Document</h2>
-          <p className="text-sm text-[#6B7280] leading-relaxed">
-            Browse <strong>active</strong> Accreditation Evidence in the Knowledge Repository.
-            Edit, reprint, or export exactly as it was originally issued.
-          </p>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================================
- * SUBCOMPONENT: Templates Screen
- * ==========================================================================*/
-function TemplatesScreen(props: {
-  onBack: () => void;
-  onSelect: (doc: RepositoryDocument) => void;
-  errorMessage: string | null;
-  onDismissError: () => void;
-  loadingDocName: string | null;
-  headerImage: ImageAsset | null;
-  footerImage: ImageAsset | null;
-  headerError: string | null;
-  footerError: string | null;
-  onHeaderUpload: (file: File | undefined) => void;
-  onFooterUpload: (file: File | undefined) => void;
-  onRemoveHeader: () => void;
-  onRemoveFooter: () => void;
-}) {
-  const {
-    onBack, onSelect, errorMessage, onDismissError, loadingDocName,
-    headerImage, footerImage, headerError, footerError,
-    onHeaderUpload, onFooterUpload, onRemoveHeader, onRemoveFooter,
-  } = props;
-
-  const [documents, setDocuments] = useState<RepositoryDocument[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showLetterheadModal, setShowLetterheadModal] = useState(false);
-
-  const modalHeaderInputRef = useRef<HTMLInputElement>(null);
-  const modalFooterInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const url =
-          "/api/repository-documents" +
-          "?category=" + encodeURIComponent("Accreditation Evidence") +
-          "&status="   + encodeURIComponent("Active");
-        const resp = await fetch(url);
-        if (!resp.ok) {
-          throw new Error(`Failed to load repository (HTTP ${resp.status}).`);
-        }
-        const data = await resp.json();
-        if (!cancelled) setDocuments(Array.isArray(data) ? data : []);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load documents.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const filteredDocuments = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return documents;
-    return documents.filter((d) => (d.name || "").toLowerCase().includes(q));
-  }, [documents, searchQuery]);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 px-3.5 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#374151] transition-all shadow-sm active:scale-95"
-          >
-            <ArrowLeft className="h-4 w-4 text-[#dd7230]" />
-            <span>Back</span>
-          </button>
-          <div>
-            <h1 className="text-xl font-semibold text-[#1F2937]">Accreditation Evidence</h1>
-            <p className="text-sm text-[#6B7280] mt-0.5">
-              Live from the Knowledge Repository — showing <strong>Active</strong> documents only.
-              Select a document to open it in the editor.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowLetterheadModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#FFF4E5] border border-[#E5E7EB] hover:border-[#dd7230] rounded-lg text-xs font-bold text-[#374151] hover:text-[#dd7230] transition-all shadow-sm active:scale-95"
-          title="Change the header and footer letterhead applied to documents you open"
-        >
-          <ImageIcon className="h-4 w-4 text-[#dd7230]" />
-          <span>Change Header &amp; Footer</span>
-        </button>
-      </div>
-
-      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm p-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF] pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by document title…"
-            className="w-full pl-10 pr-10 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-sm text-[#1F2937] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#dd7230] focus:border-transparent transition-shadow"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[#E5E7EB] text-[#6B7280] hover:text-[#374151] transition-colors"
-              aria-label="Clear search"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-        {searchQuery && !loading && !error && (
-          <p className="text-[11px] text-[#9CA3AF] mt-2">
-            Showing {filteredDocuments.length} of {documents.length} document{documents.length === 1 ? "" : "s"}
-          </p>
         )}
-      </div>
 
-      {errorMessage && (
-        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
-          <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-rose-700">Could not open document</p>
-            <p className="text-xs text-rose-600 mt-0.5 break-words">{errorMessage}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onDismissError}
-            className="flex-shrink-0 p-1.5 rounded-lg hover:bg-rose-100 text-rose-500 hover:text-rose-700 transition-colors"
-            aria-label="Dismiss error"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {loading && (
-        <div className="flex items-center justify-center gap-3 p-8 bg-white rounded-2xl border border-[#E5E7EB]">
-          <RefreshCw className="h-4 w-4 text-[#dd7230] animate-spin" />
-          <span className="text-sm text-[#6B7280]">Loading documents…</span>
-        </div>
-      )}
-
-      {!loading && error && (
-        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
-          <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-rose-700">Could not load documents</p>
-            <p className="text-xs text-rose-600 mt-0.5">{error}</p>
-            <p className="text-[11px] text-rose-500 mt-1">
-              Ensure <code className="font-mono">main.py</code> is running and{" "}
-              <code className="font-mono">REPOSITORY_BACKEND_URL</code> is set on server.js.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {!loading && !error && documents.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-2 p-10 bg-white rounded-2xl border border-dashed border-[#E5E7EB]">
-          <FolderOpen className="h-8 w-8 text-[#9CA3AF]" />
-          <p className="text-sm font-semibold text-[#374151]">No active accreditation evidence found</p>
-          <p className="text-xs text-[#9CA3AF] max-w-md text-center">
-            Only documents with category <strong>Accreditation Evidence</strong> and status{" "}
-            <strong>Active</strong> appear here. Upload new evidence or activate existing
-            documents via the accreditation workflow.
-          </p>
-        </div>
-      )}
-
-      {!loading && !error && documents.length > 0 && filteredDocuments.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-2 p-10 bg-white rounded-2xl border border-dashed border-[#E5E7EB]">
-          <Search className="h-8 w-8 text-[#9CA3AF]" />
-          <p className="text-sm font-semibold text-[#374151]">No documents match &ldquo;{searchQuery}&rdquo;</p>
-          <p className="text-xs text-[#9CA3AF]">Try a different search term.</p>
-          <button
-            type="button"
-            onClick={() => setSearchQuery("")}
-            className="mt-1 text-xs font-semibold text-[#dd7230] hover:text-[#c4612a]"
-          >
-            Clear search
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && filteredDocuments.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredDocuments.map((doc) => {
-            const isOpeningThis = loadingDocName === doc.name;
-            const anyLoading = loadingDocName !== null;
-            const disabled = anyLoading;
-            return (
-              <button
-                key={doc.name}
-                onClick={() => { if (!disabled) onSelect(doc); }}
-                disabled={disabled}
-                aria-busy={isOpeningThis}
-                className={`group text-left p-5 bg-white border border-[#E5E7EB] rounded-2xl transition-all ${
-                  disabled
-                    ? "opacity-60 cursor-not-allowed"
-                    : "hover:border-[#dd7230] hover:shadow-lg"
-                } ${isOpeningThis ? "ring-2 ring-[#dd7230] ring-offset-1" : ""}`}
-              >
-                <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#dd7230] bg-[#FFF4E5] px-2 py-1 rounded">
-                    {doc.category || "Accreditation Evidence"}
-                  </span>
-                  {doc.office && (
-                    <span className="text-[10px] font-semibold text-[#9CA3AF]">{doc.office}</span>
-                  )}
-                  {doc.version && (
-                    <span className="text-[10px] font-semibold text-[#9CA3AF]">v{doc.version}</span>
-                  )}
-                  {doc.status && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-1 rounded">
-                      {doc.status}
-                    </span>
-                  )}
-                </div>
-                <h3 className={`text-base font-bold mb-1.5 transition-colors ${
-                  disabled ? "text-[#6B7280]" : "text-[#1F2937] group-hover:text-[#dd7230]"
-                }`}>
-                  {doc.name}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative flex-1">
+          {/* --- CONFIGURATION SECTION (Left) --- */}
+          <div className="lg:col-span-1 space-y-4 sticky top-6 self-start">
+            <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden">
+              <div className="p-3.5 bg-gray-50/80 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-900 text-xs flex items-center gap-2">
+                  <FileText className="h-3.5 w-3.5 text-[#DD7230]" /> Document Configuration
                 </h3>
-                <p className="text-xs text-[#6B7280] leading-relaxed">
-                  {doc.effectivity_date
-                    ? `Effectivity: ${doc.effectivity_date}`
-                    : doc.upload_date
-                      ? `Uploaded: ${doc.upload_date.split("T")[0]}`
-                      : "No date recorded."}
-                </p>
-                {doc.uploaded_by && (
-                  <p className="text-[11px] text-[#9CA3AF] mt-1">Uploaded by {doc.uploaded_by}</p>
-                )}
-                <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold text-[#dd7230]">
-                  {isOpeningThis ? (
-                    <>
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      <span>Opening…</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-3.5 w-3.5" />
-                      <span>Open in Editor →</span>
-                    </>
-                  )}
+              </div>
+              <div className="p-5 space-y-5">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">Select Template</label>
+                  <div className="flex flex-col gap-2">
+                    <select 
+                      value={wizardTemplate ? wizardTemplate.name : ""} 
+                      onChange={handleWizardTemplateSelect}
+                      className="w-full py-2 px-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-colors"
+                    >
+                      <option value="">-- Choose a Template --</option>
+                      {templates.map(t => (
+                        <option key={t.name} value={t.name}>{t.name}</option>
+                      ))}
+                    </select>
+                    <div className="flex items-center gap-2 my-1">
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                      <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">OR</span>
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setWizardTemplate({ name: "Blank Document" });
+                        setWizardHtml("<p><br/></p>");
+                        setWizardPlaceholders([]);
+                        setWizardForm({});
+                      }}
+                      className="w-full py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-semibold transition-all shadow-2xs"
+                    >
+                      Draft from scratch
+                    </button>
+                  </div>
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
 
-      {showLetterheadModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowLetterheadModal(false); }}
-        >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB]">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-[#dd7230]" />
-                <h2 className="text-base font-bold text-[#1F2937]">Header &amp; Footer Letterhead</h2>
+                {wizardTemplate && !wizardLoading && (
+                  <div className="pt-4 border-t border-gray-100 space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700">AI Generation Prompt</label>
+                      <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">Provide instructions. The AI will generate body paragraphs and merge them with your details.</p>
+                    </div>
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="e.g. Draft a memo informing college deans about upcoming midterms..."
+                      className="w-full h-28 p-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] resize-none transition-colors"
+                    />
+                    
+                    <button
+                      onClick={handleWizardGenerate}
+                      disabled={status === "generating" || !prompt.trim()}
+                      className="w-full mt-2 py-2.5 bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-all disabled:opacity-50 disabled:hover:bg-[#DD7230] flex justify-center items-center gap-2 text-xs font-semibold shadow-2xs cursor-pointer active:scale-95"
+                    >
+                      {status === "generating" ? (
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing & Generating...</>
+                      ) : (
+                        "Generate & Review"
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setShowLetterheadModal(false)}
-                className="p-1.5 rounded-lg hover:bg-[#F3F4F6] text-[#6B7280] hover:text-[#374151] transition-colors"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <p className="text-xs text-[#6B7280] leading-relaxed">
-                These letterheads apply to <strong>any document you open next</strong> from this picker.
-                Leave either one empty (click <em>Remove</em>) to open documents with no letterhead on that
-                side. You can always change or clear it later from the editor's{" "}
-                <strong>Insert → Letterhead</strong> ribbon.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <ImageUploadField
-                  label="Header Image"
-                  helperText="Default CTU Argao header is pre-loaded. Drag & drop a PNG/JPG here to replace it, or click Remove to have no header."
-                  image={headerImage}
-                  error={headerError}
-                  inputRef={modalHeaderInputRef}
-                  onFileSelected={onHeaderUpload}
-                  onRemove={onRemoveHeader}
-                />
-                <ImageUploadField
-                  label="Footer Image"
-                  helperText="Default CTU Argao footer is pre-loaded. Drag & drop a PNG/JPG here to replace it, or click Remove to have no footer."
-                  image={footerImage}
-                  error={footerError}
-                  inputRef={modalFooterInputRef}
-                  onFileSelected={onFooterUpload}
-                  onRemove={onRemoveFooter}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#E5E7EB] bg-[#F9FAFB]">
-              <button
-                type="button"
-                onClick={() => setShowLetterheadModal(false)}
-                className="px-4 py-2 bg-[#dd7230] hover:bg-[#c4612a] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"
-              >
-                Done
-              </button>
             </div>
           </div>
+
+          {/* --- DETAILS SECTION (Right) --- */}
+          <div className="lg:col-span-2">
+            {wizardLoading ? (
+              <div className="bg-white rounded-xl shadow-2xs border border-gray-200 h-full min-h-[460px] flex flex-col items-center justify-center p-8 text-center">
+                <Loader2 className="h-8 w-8 text-[#DD7230] animate-spin mb-4" />
+                <h3 className="text-base font-semibold text-gray-900">Extracting Fields...</h3>
+                <p className="text-xs text-gray-500 max-w-sm mt-1.5 leading-relaxed">Analyzing template structure and extracting dynamic placeholders.</p>
+              </div>
+            ) : wizardTemplate ? (
+              <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden h-full min-h-[460px] animate-in fade-in duration-300 flex flex-col">
+                <div className="p-3.5 bg-gray-50/80 border-b border-gray-200">
+                  <h3 className="font-semibold text-gray-900 text-xs flex items-center gap-2">
+                    <FileText className="h-3.5 w-3.5 text-[#DD7230]" /> Template Details
+                  </h3>
+                </div>
+                <div className="p-6 sm:p-8 flex-1">
+                  <div className="mb-6">
+                    <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                      {wizardTemplate.name}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Please fill in the required placeholders below.</p>
+                  </div>
+                  
+                  {wizardPlaceholders.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                      {wizardPlaceholders.map(group => {
+                        const label = group.norm.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                        return (
+                        <div key={group.norm}>
+                          <label className="block text-[11px] font-medium text-gray-700 mb-1.5">{label}</label>
+                          <input 
+                            type="text"
+                            value={wizardForm[group.norm] || ""}
+                            onChange={(e) => setWizardForm({...wizardForm, [group.norm]: e.target.value})}
+                            placeholder={`Enter ${label}`}
+                            className="w-full py-2 px-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-colors"
+                          />
+                        </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-40 text-center">
+                      <div className="mx-auto w-10 h-10 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center mb-3 text-gray-400">
+                        <CheckCircle2 className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-sm font-semibold text-gray-700">No Dynamic Fields Found</h3>
+                      <p className="text-xs text-gray-400 mt-1 max-w-[240px] mx-auto">This template does not require any manual input details. You can proceed directly to generation.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gray-50/50 rounded-xl border-2 border-dashed border-gray-200 h-full min-h-[460px] flex items-center justify-center p-8">
+                <div className="text-center">
+                  <div className="bg-white w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-2xs border border-gray-200 text-gray-400">
+                    <FileText className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-700">Awaiting Template Selection</h3>
+                  <p className="text-xs text-gray-400 mt-1 max-w-[240px] mx-auto">Select a document template from the left panel to begin filling out details and drafting.</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  return null;
 }
 
-/* ============================================================================
- * SUBCOMPONENT: Image Upload Field
- * ==========================================================================*/
 function ImageUploadField(props: {
   label: string;
   helperText: string;
