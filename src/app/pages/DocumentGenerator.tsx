@@ -1747,8 +1747,10 @@ export function DocumentGenerator() {
         for (const ph of fields) {
             let norm = ph.replace(/\[|\]/g, "").replace(/^(insert\s+)/i, "").replace(/_/g, " ").trim().toLowerCase();
             norm = norm.replace(/[^a-z0-9\s,]/gi, "").trim();
+            if (norm.startsWith("attendance ")) norm = "attendance";
+            if (norm.startsWith("agenda ")) norm = "agenda";
             if (!groups[norm]) groups[norm] = [];
-            groups[norm].push(ph);
+            if (!groups[norm].includes(ph)) groups[norm].push(ph);
         }
         
         const groupedPlaceholders = Object.keys(groups).map(k => ({ norm: k, exact: groups[k] }));
@@ -1818,13 +1820,26 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                 } else {
                     replaceVal = "";
                 }
+            } else if (group.norm === "attendance" || group.norm === "agenda") {
+                const rows = wizardTableRows[group.norm] || [];
+                // Extract N from [ATTENDANCE_N] or [AGENDA_N]
+                const match = exactPh.match(/\d+/);
+                if (match) {
+                    const idx = parseInt(match[0], 10) - 1;
+                    if (idx >= 0 && idx < rows.length && rows[idx][0]) {
+                        replaceVal = rows[idx][0].trim();
+                    } else {
+                        replaceVal = "";
+                    }
+                } else {
+                    replaceVal = "";
+                }
             } else {
-                const isAttendanceOrAgenda = /\[(ATTENDANCE_\d+|AGENDA_\d+)\]/i.test(exactPh);
                 const isMrcDetail = /\[(NO|DATE|TIME_STARTED|TIME_ADJOURNED|RECORDED_BY_NAME|NOTED_BY_NAME)\]/i.test(exactPh);
                 
                 replaceVal = (val !== undefined && val.trim() !== "")
                   ? val.trim()
-                  : (isAttendanceOrAgenda || isMrcDetail ? "" : exactPh);
+                  : (isMrcDetail ? "" : exactPh);
             }
 
             finalHtml = finalHtml.split(exactPh).join(replaceVal);
@@ -3721,6 +3736,69 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                                     )}
                                   </tbody>
                                 </table>
+                              </div>
+                            </div>
+                          );
+                        } else if (group.norm === "attendance" || group.norm === "agenda") {
+                          const rows = wizardTableRows[group.norm] || [];
+                          const maxItems = group.norm === "attendance" ? 9 : 4;
+                          
+                          return (
+                            <div key={group.norm} className="col-span-1 sm:col-span-2 mt-2 border border-gray-200 rounded-lg overflow-hidden">
+                              <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                                <span className="text-[11px] font-semibold text-gray-700">{label} List (Max {maxItems})</span>
+                                <button 
+                                  onClick={() => {
+                                    if (rows.length < maxItems) {
+                                      setWizardTableRows({
+                                        ...wizardTableRows,
+                                        [group.norm]: [...rows, [""]]
+                                      });
+                                    }
+                                  }}
+                                  disabled={rows.length >= maxItems}
+                                  className="text-[10px] bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded hover:bg-gray-50 flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                                >
+                                  <Plus className="w-3 h-3" /> Add Item
+                                </button>
+                              </div>
+                              <div className="p-3 bg-white space-y-2">
+                                {rows.map((row, rIdx) => (
+                                  <div key={rIdx} className="flex items-center gap-2">
+                                    <span className="text-[10px] text-gray-400 w-4">{rIdx + 1}.</span>
+                                    <input 
+                                      type="text"
+                                      value={row[0]}
+                                      onChange={(e) => {
+                                        const newRows = [...rows];
+                                        newRows[rIdx] = [e.target.value];
+                                        setWizardTableRows({
+                                          ...wizardTableRows,
+                                          [group.norm]: newRows
+                                        });
+                                      }}
+                                      placeholder={`Enter ${label.toLowerCase()} item...`}
+                                      className="flex-1 p-1.5 border border-gray-200 rounded focus:ring-1 focus:ring-[#DD7230] outline-none text-[11px]"
+                                    />
+                                    <button 
+                                      onClick={() => {
+                                        const newRows = rows.filter((_, idx) => idx !== rIdx);
+                                        setWizardTableRows({
+                                          ...wizardTableRows,
+                                          [group.norm]: newRows
+                                        });
+                                      }}
+                                      className="text-gray-400 hover:text-rose-500 p-1.5 rounded hover:bg-rose-50 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                                {rows.length === 0 && (
+                                  <div className="text-center text-gray-400 italic text-[11px] py-4">
+                                    No items added. Click "Add Item" to start.
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
