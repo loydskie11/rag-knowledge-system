@@ -99,8 +99,8 @@ const PAGE_PADDING_BOTTOM = 36;
 const PAGE_PADDING_LEFT = 48;
 const PAGE_PADDING_RIGHT = 48;
 
-const HEADER_AREA_HEIGHT = 135;
-const FOOTER_AREA_HEIGHT = 100;
+const HEADER_AREA_HEIGHT = 95;
+const FOOTER_AREA_HEIGHT = 65;
 const FOOTER_MIN_HEIGHT = 26;
 
 const PAGE_FIT_SAFETY_PX = 12;
@@ -1695,13 +1695,9 @@ export function DocumentGenerator() {
   
   useEffect(() => {
     let active = true;
-    apiClient.get("/documents", { params: { category: "Template" } }).then(res => {
+    apiClient.get("/documents", { params: { category: "Forms / Templates" } }).then(res => {
       if (active && Array.isArray(res.data)) {
-        const filtered = res.data.filter(d => 
-          d.category === "Template" || 
-          d.category === "Accreditation Evidence" || 
-          (d.name && d.name.toUpperCase().includes("TEMPLATE"))
-        );
+        const filtered = res.data.filter(d => d.category === "Forms / Templates" && d.status !== "Archived");
         setTemplates(filtered);
       }
     }).catch(console.error);
@@ -1769,15 +1765,26 @@ export function DocumentGenerator() {
       const WORDS_PER_PAGE = 275;
       const pagePromptInstruction = "CRITICAL: The generated text MUST FIT ON EXACTLY ONE (1) PAGE. Aim for 250-300 words total, no more. Be concise and executive.";
       
-      const fullPromptPayload = `I need you to generate the MAIN BODY CONTENT for this document.
+      const fullPromptPayload = `I need you to generate the MAIN BODY CONTENT and a SUBJECT for this document.
 Instructions: ${prompt}
 ${pagePromptInstruction}
-IMPORTANT: Output ONLY the paragraphs of the body. Do not output any Markdown, no headers, no To/From/Date (I already have those). Just the raw text/HTML for the body paragraphs.`;
+IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", followed by an empty line, then the raw text/HTML paragraphs of the body. Do not output any Markdown blockticks or other headers.`;
 
       const resp = await apiClient.post("/generate-document", { prompt: fullPromptPayload, targetPages });
-      const aiBody = resp.data.content || "";
+      let aiBody = resp.data.content || "";
+      let aiSubject = "";
+      
+      const subjectMatch = aiBody.match(/^SUBJECT:\s*(.*?)(?:\n|<br>)/i);
+      if (subjectMatch) {
+          aiSubject = subjectMatch[1].trim();
+          aiBody = aiBody.replace(subjectMatch[0], "").trim();
+      }
       
       let finalHtml = wizardHtml;
+      
+      if (aiSubject) {
+          finalHtml = finalHtml.split("[SUBJECT]").join(aiSubject);
+      }
       
       // 1. Map grouped form fields using split/join to avoid RegExp escaping issues entirely!
       for (const group of wizardPlaceholders) {

@@ -174,12 +174,20 @@ def process_document_background(
             img_array = np.array(img)
             ocr = get_ocr()
             extracted_text = run_ocr(ocr, img_array)
-        elif filename_lower.endswith(".txt"):
-            extracted_text = contents.decode("utf-8")
+        elif filename_lower.endswith((".txt", ".html")):
+            extracted_text = contents.decode("utf-8", errors="ignore")
         elif filename_lower.endswith(".docx"):
-            import docx as _docx
-            doc = _docx.Document(io.BytesIO(contents))
-            extracted_text = "\n".join([p.text for p in doc.paragraphs])
+            import docx
+            doc = docx.Document(io.BytesIO(contents))
+            parts = []
+            for block in _iter_block_items(doc):
+                if hasattr(block, "text"):
+                    parts.append(block.text)
+                elif hasattr(block, "rows"):
+                    for row in block.rows:
+                        for cell in row.cells:
+                            parts.append(cell.text)
+            extracted_text = "\n".join(parts)
 
         if not extracted_text.strip():
             print(f"[BG] No text extracted from '{filename}' — skipping embedding.")
@@ -2308,12 +2316,20 @@ async def upload_accreditation_evidence(
             for page in pdf_reader.pages:
                 text = page.extract_text()
                 if text: extracted_text += text + "\n"
-        elif filename_lower.endswith(".txt"):
-            extracted_text = contents.decode("utf-8")
+        elif filename_lower.endswith((".txt", ".html")):
+            extracted_text = contents.decode("utf-8", errors="ignore")
         elif filename_lower.endswith(".docx"):
             import docx
             doc = docx.Document(io.BytesIO(contents))
-            extracted_text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            parts = []
+            for block in _iter_block_items(doc):
+                if hasattr(block, "text"):
+                    parts.append(block.text)
+                elif hasattr(block, "rows"):
+                    for row in block.rows:
+                        for cell in row.cells:
+                            parts.append(cell.text)
+            extracted_text = "\n".join(parts)
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format.")
 
@@ -3229,7 +3245,12 @@ def create_car_form(
     payload: schemas.CARFormCreate,
     db: Session = Depends(get_db)
 ):
-    new_car = models.CARForm(**payload.dict())
+    data = payload.dict()
+    # Fix for SQLAlchemy UUID casting error when frontend passes empty string
+    if data.get("iso_clause_id") == "":
+        data["iso_clause_id"] = None
+        
+    new_car = models.CARForm(**data)
     db.add(new_car)
     db.commit()
     db.refresh(new_car)
@@ -3247,6 +3268,9 @@ def update_car_form(
         raise HTTPException(status_code=404, detail="CAR Form not found")
         
     update_data = payload.dict(exclude_unset=True)
+    if update_data.get("iso_clause_id") == "":
+        update_data["iso_clause_id"] = None
+        
     for key, value in update_data.items():
         setattr(car, key, value)
         
@@ -3273,79 +3297,88 @@ def delete_car_form(
 @app.post("/api/extract-car-form")
 async def extract_car_form(file: UploadFile = File(...)):
     """
-    Accepts a scanned CAR Form 1 (PDF or image) and uses PaddleOCR + Groq LLM
-    to extract the four key CAR fields into a structured JSON response.
+    Accepts a scanned CAR Form 1 (PDF or image) and uses natively llama3.2-vision 
+    to extract key fields into a structured JSON response (No PaddleOCR needed!).
     """
     try:
+        import base64
+        import json
+        
         contents = await file.read()
         filename_lower = file.filename.lower()
-        raw_text = ""
-
-        # If the category is Branding Asset, skip OCR completely!
-        if metadata.get("category") == "Branding Asset":
-            extracted_text = f"[BRANDING ASSET] - Image placeholder for {metadata.get('name', filename)}. OCR Bypassed."
-        elif filename_lower.endswith(".pdf"):
-            raw_text = extract_pdf_text(contents)
+        
+        # Convert PDF page 1 or image directly to base64 JPEG
+        if filename_lower.endswith(".pdf"):
+            import fitz
+            doc = fitz.open(stream=contents, filetype="pdf")
+            page = doc.load_page(0)
+            pix = page.get_pixmap(dpi=150)
+            img_data = pix.tobytes("jpeg")
+            base64_image = base64.b64encode(img_data).decode("utf-8")
+            doc.close()
         elif filename_lower.endswith((".png", ".jpg", ".jpeg")):
-            img = PILImage.open(io.BytesIO(contents)).convert("RGB")
-            img_array = np.array(img)
-            ocr = get_ocr()
-            raw_text = run_ocr(ocr, img_array)
+            base64_image = base64.b64encode(contents).decode("utf-8")
         else:
             raise HTTPException(status_code=400, detail="Please upload a PDF or Image file (.pdf, .png, .jpg, .jpeg).")
 
-        if not raw_text.strip():
-            raise HTTPException(status_code=422, detail="Could not extract any text from the uploaded file.")
+        system_prompt = """You are a meticulous Quality Assurance Data Extractor for an ISO 9001:2015 system.
+Your job is to parse a scanned Corrective Action Request (CAR) Form 1 from the provided image. 
 
-        system_prompt = """
-        You are a meticulous Quality Assurance Data Extractor for an ISO 9001:2015 system.
-        Your job is to parse a scanned Corrective Action Request (CAR) Form 1. 
-        
-        CRITICAL CONTEXT: Only the TOP HALF of this form is filled out. The bottom sections (Immediate Action, Root Cause, Corrective Measure, Target Date) are completely blank. DO NOT try to extract them; return empty strings for those fields.
-        
-        Focus entirely on the top headers and checkboxes. For checkboxes (MAJOR, MINOR, OBSERVATION, QMS Related, etc.), look for an 'X' or checkmark.
+CRITICAL CONTEXT: Only the TOP HALF of this form is filled out. The bottom sections (Immediate Action, Root Cause, Corrective Measure, Target Date) are completely blank. DO NOT try to extract them; return empty strings for those fields.
 
-        Return a pure JSON object exactly like this:
-        {
-          "car_no": "Extracted CAR No",
-          "date_issued": "Extracted Date",
-          "campus": "Extracted Campus",
-          "area": "Extracted Area",
-          "findings": "Extracted Statement/Finding(s)",
-          "finding_category": "MAJOR or MINOR or OBSERVATION or UNKNOWN",
-          "auditor_name": "Extracted Auditor/Complainant",
-          "acknowledged_by": "Extracted Acknowledged by",
-          "type_of_non_conformity": "QMS Related or Security Related or Customer Feedback or Customer Complaint or Other",
-          "root_cause": "",
-          "immediate_action": "",
-          "corrective_measure": ""
-        }
-        """
+Focus entirely on the top headers and checkboxes. For checkboxes (MAJOR, MINOR, OBSERVATION, QMS Related, etc.), visually look for an 'X' or checkmark. 
+CRITICAL DATE EXTRACTION: Prioritize extracting the date written explicitly next to the 'Date:' label (e.g. 'September 29, 2026'). Only if that line is completely blank, fallback to the date stamped in the top right corner. Look for signatures over the printed names.
+
+Return a pure JSON object exactly like this, replacing the values with the actual extracted text from the image:
+{
+  "car_no": "Extracted CAR No",
+  "date_issued": "Extracted Date",
+  "campus": "Extracted Campus",
+  "area": "Extracted Area",
+  "findings": "Extracted Statement/Finding(s)",
+  "finding_category": "MAJOR or MINOR or OBSERVATION or UNKNOWN",
+  "auditor_name": "Extracted Auditor/Complainant",
+  "acknowledged_by": "Extracted Acknowledged by",
+  "type_of_non_conformity": "QMS Related or Security Related or Customer Feedback or Customer Complaint or Other",
+  "root_cause": "",
+  "immediate_action": "",
+  "corrective_measure": ""
+}"""
 
         response = local_ai_client.chat.completions.create(
-            model="llama3.1",
+            model="llama3.2-vision",
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user",   "content": f"Here is the raw OCR text extracted from the CAR Form 1:\n\n{raw_text}"}
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text", 
+                            "text": f"{system_prompt}\n\nPlease extract the data from this CAR form image into the requested JSON format."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                        }
+                    ]
+                }
             ],
             temperature=0.1,
             response_format={"type": "json_object"}
         )
 
         result_json = response.choices[0].message.content
-        import json
-        parsed = json.loads(result_json)
-
-        return parsed
+        return json.loads(result_json)
 
     except HTTPException:
         raise
     except Exception as e:
         print(f"[extract_car_form] Error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to extract data from the CAR form.")
+        raise HTTPException(status_code=500, detail="Failed to extract data from the CAR form using llama3.2-vision.")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ================================================================================================================
+# NOTIFICATIONS
+# ================================================================================================================
 
 @app.get("/notifications", response_model=List[NotificationOut])
 def get_notifications(email: str, filter: str = "all", db: Session = Depends(get_db)):
@@ -5582,6 +5615,27 @@ def get_css_responses(
 
 
 
+
+def _iter_block_items(parent):
+    import docx
+    from docx.document import Document
+    from docx.oxml.text.paragraph import CT_P
+    from docx.oxml.table import CT_Tbl
+    from docx.table import _Cell, Table
+    from docx.text.paragraph import Paragraph
+    if isinstance(parent, Document):
+        parent_elm = parent.element.body
+    elif isinstance(parent, _Cell):
+        parent_elm = parent._tc
+    else:
+        raise ValueError("Unsupported parent type")
+    for child in parent_elm.iterchildren():
+        if isinstance(child, CT_P):
+            yield Paragraph(child, parent)
+        elif isinstance(child, CT_Tbl):
+            yield Table(child, parent)
+
+
 def _escape_html(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -5785,26 +5839,44 @@ def docx_to_html_with_assets(contents: bytes):
         css = ALIGN_CSS.get(_effective_alignment(para))
         return f' style="text-align:{css}"' if css else ""
 
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
     lines = []
-    for para in doc.paragraphs:
-        inner = _docx_runs_to_html(para)
-        style_name = (para.style.name or "").lower() if para.style else ""
-        attr = _align_attr(para)
+    for block in _iter_block_items(doc):
+        if isinstance(block, Paragraph):
+            para = block
+            inner = _docx_runs_to_html(para)
+            style_name = (para.style.name or "").lower() if para.style else ""
+            attr = _align_attr(para)
 
-        if not inner.strip():
-            lines.append(f"<p{attr}><br></p>")
-            continue
+            if not inner.strip():
+                lines.append(f"<p{attr}><br></p>")
+                continue
 
-        if style_name == "title" or "heading 1" in style_name:
-            lines.append(f"<h1{attr}>{inner}</h1>")
-        elif "heading 2" in style_name:
-            lines.append(f"<h2{attr}>{inner}</h2>")
-        elif "heading 3" in style_name:
-            lines.append(f"<h3{attr}>{inner}</h3>")
-        elif "list" in style_name:
-            lines.append(f"<li{attr}>{inner}</li>")
-        else:
-            lines.append(f"<p{attr}>{inner}</p>")
+            if style_name == "title" or "heading 1" in style_name:
+                lines.append(f"<h1{attr}>{inner}</h1>")
+            elif "heading 2" in style_name:
+                lines.append(f"<h2{attr}>{inner}</h2>")
+            elif "heading 3" in style_name:
+                lines.append(f"<h3{attr}>{inner}</h3>")
+            elif "list" in style_name:
+                lines.append(f"<li{attr}>{inner}</li>")
+            else:
+                lines.append(f"<p{attr}>{inner}</p>")
+        elif isinstance(block, Table):
+            lines.append('<table border="1" style="border-collapse: collapse; width: 100%;">')
+            for row in block.rows:
+                lines.append("<tr>")
+                for cell in row.cells:
+                    lines.append("<td style='padding: 4px;'>")
+                    for cell_block in _iter_block_items(cell):
+                        if isinstance(cell_block, Paragraph):
+                            inner = _docx_runs_to_html(cell_block)
+                            lines.append(f"<p>{inner}</p>" if inner.strip() else "<p><br></p>")
+                    lines.append("</td>")
+                lines.append("</tr>")
+            lines.append("</table>")
 
     html = "\n".join(lines)
 
@@ -6614,13 +6686,16 @@ def _backfill_content_html(meta: dict) -> dict | None:
             b64 = base64.b64encode(contents).decode("ascii")
             mime = "image/png" if filename.endswith(".png") else "image/jpeg"
             content_html = f'<p><img src="data:{mime};base64,{b64}" /></p>'
-        elif filename.endswith(".txt"):
+        elif filename.endswith((".txt", ".html")):
             text = contents.decode("utf-8", errors="ignore")
-            escaped = _escape_html(text)
-            content_html = "".join(
-                f"<p>{line}</p>" if line.strip() else "<p><br></p>"
-                for line in escaped.split("\n")
-            )
+            if filename.endswith(".html"):
+                content_html = text
+            else:
+                escaped = _escape_html(text)
+                content_html = "".join(
+                    f"<p>{line}</p>" if line.strip() else "<p><br></p>"
+                    for line in escaped.split("\n")
+                )
         else:
             print(f"[_backfill] unsupported extension: {filename}")
             return None
@@ -6670,13 +6745,27 @@ def get_document_content(document_name: str):
             supabase.table("document_sections")
             .select("metadata, id")
             .eq("metadata->>name", document_name)
-            .order("id", desc=False)
+            .order("id", desc=True)
             .execute()
         )
         if not res.data:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        meta = _merge_metadata_across_chunks(res.data)
+        # Parse metadata and filter out Archived chunks if Active chunks exist
+        parsed_rows = []
+        import json
+        for r in res.data:
+            meta = r.get("metadata", {})
+            if isinstance(meta, str):
+                try: meta = json.loads(meta)
+                except: meta = {}
+            r["metadata"] = meta
+            parsed_rows.append(r)
+            
+        active_rows = [r for r in parsed_rows if r["metadata"].get("status") != "Archived"]
+        target_rows = active_rows if active_rows else parsed_rows
+
+        meta = _merge_metadata_across_chunks(target_rows)
 
         # ── Lazy backfill for legacy / versioned rows ──────────────────────
         if not meta.get("content_html"):
@@ -8377,7 +8466,15 @@ async def upload_ched_evidence(
     elif filename_lower.endswith(".docx"):
         import docx
         doc = docx.Document(io.BytesIO(contents))
-        extracted_text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        parts = []
+        for block in _iter_block_items(doc):
+            if hasattr(block, "text"):
+                parts.append(block.text)
+            elif hasattr(block, "rows"):
+                for row in block.rows:
+                    for cell in row.cells:
+                        parts.append(cell.text)
+        extracted_text = "\n".join(parts)
     
     safe_filename = file.filename.replace(" ", "_")
     unique_filename = f"ched_{int(time.time())}_{safe_filename}"

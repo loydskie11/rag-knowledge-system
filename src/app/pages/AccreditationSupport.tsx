@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, MessageSquare, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, MessageSquare, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal , Printer} from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
 import { ISO_OFFICES_16 } from "./UsersRoles";
@@ -952,16 +952,6 @@ export const IsoTabContent = ({
               >
                 Clause Requirements ({isoCompliantCount}/{isoTotalCount})
               </button>
-              <button
-                onClick={() => setIsoSubTab("qms")}
-                className={`pb-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-                  isoSubTab === "qms"
-                    ? "border-[#DD7230] text-gray-900 font-bold"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
-                }`}
-              >
-                QMS Action Plans ({qmsStats.total})
-                </button>
                 <button
                   onClick={() => setIsoSubTab("car_logsheet")}
                   className={`pb-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -970,7 +960,7 @@ export const IsoTabContent = ({
                       : "border-transparent text-gray-500 hover:text-gray-800"
                   }`}
                 >
-                  CAR Logsheet ({carForms ? carForms.length : 0})
+                  CAR / PAR Form 3 ({carForms ? carForms.length : 0})
                 </button>
               </div>
 
@@ -1038,6 +1028,9 @@ export const IsoTabContent = ({
                               </td>
                               <td className="p-3">
                                 <div className="flex gap-1">
+                                  <button onClick={() => handleExportCarForm(car)} className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors cursor-pointer" title="Generate Official CAR Form 1 (Print / PDF)">
+                                    <Printer className="h-4 w-4" />
+                                  </button>
                                   <button onClick={() => { setEditingCarForm(car); setShowEditCarModal(true); }} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 cursor-pointer" title="Edit">
                                     <Edit className="h-4 w-4" />
                                   </button>
@@ -1055,7 +1048,7 @@ export const IsoTabContent = ({
                 </div>
               )}
 
-              {isoSubTab === "clauses" ? (
+              {isoSubTab === "clauses" && (
               /* --- CLAUSES TAB CONTENT --- */
               <div className="p-5 space-y-5">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
@@ -1290,231 +1283,6 @@ export const IsoTabContent = ({
                     ))}
                   </div>
                 </div>
-              </div>
-            ) : (
-              /* --- QMS ACTION PLANS TAB CONTENT --- */
-              <div className="p-6 space-y-6">
-                {isUnassignedFaculty ? (
-                  <div className="p-6 bg-red-50 border border-red-200 rounded-2xl text-center space-y-3">
-                    <ShieldAlert className="h-10 w-10 text-red-600 mx-auto" />
-                    <h3 className="text-base font-bold text-red-900">Restricted Access — Unassigned Faculty Account</h3>
-                    <p className="text-xs text-red-700 max-w-md mx-auto leading-relaxed">
-                      Your faculty account does not have an assigned Administrative/Auditee Office. QMS Action Plans are scoped strictly to verified Auditee Offices. Please contact the Administrator to update your office assignment.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                      <div>
-                        <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                          <FileCheck className="h-5 w-5 text-[#DD7230]" /> Corrective Action Logsheet (CAR Form 3)
-                        </h3>
-                        <p className="text-xs text-gray-500">Corrective actions, opportunities for improvement, and risk registers across campus offices.</p>
-                      </div>
-                      {userRole === "ADMIN" && (
-                        <button
-                          onClick={() => setShowAddQmsModal(true)}
-                          className="px-4 py-2.5 bg-[#DD7230] hover:bg-[#DD7230] text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0"
-                        >
-                          <Plus className="w-4 h-4" /> New Action Plan (Form 6)
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="text-2xl font-extrabold text-gray-900">{qmsStats.total}</div>
-                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">Total Action Plans</div>
-                      </div>
-                      <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                        <div className="text-2xl font-extrabold text-amber-700">{qmsStats.inProgress}</div>
-                        <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">In Progress</div>
-                      </div>
-                      <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-                        <div className="text-2xl font-extrabold text-emerald-700">{qmsStats.completed}</div>
-                        <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">Completed</div>
-                      </div>
-                      <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                        <div className="text-2xl font-extrabold text-red-600">{qmsStats.overdue}</div>
-                        <div className="text-[10px] font-bold text-red-500 uppercase tracking-wider mt-0.5">Overdue Plans</div>
-                      </div>
-                    </div>
-
-                    {/* QMS Filters */}
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
-                      <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
-                        <select
-                          value={qmsFilterOffice}
-                          onChange={(e) => setQmsFilterOffice(e.target.value)}
-                          disabled={isOfficeRestricted}
-                          className={`px-3 py-2 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#DD7230] ${
-                            isOfficeRestricted ? "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed" : "bg-[#F5F7FA] text-gray-700 border-gray-200"
-                          }`}
-                        >
-                          <option value="all">All ISO Offices (16 Offices)</option>
-                          {ISO_OFFICES_16.map((off: string) => (
-                            <option key={off} value={off}>{off}</option>
-                          ))}
-                        </select>
-
-                        <select
-                          value={qmsFilterType}
-                          onChange={(e) => setQmsFilterType(e.target.value)}
-                          className="px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
-                        >
-                          <option value="all">All Types (Process/People/Paper)</option>
-                          <option value="Process">Process</option>
-                          <option value="People">People</option>
-                          <option value="Paper">Paper</option>
-                          <option value="Risk/Opportunity">Risk / Opportunity</option>
-                        </select>
-
-                        <select
-                          value={qmsFilterStatus}
-                          onChange={(e) => setQmsFilterStatus(e.target.value)}
-                          className="px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
-                        >
-                          <option value="all">All Statuses</option>
-                          <option value="Proposed">Proposed</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Overdue">Overdue</option>
-                        </select>
-                      </div>
-
-                      <div className="relative w-full md:w-64">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
-                        <input
-                          type="text"
-                          placeholder="Search action plans..."
-                          value={qmsSearchQuery}
-                          onChange={(e) => setQmsSearchQuery(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* QMS Table */}
-                    {isLoadingQms ? (
-                      <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin text-[#DD7230]" />
-                        <span className="text-sm font-semibold">Loading QMS Action Plans...</span>
-                      </div>
-                    ) : filteredQmsPlans.length === 0 ? (
-                      <div className="py-16 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs font-medium">
-                        No QMS Action Plans match your current filters.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-2xs">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50/80">
-                              <th className="p-3.5 rounded-l-xl">Auditee Office</th>
-                              <th className="p-3.5">Opportunity / Finding</th>
-                              <th className="p-3.5">Action Plan</th>
-                              <th className="p-3.5">Proofs / Evidences</th>
-                              <th className="p-3.5">Target Date</th>
-                              <th className="p-3.5">Status</th>
-                              <th className="p-3.5 text-right rounded-r-xl">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100 text-xs">
-                            {filteredQmsPlans.map((plan: any) => (
-                              <tr key={plan.id} className="hover:bg-gray-50/60 transition-colors">
-                                <td className="p-3.5 font-bold text-gray-900 max-w-xs">
-                                  <div>{plan.auditee_office}</div>
-                                  <span className="text-[10px] text-gray-400 font-normal block mt-0.5">{plan.finding_type || 'Opportunity'}</span>
-                                </td>
-                                <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.findings}</td>
-                                <td className="p-3.5 text-gray-700 max-w-xs truncate">{plan.corrective_measure}</td>
-                                <td className="p-3.5 text-gray-700 max-w-xs align-top">
-                                  {plan.evidences && plan.evidences.length > 0 ? (
-                                    <div className="flex flex-col gap-1.5">
-                                      {plan.evidences.map((ev: any, idx: number) => (
-                                        <div key={idx} className="flex items-center gap-1 group">
-                                          <a 
-                                            href={ev.file_url} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-1.5 text-[10px] bg-orange-50 text-[#DD7230] px-2 py-1 rounded border border-orange-200/50 hover:bg-orange-100 flex-1 min-w-0 cursor-pointer transition-colors"
-                                            title={ev.document_name}
-                                          >
-                                            <FileText className="h-3 w-3 shrink-0" />
-                                            <span className="truncate font-medium">{ev.document_name}</span>
-                                          </a>
-                                          {(userRole === "ADMIN" || userIsIqaAuditor || plan.auditee_office === userAdminOffice) && (
-                                            <button 
-                                              type="button"
-                                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteQmsEvidence(ev); }}
-                                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded bg-white border border-gray-100 transition-all cursor-pointer shadow-sm"
-                                              title="Delete Evidence"
-                                            >
-                                              <Trash2 className="h-3 w-3" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <span className="text-[10px] text-gray-400 italic">No proofs attached</span>
-                                  )}
-                                </td>
-                                <td className="p-3.5 text-gray-600 font-semibold">{plan.target_completion_date || 'N/A'}</td>
-                                <td className="p-3.5">
-                                  <select
-                                    value={plan.status}
-                                    onChange={(e) => {
-                                      if (e.target.value === "Completed" && !(userRole === "ADMIN" || userIsIqaAuditor)) {
-                                        showToast("Only Admins and IQA Auditors can officially verify and close out Action Plans.", "warning");
-                                        return;
-                                      }
-                                      handleUpdateQmsStatus(plan.id, e.target.value);
-                                    }}
-                                    className={`px-2.5 py-1 text-[11px] font-medium rounded-md border focus:outline-none cursor-pointer transition-colors ${
-                                      plan.status === "Completed" ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
-                                      plan.status === "In Progress" ? "bg-amber-50 text-amber-800 border-amber-200" :
-                                      plan.status === "Overdue" ? "bg-rose-50 text-rose-800 border-rose-200" :
-                                      "bg-gray-50 text-gray-700 border-gray-200"
-                                    }`}
-                                  >
-                                    <option value="Proposed">Proposed</option>
-                                    <option value="In Progress">In Progress</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="Overdue">Overdue</option>
-                                  </select>
-                                </td>
-                                <td className="p-3.5 text-right space-x-1">
-                                  <button
-                                    onClick={() => { setTargetQmsPlanForEvidence(plan); setShowQmsEvidenceUploadModal(true); }}
-                                    className="px-2.5 py-1.5 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 font-medium rounded-lg text-xs transition-colors cursor-pointer shadow-2xs"
-                                  >
-                                    Attach Proof
-                                  </button>
-                                  {userRole === "ADMIN" && (
-                                    <>
-                                      <button
-                                        onClick={() => { setEditingQmsPlan(plan); setShowEditQmsModal(true); }}
-                                        className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg cursor-pointer"
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => { setQmsPlanToDelete(plan); setShowDeleteQmsModal(true); }}
-                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </button>
-                                    </>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
             )}
           </div>
@@ -2271,7 +2039,7 @@ export function AccreditationSupport() {
 
   
   // --- QMS ACTION PLAN STATES (MRC Form 6) ---
-  const [isoSubTab, setIsoSubTab] = useState<"clauses" | "qms" | "car_logsheet">("clauses");
+  const [isoSubTab, setIsoSubTab] = useState<"clauses" | "car_logsheet">("clauses");
   const [qmsActionPlans, setQmsActionPlans] = useState<any[]>(() => {
     return qmsPlansCache.get("2026 Recertification") || [];
   });
@@ -2374,6 +2142,102 @@ export function AccreditationSupport() {
       showToast("Failed to delete CAR Form.", "error");
     } finally {
       setIsDeletingCar(false);
+    }
+  };
+
+  const handleExportCarForm = async (car: any) => {
+    try {
+      showToast("Generating official CAR Form 1...", "info");
+  
+      // 1. Fetch template HTML from repository
+      const resp = await apiClient.get(`/documents/${encodeURIComponent("CAR Form 1 Template")}/content`);
+      let html = resp.data?.content_html;
+  
+      if (!html || !html.trim()) {
+        throw new Error("Master 'CAR Form 1 Template' not found in the Knowledge Repository. Please upload it first.");
+      }
+  
+      // 2. Map standard text fields
+      const textReplacements: Record<string, string> = {
+        "[CAR_NO]": car.car_no || "N/A",
+        "[CAMPUS]": car.campus || "Argao Campus",
+        "[DATE_ISSUED]": car.date_issued || "N/A",
+        "[AREA]": car.area || "N/A",
+        "[AUDITOR]": car.auditor_name || "______________________",
+        "[ACKNOWLEDGED_BY]": car.acknowledged_by || "______________________",
+        "[FINDINGS]": (car.findings || "").replace(/\n/g, "<br>"),
+        "[IMMEDIATE_ACTION]": (car.immediate_action || "None specified.").replace(/\n/g, "<br>"),
+        "[ROOT_CAUSE]": (car.root_cause || "None specified.").replace(/\n/g, "<br>"),
+        "[CORRECTIVE_MEASURE]": (car.corrective_measure || "None specified.").replace(/\n/g, "<br>"),
+        "[PROPOSED_BY]": car.measures_proposed_by || car.acknowledged_by || "______________________",
+        "[TARGET_DATE]": car.target_date || "N/A",
+        "[OTHER_DESC]": car.other_type_description || "",
+        "[FOLLOWUP_DATE]": car.follow_up_date || "N/A",
+        "[REMARKS]": (car.remarks || "No additional remarks.").replace(/\n/g, "<br>")
+      };
+  
+      for (const [placeholder, val] of Object.entries(textReplacements)) {
+        html = html.split(placeholder).join(val);
+      }
+  
+      // 3. Map checkbox tokens to Unicode symbols
+      const CHECKED = "☑";
+      const UNCHECKED = "☐";
+  
+      const category = (car.finding_category || "").toUpperCase();
+      html = html.split("[CAT_MAJOR]").join(category === "MAJOR" ? CHECKED : UNCHECKED);
+      html = html.split("[CAT_MINOR]").join(category === "MINOR" ? CHECKED : UNCHECKED);
+      html = html.split("[CAT_OBSERVATION]").join(category === "OBSERVATION" ? CHECKED : UNCHECKED);
+  
+      const ncType = (car.type_of_non_conformity || "").toLowerCase();
+      html = html.split("[TYPE_QMS]").join(ncType.includes("qms") ? CHECKED : UNCHECKED);
+      html = html.split("[TYPE_SECURITY]").join(ncType.includes("security") ? CHECKED : UNCHECKED);
+      html = html.split("[TYPE_FEEDBACK]").join(ncType.includes("feedback") ? CHECKED : UNCHECKED);
+      html = html.split("[TYPE_COMPLAINT]").join(ncType.includes("complaint") ? CHECKED : UNCHECKED);
+      html = html.split("[TYPE_OTHER]").join(ncType.includes("other") ? CHECKED : UNCHECKED);
+  
+      const isClosed = car.status === "Closed";
+      html = html.split("[STATUS_CLOSED]").join(isClosed ? CHECKED : UNCHECKED);
+      html = html.split("[FOLLOWUP_COMPLETE]").join(isClosed ? CHECKED : UNCHECKED);
+      html = html.split("[FOLLOWUP_INEFFECTIVE]").join(UNCHECKED);
+  
+      // 4. Open native Print/PDF dialog with official document styling
+      const printWindow = window.open("", "_blank", "width=900,height=800");
+      if (!printWindow) {
+        showToast("Please allow pop-ups to export or print the document.", "error");
+        return;
+      }
+  
+      printWindow.document.write(`<!DOCTYPE html>
+      <html>
+        <head>
+          <title>CAR_${car.car_no || "Form_1"}</title>
+          <style>
+            @page { size: A4 portrait; margin: 15mm; }
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.35; color: #000; margin: 0; padding: 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+            td, th { border: 1px solid #000; padding: 5px 8px; vertical-align: top; font-size: 9.5pt; }
+            .controlled-copy { text-align: center; font-weight: bold; font-size: 8pt; margin-top: 10px; letter-spacing: 2px; }
+          </style>
+        </head>
+        <body>
+          ${html}
+          <div class="controlled-copy">CONTROLLED COPY</div>
+        </body>
+      </html>`);
+  
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+  
+      showToast("Official CAR Form 1 generated successfully!", "success");
+    } catch (err: any) {
+      console.error("Export error:", err);
+      showToast(err.message || "Failed to generate official CAR Form 1.", "error");
     }
   };
 
@@ -6095,6 +5959,9 @@ export function AccreditationSupport() {
                   <div>
                     <label className="block text-xs font-semibold text-[#1F2937] mb-1">Department / Area</label>
                     <input type="text" value={newCarForm.area} onChange={(e) => setNewCarForm({...newCarForm, area: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                    <p className="text-[10px] text-gray-500 mt-1.5 leading-tight italic">
+                      Note: If the scanned form area differs from the selected ISO clause office, the system will accept the form input for tracking flexibility.
+                    </p>
                   </div>
                 </div>
 
