@@ -2159,6 +2159,15 @@ export function AccreditationSupport() {
       if (!html || !html.trim()) {
         throw new Error("CAR Form 1 Template not found in the Knowledge Repository. Please upload it first.");
       }
+
+      // Strip or scope global styles to prevent leaking into the rest of the React app
+      html = html.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match: string, css: string) => {
+        let scopedCss = css
+          .replace(/(?:\b|^)body\s*\{/gi, '.wysiwyg-content {')
+          .replace(/(?:\b|^)html\s*\{/gi, '.wysiwyg-content {')
+          .replace(/(?:\b|^|\s)\*\s*\{/gi, ' .wysiwyg-content * {');
+        return `<style>\n${scopedCss}\n</style>`;
+      });
   
       // 2. Map text field placeholders
       const textReplacements: Record<string, string> = {
