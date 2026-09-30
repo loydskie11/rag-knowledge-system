@@ -5,6 +5,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs"
 import axios from "axios";
 import { ISO_OFFICES_16 } from "./UsersRoles";
 import { apiClient } from "../api/client";
+import {
+  exportMrcForm4,
+  exportMrcForm5,
+  exportMrcForm7,
+  exportMrcForm2,
+} from "../utils/mrcFormsExporter";
 
 export const MASTER_AACCUP_AREAS = [
   { code: "Area I", title: "Vision, Mission, Goals and Objectives" },
@@ -826,7 +832,12 @@ export const IsoTabContent = ({
   newCarForm,
   setNewCarForm,
   handleExportCarForm,
-  handleExportCarForm3
+  handleExportCarForm3,
+  setShowMrcExportModal,
+  setSelectedMrcFormType,
+  handleExportMrcForm4,
+  handleExportMrcForm5,
+  handleExportMrcForm7
 }: any) => {
   const [carSearchQuery, setCarSearchQuery] = useState("");
   
@@ -926,6 +937,16 @@ export const IsoTabContent = ({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <button
+                  onClick={() => {
+                    setSelectedMrcFormType("form4");
+                    setShowMrcExportModal(true);
+                  }}
+                  className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  title="Export Official MRC Forms (Form 4, Form 5, Form 7, Form 2)"
+                >
+                  <Printer className="h-3.5 w-3.5 text-[#DD7230]" /> Export MRC Forms
+                </button>
                 {userRole === "ADMIN" && (
                   <>
                     <button
@@ -1005,6 +1026,16 @@ export const IsoTabContent = ({
                           />
                         </div>
                         <div className="flex gap-2 w-full sm:w-auto">
+                          <button
+                            onClick={() => {
+                              setSelectedMrcFormType("form4");
+                              setShowMrcExportModal(true);
+                            }}
+                            className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer w-full sm:w-auto justify-center"
+                            title="Export Official MRC Forms (Form 4, Form 5, Form 7, Form 2)"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-[#DD7230]" /> MRC Forms
+                          </button>
                           <button
                             onClick={handleExportCarForm3}
                             className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer w-full sm:w-auto justify-center"
@@ -2360,6 +2391,153 @@ export function AccreditationSupport() {
     } catch (err: any) {
       console.error("handleExportCarForm3 error:", err);
       showToast(err.message || "Failed to route to Document Studio.", "error");
+    }
+  };
+  
+  // --- MRC FORMS EXPORT STATES & HANDLERS (Form 4, Form 5, Form 7, Form 2) ---
+  const [showMrcExportModal, setShowMrcExportModal] = useState(false);
+  const [selectedMrcFormType, setSelectedMrcFormType] = useState<"form4" | "form5" | "form7" | "form2">("form4");
+  const [isExportingMrc, setIsExportingMrc] = useState(false);
+
+  const [mrcExportParams, setMrcExportParams] = useState({
+    // Form 4
+    year: "",
+    prepared_by: "Campus Director",
+    vp_admin: "VP-Administration",
+    vp_rd: "VP-Research and Development",
+    vp_acad: "VP-Academic Affairs",
+    vp_peba: "VP-Production, Extension & Bus. Affairs",
+    approved_by: "University President",
+    // Form 5
+    unit_name: "",
+    objective_text: "To ensure full compliance with ISO 9001:2015 standards and enhance delivery of quality academic and support services.",
+    form5_prepared_by: "Process Owner / Department Head",
+    reviewed_by: "Supervisor",
+    form5_approved_by: "Campus Director",
+    // Form 7
+    form7_prepared_by: "Quality Assurance Chair/Head",
+    form7_approved_by: "Campus Director",
+    // Form 2
+    meeting_no: "01",
+    meeting_date: "",
+    time_started: "09:00 AM",
+    time_adjourned: "12:00 PM",
+    recorded_by: "QMS Secretariat",
+    noted_by: "Lead Auditor",
+  });
+
+  const handleExportMrcForm4 = async (overrideParams?: any) => {
+    setIsExportingMrc(true);
+    try {
+      const p = overrideParams || mrcExportParams;
+      const targetYear = p.year?.trim() || selectedIsoCycleYear?.match(/\d{4}/)?.[0] || new Date().getFullYear().toString();
+      const rows = qmsActionPlans?.length ? qmsActionPlans.map((plan: any) => ({
+        function_area: plan.auditee_office || plan.process_area || "",
+        objectives: plan.opportunity_type || "QMS Plan",
+        strategies: plan.findings || "",
+        time_frame: plan.target_date || "",
+        persons_involved: plan.personnel_responsible || plan.person_responsible || "",
+        budget: "Appropriated",
+        expected_output: plan.corrective_measure || plan.corrective_action || "Process Improvement",
+        actual_accomplishment: plan.status === "Closed" ? "Completed" : "In Progress",
+        remarks: plan.status || ""
+      })) : [];
+
+      await exportMrcForm4(
+        {
+          year: targetYear,
+          prepared_by: p.prepared_by,
+          vp_admin: p.vp_admin,
+          vp_rd: p.vp_rd,
+          vp_acad: p.vp_acad,
+          vp_peba: p.vp_peba,
+          approved_by: p.approved_by,
+          rows
+        },
+        navigate,
+        showToast
+      );
+      setShowMrcExportModal(false);
+    } catch (err: any) {
+      console.error("handleExportMrcForm4 error:", err);
+    } finally {
+      setIsExportingMrc(false);
+    }
+  };
+
+  const handleExportMrcForm5 = async (overrideParams?: any) => {
+    setIsExportingMrc(true);
+    try {
+      const p = overrideParams || mrcExportParams;
+      const unit = p.unit_name?.trim() || (userAdminOffice && userAdminOffice !== "all" ? userAdminOffice : "Campus Quality Assurance Unit");
+
+      await exportMrcForm5(
+        {
+          unit_name: unit,
+          objective_text: p.objective_text,
+          prepared_by: p.form5_prepared_by,
+          reviewed_by: p.reviewed_by,
+          approved_by: p.form5_approved_by,
+          rows: []
+        },
+        navigate,
+        showToast
+      );
+      setShowMrcExportModal(false);
+    } catch (err: any) {
+      console.error("handleExportMrcForm5 error:", err);
+    } finally {
+      setIsExportingMrc(false);
+    }
+  };
+
+  const handleExportMrcForm7 = async (overrideParams?: any) => {
+    setIsExportingMrc(true);
+    try {
+      const p = overrideParams || mrcExportParams;
+
+      await exportMrcForm7(
+        {
+          prepared_by: p.form7_prepared_by,
+          approved_by: p.form7_approved_by,
+          rows: []
+        },
+        navigate,
+        showToast
+      );
+      setShowMrcExportModal(false);
+    } catch (err: any) {
+      console.error("handleExportMrcForm7 error:", err);
+    } finally {
+      setIsExportingMrc(false);
+    }
+  };
+
+  const handleExportMrcForm2 = async (overrideParams?: any) => {
+    setIsExportingMrc(true);
+    try {
+      const p = overrideParams || mrcExportParams;
+      const mDate = p.meeting_date?.trim() || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+      await exportMrcForm2(
+        {
+          no: p.meeting_no || "01",
+          date: mDate,
+          time_started: p.time_started || "09:00 AM",
+          time_adjourned: p.time_adjourned || "12:00 PM",
+          recorded_by_name: p.recorded_by,
+          noted_by_name: p.noted_by,
+          attendance: [],
+          agenda: []
+        },
+        navigate,
+        showToast
+      );
+      setShowMrcExportModal(false);
+    } catch (err: any) {
+      console.error("handleExportMrcForm2 error:", err);
+    } finally {
+      setIsExportingMrc(false);
     }
   };
   
@@ -4176,6 +4354,11 @@ export function AccreditationSupport() {
             setNewCarForm={setNewCarForm}
             handleExportCarForm={handleExportCarForm}
             handleExportCarForm3={handleExportCarForm3}
+            setShowMrcExportModal={setShowMrcExportModal}
+            setSelectedMrcFormType={setSelectedMrcFormType}
+            handleExportMrcForm4={handleExportMrcForm4}
+            handleExportMrcForm5={handleExportMrcForm5}
+            handleExportMrcForm7={handleExportMrcForm7}
           />
         </TabsContent>
 
@@ -6849,6 +7032,390 @@ export function AccreditationSupport() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* === EXPORT OFFICIAL MRC FORMS MODAL === */}
+      {showMrcExportModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-[#1F2937] flex items-center gap-2">
+                  <Printer className="h-5 w-5 text-[#DD7230]" /> Export Official MRC Forms
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Generate landscape QMS logsheets & minutes directly to Document Studio for print / PDF export.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowMrcExportModal(false)}
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Form Selector Tabs */}
+            <div className="px-6 pt-4 bg-gray-50/60 border-b border-gray-200 flex items-center gap-2 overflow-x-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedMrcFormType("form4")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  selectedMrcFormType === "form4"
+                    ? "border-[#DD7230] text-[#DD7230]"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5" /> MRC Form 4 (Annual Plan)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMrcFormType("form5")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  selectedMrcFormType === "form5"
+                    ? "border-[#DD7230] text-[#DD7230]"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5" /> MRC Form 5 (Risk Identification)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMrcFormType("form7")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  selectedMrcFormType === "form7"
+                    ? "border-[#DD7230] text-[#DD7230]"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5" /> MRC Form 7 (Relevant Issues)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMrcFormType("form2")}
+                className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  selectedMrcFormType === "form2"
+                    ? "border-[#DD7230] text-[#DD7230]"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5" /> MRC Form 2 (Minutes)
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-grow text-xs">
+              {/* === MRC FORM 4 === */}
+              {selectedMrcFormType === "form4" && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-orange-900 flex items-start gap-2.5">
+                    <Sparkles className="h-4 w-4 text-[#DD7230] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">MRC Form 4 · Annual Plan (9 Columns)</p>
+                      <p className="text-[11px] text-orange-800 mt-0.5">
+                        Fetches <code>MRC Form 4 Template</code> from Knowledge Repository. Injects dynamic 9-column rows into <code>[LOGSHEET_ROWS]</code> and formats signatories for landscape printing (11&quot; × 8.5&quot;).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Target Calendar Year ([YEAR])</label>
+                    <input
+                      type="text"
+                      value={mrcExportParams.year || selectedIsoCycleYear?.match(/\d{4}/)?.[0] || new Date().getFullYear().toString()}
+                      onChange={(e) => setMrcExportParams({ ...mrcExportParams, year: e.target.value })}
+                      placeholder="e.g. 2026"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg font-medium text-xs focus:ring-1 focus:ring-[#DD7230] focus:border-[#DD7230]"
+                    />
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-3">
+                    <span className="font-bold text-gray-800 block mb-2">Signatories &amp; Recommending Officers</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Prepared by ([PREPARED_BY])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.prepared_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, prepared_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">VP-Administration ([VP_ADMIN])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.vp_admin}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, vp_admin: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">VP-Research &amp; Dev ([VP_RD])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.vp_rd}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, vp_rd: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">VP-Academic Affairs ([VP_ACAD])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.vp_acad}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, vp_acad: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">VP-Production &amp; Extension ([VP_PEBA])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.vp_peba}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, vp_peba: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Approved by ([APPROVED_BY])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.approved_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, approved_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* === MRC FORM 5 === */}
+              {selectedMrcFormType === "form5" && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 flex items-start gap-2.5">
+                    <Sparkles className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">MRC Form 5 · Risk Identification (10 Columns)</p>
+                      <p className="text-[11px] text-blue-800 mt-0.5">
+                        Fetches <code>MRC Form 5 Template</code> from Knowledge Repository. Injects dynamic 10-column rows into <code>[LOGSHEET_ROWS]</code> and formats signatories for landscape printing (11&quot; × 8.5&quot;).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-gray-700 mb-1">College / Dept / Unit ([UNIT_NAME])</label>
+                      <input
+                        type="text"
+                        value={mrcExportParams.unit_name || (userAdminOffice && userAdminOffice !== "all" ? userAdminOffice : "Campus Quality Assurance Office")}
+                        onChange={(e) => setMrcExportParams({ ...mrcExportParams, unit_name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg font-medium text-xs focus:ring-1 focus:ring-[#DD7230]"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-gray-700 mb-1">Target Quality Objective ([OBJECTIVE_TEXT])</label>
+                      <textarea
+                        rows={2}
+                        value={mrcExportParams.objective_text}
+                        onChange={(e) => setMrcExportParams({ ...mrcExportParams, objective_text: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg font-medium text-xs focus:ring-1 focus:ring-[#DD7230]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-3">
+                    <span className="font-bold text-gray-800 block mb-2">Signatories</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Prepared by ([PREPARED_BY])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.form5_prepared_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, form5_prepared_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Reviewed by ([REVIEWED_BY])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.reviewed_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, reviewed_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Approved by ([APPROVED_BY])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.form5_approved_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, form5_approved_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* === MRC FORM 7 === */}
+              {selectedMrcFormType === "form7" && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 flex items-start gap-2.5">
+                    <Sparkles className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">MRC Form 7 · Relevant Issues Log (8 Columns)</p>
+                      <p className="text-[11px] text-emerald-800 mt-0.5">
+                        Fetches <code>MRC Form 7 Template</code> from Knowledge Repository. Injects dynamic 8-column rows into <code>[LOGSHEET_ROWS]</code> and formats signatories for landscape printing (11&quot; × 8.5&quot;).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-3">
+                    <span className="font-bold text-gray-800 block mb-2">Signatories</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Prepared by ([PREPARED_BY])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.form7_prepared_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, form7_prepared_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Approved by ([APPROVED_BY])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.form7_approved_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, form7_approved_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* === MRC FORM 2 === */}
+              {selectedMrcFormType === "form2" && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 flex items-start gap-2.5">
+                    <Sparkles className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">MRC Form 2 · Management Review Meeting Minutes</p>
+                      <p className="text-[11px] text-purple-800 mt-0.5">
+                        Fetches <code>MRC Form 2 Template</code> from Knowledge Repository. Replaces meeting details, attendance lines, agenda items, and signatories.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-gray-600 text-[11px] mb-1 font-medium">Meeting No. ([NO])</label>
+                      <input
+                        type="text"
+                        value={mrcExportParams.meeting_no}
+                        onChange={(e) => setMrcExportParams({ ...mrcExportParams, meeting_no: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-600 text-[11px] mb-1 font-medium">Date ([DATE])</label>
+                      <input
+                        type="text"
+                        value={mrcExportParams.meeting_date || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                        onChange={(e) => setMrcExportParams({ ...mrcExportParams, meeting_date: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-600 text-[11px] mb-1 font-medium">Started ([TIME_STARTED])</label>
+                      <input
+                        type="text"
+                        value={mrcExportParams.time_started}
+                        onChange={(e) => setMrcExportParams({ ...mrcExportParams, time_started: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-600 text-[11px] mb-1 font-medium">Adjourned ([TIME_ADJOURNED])</label>
+                      <input
+                        type="text"
+                        value={mrcExportParams.time_adjourned}
+                        onChange={(e) => setMrcExportParams({ ...mrcExportParams, time_adjourned: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-3">
+                    <span className="font-bold text-gray-800 block mb-2">Signatories</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Recorded by ([RECORDED_BY_NAME])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.recorded_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, recorded_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 text-[11px] mb-1 font-medium">Noted by ([NOTED_BY_NAME])</label>
+                        <input
+                          type="text"
+                          value={mrcExportParams.noted_by}
+                          onChange={(e) => setMrcExportParams({ ...mrcExportParams, noted_by: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-gray-500">
+                Template will be opened in <strong>Document Studio</strong> with landscape printing enabled.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowMrcExportModal(false)}
+                  disabled={isExportingMrc}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100 transition-colors cursor-pointer text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedMrcFormType === "form4") handleExportMrcForm4();
+                    else if (selectedMrcFormType === "form5") handleExportMrcForm5();
+                    else if (selectedMrcFormType === "form7") handleExportMrcForm7();
+                    else handleExportMrcForm2();
+                  }}
+                  disabled={isExportingMrc}
+                  className="px-4 py-2 bg-[#DD7230] hover:bg-[#c45e22] text-white font-bold rounded-lg shadow-sm flex items-center gap-2 transition-all cursor-pointer text-xs disabled:opacity-50"
+                >
+                  {isExportingMrc ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="h-4 w-4" /> Generate &amp; Preview in Studio
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

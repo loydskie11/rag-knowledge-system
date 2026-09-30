@@ -68,6 +68,7 @@ import {
 } from "docx";
 import { saveAs } from "file-saver";
 import apiClient from "@/app/api/client";
+import { resolveMrcForm2Tokens } from "../utils/mrcForm2Exporter";
 
 /* ============================================================================
  * LOCAL TYPE ALIASES
@@ -1569,12 +1570,14 @@ function PreviewPage(props: PreviewPageProps) {
   const headerDims = fitImageInBand(headerImage, bandWidth, HEADER_AREA_HEIGHT - 8);
   const footerDims = fitImageInBand(footerImage, bandWidth, FOOTER_AREA_HEIGHT - 6);
 
+  const isStandalone = fragment.includes('class="page"') || fragment.includes("MRC Form") || fragment.includes("MANAGEMENT REVIEW");
+
   return (
     <div
       style={{
         width: cfg.cssWidth,
         height: cfg.cssHeight,
-        padding: `${PAGE_PADDING_TOP}px ${PAGE_PADDING_RIGHT}px ${PAGE_PADDING_BOTTOM}px ${PAGE_PADDING_LEFT}px`,
+        padding: isStandalone ? "0" : `${PAGE_PADDING_TOP}px ${PAGE_PADDING_RIGHT}px ${PAGE_PADDING_BOTTOM}px ${PAGE_PADDING_LEFT}px`,
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
@@ -1587,7 +1590,7 @@ function PreviewPage(props: PreviewPageProps) {
         position: "relative",
       }}
     >
-      {headerImage && headerDims && (
+      {headerImage && headerDims && !isStandalone && (
         <div
           style={{
             height: HEADER_AREA_HEIGHT,
@@ -1629,51 +1632,53 @@ function PreviewPage(props: PreviewPageProps) {
         style={{
           flex: "1 1 auto",
           minHeight: 0,
-          overflow: "hidden",
+          overflow: isStandalone ? "auto" : "hidden",
           textAlign: alignment,
           ...cssVars({ "--doc-line-height": lineSpacing }),
         }}
       />
 
-      <div
-        style={{
-          height: footerImage ? FOOTER_AREA_HEIGHT : FOOTER_MIN_HEIGHT,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          paddingTop: 4,
-          borderTop: "1px solid #E5E7EB",
-          position: "relative",
-          overflow: "hidden",
-          boxSizing: "border-box",
-        }}
-      >
-        {footerImage && footerDims && (
-          <img
-            src={footerImage.dataUrl}
-            alt=""
-            style={{
-              width: `${footerDims.width}px`,
-              height: `${footerDims.height}px`,
-              display: "block",
-            }}
-          />
-        )}
+      {!isStandalone && (
         <div
           style={{
-            position: "absolute",
-            right: 0,
-            bottom: 0,
-            fontSize: 10,
-            color: "#9CA3AF",
-            fontWeight: 600,
+            height: footerImage ? FOOTER_AREA_HEIGHT : FOOTER_MIN_HEIGHT,
+            flexShrink: 0,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            paddingTop: 4,
+            borderTop: "1px solid #E5E7EB",
+            position: "relative",
+            overflow: "hidden",
+            boxSizing: "border-box",
           }}
         >
-          Page {pageIndex + 1} of {totalPages}
+          {footerImage && footerDims && (
+            <img
+              src={footerImage.dataUrl}
+              alt=""
+              style={{
+                width: `${footerDims.width}px`,
+                height: `${footerDims.height}px`,
+                display: "block",
+              }}
+            />
+          )}
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              bottom: 0,
+              fontSize: 10,
+              color: "#9CA3AF",
+              fontWeight: 600,
+            }}
+          >
+            Page {pageIndex + 1} of {totalPages}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1693,6 +1698,7 @@ export function DocumentGenerator() {
   const [wizardHtml, setWizardHtml] = useState<string>("");
   const [wizardPlaceholders, setWizardPlaceholders] = useState<{norm: string, exact: string[]}[]>([]);
   const [wizardForm, setWizardForm] = useState<Record<string, string>>({});
+  const [wizardTableRows, setWizardTableRows] = useState<Record<string, string[][]>>({});
   const [wizardLoading, setWizardLoading] = useState(false);
   
   useEffect(() => {
@@ -1713,9 +1719,10 @@ export function DocumentGenerator() {
       setWizardHtml("");
       setWizardPlaceholders([]);
       setWizardForm({});
+      setWizardTableRows({});
       return;
     }
-    const t = templates.find(x => x.name === tName);
+    const t = templates.find(x => x.name === tName) || { name: tName };
     setWizardTemplate(t || null);
     if (!t) return;
     
@@ -1723,22 +1730,22 @@ export function DocumentGenerator() {
     try {
       const url = `/documents/${encodeURIComponent(tName)}/content`;
       const resp = await apiClient.get(url);
-      const payload = resp.data;
-      if (payload && payload.content_html) {
-        setWizardHtml(payload.content_html);
+      const contentHtml = resp.data?.content_html || "";
+
+      if (contentHtml) {
+        setWizardHtml(contentHtml);
         
-        const clean = payload.content_html.replace(/<[^>]+>/g, "");
+        const clean = contentHtml.replace(/<[^>]+>/g, "");
         const matches = clean.match(/\[.*?\]/g) || [];
         const unique = Array.from(new Set(matches)) as string[];
         
         // Exclude body/content placeholders
         const fields = unique.filter(x => !x.toLowerCase().includes("body") && !x.toLowerCase().includes("content") && !x.toLowerCase().includes("prompt"));
         
-        // Group by normalized name so "Sender Name" and "SENDER NAME" don't show up twice
+        // Group by normalized name (preserving underscores as spaces so "RECORDED_BY_NAME" becomes "recorded by name")
         const groups: Record<string, string[]> = {};
         for (const ph of fields) {
-            let norm = ph.replace(/\[|\]/g, "").replace(/^(insert\s+)/i, "").trim().toLowerCase();
-            // clean up weird characters from bad OCR or artifacts
+            let norm = ph.replace(/\[|\]/g, "").replace(/^(insert\s+)/i, "").replace(/_/g, " ").trim().toLowerCase();
             norm = norm.replace(/[^a-z0-9\s,]/gi, "").trim();
             if (!groups[norm]) groups[norm] = [];
             groups[norm].push(ph);
@@ -1748,6 +1755,7 @@ export function DocumentGenerator() {
         
         setWizardPlaceholders(groupedPlaceholders);
         setWizardForm({});
+        setWizardTableRows({});
         setPrompt("");
       }
     } catch (err) {
@@ -1763,23 +1771,28 @@ export function DocumentGenerator() {
     setStatus("generating");
     setErrorMessage(null);
     try {
-      const targetPages = 1;
-      const WORDS_PER_PAGE = 275;
-      const pagePromptInstruction = "CRITICAL: The generated text MUST FIT ON EXACTLY ONE (1) PAGE. Aim for 250-300 words total, no more. Be concise and executive.";
-      
-      const fullPromptPayload = `I need you to generate the MAIN BODY CONTENT and a SUBJECT for this document.
+      const isFixedForm = wizardTemplate?.name?.includes("MRC") || wizardTemplate?.name?.includes("CAR");
+      let aiBody = "";
+      let aiSubject = "";
+
+      // Only invoke AI generation if there is an actual prompt or body placeholder
+      if (prompt.trim() && !isFixedForm) {
+        const targetPages = 1;
+        const pagePromptInstruction = "CRITICAL: The generated text MUST FIT ON EXACTLY ONE (1) PAGE. Aim for 250-300 words total, no more. Be concise and executive.";
+        
+        const fullPromptPayload = `I need you to generate the MAIN BODY CONTENT and a SUBJECT for this document.
 Instructions: ${prompt}
 ${pagePromptInstruction}
 IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", followed by an empty line, then the raw text/HTML paragraphs of the body. Do not output any Markdown blockticks or other headers.`;
 
-      const resp = await apiClient.post("/generate-document", { prompt: fullPromptPayload, targetPages });
-      let aiBody = resp.data.content || "";
-      let aiSubject = "";
-      
-      const subjectMatch = aiBody.match(/^SUBJECT:\s*(.*?)(?:\n|<br>)/i);
-      if (subjectMatch) {
-          aiSubject = subjectMatch[1].trim();
-          aiBody = aiBody.replace(subjectMatch[0], "").trim();
+        const resp = await apiClient.post("/generate-document", { prompt: fullPromptPayload, targetPages });
+        aiBody = resp.data.content || "";
+        
+        const subjectMatch = aiBody.match(/^SUBJECT:\s*(.*?)(?:\n|<br>)/i);
+        if (subjectMatch) {
+            aiSubject = subjectMatch[1].trim();
+            aiBody = aiBody.replace(subjectMatch[0], "").trim();
+        }
       }
       
       let finalHtml = wizardHtml;
@@ -1790,15 +1803,43 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
       
       // 1. Map grouped form fields using split/join to avoid RegExp escaping issues entirely!
       for (const group of wizardPlaceholders) {
+        const isRow = group.norm.toLowerCase().includes("row");
         const val = wizardForm[group.norm];
+        
         for (const exactPh of group.exact) {
-            // If they left it completely blank, just keep the placeholder so they can edit it later
-            const replaceVal = (val !== undefined && val.trim() !== "") ? val : exactPh;
+            let replaceVal = exactPh;
+            
+            if (isRow) {
+                const rows = wizardTableRows[group.norm] || [];
+                if (rows.length > 0) {
+                    replaceVal = rows.map(row => 
+                        `<tr>${row.map(cell => `<td style="border: 1px solid #d1d5db; padding: 5px 8px;">${cell || ''}</td>`).join('')}</tr>`
+                    ).join('');
+                } else {
+                    replaceVal = "";
+                }
+            } else {
+                const isAttendanceOrAgenda = /\[(ATTENDANCE_\d+|AGENDA_\d+)\]/i.test(exactPh);
+                const isMrcDetail = /\[(NO|DATE|TIME_STARTED|TIME_ADJOURNED|RECORDED_BY_NAME|NOTED_BY_NAME)\]/i.test(exactPh);
+                
+                replaceVal = (val !== undefined && val.trim() !== "")
+                  ? val.trim()
+                  : (isAttendanceOrAgenda || isMrcDetail ? "" : exactPh);
+            }
+
             finalHtml = finalHtml.split(exactPh).join(replaceVal);
         }
       }
-      
-      // 2. Map AI Body
+
+      // Cleanup any remaining unassigned attendance or agenda tokens into empty strings
+      for (let i = 1; i <= 9; i++) {
+        finalHtml = finalHtml.split(`[ATTENDANCE_${i}]`).join("");
+      }
+      for (let i = 1; i <= 4; i++) {
+        finalHtml = finalHtml.split(`[AGENDA_${i}]`).join("");
+      }
+
+      // 2. Map AI Body (skip appending for fixed MRC/CAR forms when no body placeholder exists)
       const clean = wizardHtml.replace(/<[^>]+>/g, "");
       const matches = clean.match(/\[.*?\]/g) || [];
       const unique = Array.from(new Set(matches)) as string[];
@@ -1806,7 +1847,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
       
       if (bodyPh) {
         finalHtml = finalHtml.split(bodyPh).join(aiBody);
-      } else {
+      } else if (!isFixedForm && aiBody && aiBody.trim()) {
         finalHtml += `<br/><br/>${aiBody}`;
       }
       
@@ -1888,7 +1929,18 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
   useEffect(() => {
     const el = previewWrapRef.current;
     if (!el) return;
-    const pageW = PAGE_SIZES[pageSize].cssWidth;
+    const isLandscape = previewFragments.some(
+      (f) =>
+        f.includes("11in 8.5in") ||
+        f.includes("MRC Form 4") ||
+        f.includes("MRC Form 5") ||
+        f.includes("MRC Form 7") ||
+        f.includes("MRC FORM 7") ||
+        f.includes("ANNUAL PLAN") ||
+        f.includes("RISK IDENTIFICATION") ||
+        f.includes("RELEVANT ISSUES LOG")
+    );
+    const pageW = isLandscape ? 1056 : PAGE_SIZES[pageSize].cssWidth;
     const update = () => {
       const available = el.clientWidth - 64;
       setPreviewScale(Math.max(0.3, Math.min(1.25, available / pageW)));
@@ -1897,7 +1949,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [pageSize, view]);
+  }, [pageSize, view, previewFragments]);
 
   useEffect(() => {
     if (view !== "editor") return;
@@ -2916,6 +2968,47 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
     const fragments = previewFragments.length ? previewFragments : [""];
     const cfg = PAGE_SIZES[pageSize];
 
+    // Check if the document is a standalone full-page template (like MRC Form 2 or CAR Form 3)
+    const isStandalonePage = fragments.some(
+      (f) => f.includes('class="page"') || f.includes("MRC Form") || f.includes("MANAGEMENT REVIEW")
+    );
+
+    if (isStandalonePage) {
+      const printWindow = window.open("", "_blank", "width=900,height=750");
+      if (!printWindow) return setErrorMessage("Please allow pop-ups to print the document.");
+
+      const isLandscape = fragments.some(
+        (f) =>
+          f.includes("11in 8.5in") ||
+          f.includes("MRC Form 4") ||
+          f.includes("MRC Form 5") ||
+          f.includes("MRC Form 7") ||
+          f.includes("MRC FORM 7") ||
+          f.includes("ANNUAL PLAN") ||
+          f.includes("RISK IDENTIFICATION") ||
+          f.includes("RELEVANT ISSUES LOG")
+      );
+      const printPageSize = isLandscape ? "11in 8.5in" : "8.5in 11in";
+
+      printWindow.document.write(`<!DOCTYPE html><html><head>
+        <title>${resolveFileNameBase()}</title>
+        <style>
+          @page { size: ${printPageSize}; margin: 0; }
+          * { box-sizing: border-box; }
+          html, body { margin: 0; padding: 0; background: #ffffff; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Calibri, Carlito, "Segoe UI", sans-serif; }
+          @media print {
+            body { margin: 0; }
+            .page { margin: 0 !important; box-shadow: none !important; width: 100% !important; }
+          }
+        </style>
+      </head><body>${fragments.join("")}</body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
+      return;
+    }
+
     const pagesHtml = fragments
       .map((frag, idx) =>
         buildSinglePageHtml({
@@ -2970,8 +3063,22 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
   const handleDownloadPdf = () => handlePrint();
 
   if (view === "editor") {
-    const cfg = PAGE_SIZES[pageSize];
     const fragments = previewFragments.length ? previewFragments : [""];
+    const isLandscape = fragments.some(
+      (f) =>
+        f.includes("11in 8.5in") ||
+        f.includes("MRC Form 4") ||
+        f.includes("MRC Form 5") ||
+        f.includes("MRC Form 7") ||
+        f.includes("MRC FORM 7") ||
+        f.includes("ANNUAL PLAN") ||
+        f.includes("RISK IDENTIFICATION") ||
+        f.includes("RELEVANT ISSUES LOG")
+    );
+    const baseCfg = PAGE_SIZES[pageSize];
+    const cfg = isLandscape
+      ? { ...baseCfg, cssWidth: 1056, cssHeight: 816, label: 'Landscape (11" × 8.5")', subLabel: '11" × 8.5"' }
+      : baseCfg;
 
     return (
       <div className="space-y-4">
@@ -3457,6 +3564,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                         setWizardHtml("<p><br/></p>");
                         setWizardPlaceholders([]);
                         setWizardForm({});
+                        setWizardTableRows({});
                       }}
                       className="w-full py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-semibold transition-all shadow-2xs"
                     >
@@ -3468,23 +3576,27 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                 {wizardTemplate && !wizardLoading && (
                   <div className="pt-4 border-t border-gray-100 space-y-3">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700">AI Generation Prompt</label>
-                      <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">Provide instructions. The AI will generate body paragraphs and merge them with your details.</p>
+                      <label className="block text-xs font-semibold text-gray-700">
+                        AI Generation Prompt <span className="text-gray-400 font-normal">(Optional)</span>
+                      </label>
+                      <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">
+                        Optional: Provide instructions if you want AI to draft body content. Leave blank to use template structure only.
+                      </p>
                     </div>
                     <textarea
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="e.g. Draft a memo informing college deans about upcoming midterms..."
+                      placeholder="Optional: e.g. Draft a memo informing college deans about upcoming midterms..."
                       className="w-full h-28 p-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] resize-none transition-colors"
                     />
                     
                     <button
                       onClick={handleWizardGenerate}
-                      disabled={status === "generating" || !prompt.trim()}
-                      className="w-full mt-2 py-2.5 bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-all disabled:opacity-50 disabled:hover:bg-[#DD7230] flex justify-center items-center gap-2 text-xs font-semibold shadow-2xs cursor-pointer active:scale-95"
+                      disabled={status === "generating" || !wizardTemplate}
+                      className="w-full mt-2 py-2.5 bg-[#DD7230] text-white rounded-lg hover:bg-[#c45e22] transition-all disabled:opacity-50 flex justify-center items-center gap-2 text-xs font-semibold shadow-2xs cursor-pointer active:scale-95"
                     >
                       {status === "generating" ? (
-                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing & Generating...</>
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing &amp; Generating...</>
                       ) : (
                         "Generate & Review"
                       )}
@@ -3522,6 +3634,98 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                       {wizardPlaceholders.map(group => {
                         const label = group.norm.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                        const isRow = group.norm.toLowerCase().includes("row");
+                        
+                        if (isRow) {
+                          const formName = wizardTemplate.name || "";
+                          let headers = ['Col 1', 'Col 2', 'Col 3'];
+                          if (formName.includes("Form 4")) {
+                            headers = ['Function/Area', 'Objectives', 'Strategies', 'Time Frame', 'Persons Involved', 'Budget', 'Expected Output', 'Actual Accomplishment', 'Remarks'];
+                          } else if (formName.includes("Form 5")) {
+                            headers = ['Issues', 'Risks', 'Impact', 'Likelihood', 'Risk Factor', 'Risk Control/Action', 'Target Date', 'Person Responsible', 'Assessment Date', 'Completion Date'];
+                          } else if (formName.includes("Form 7")) {
+                            headers = ['Interested Parties', 'Internal/External', 'Reasons for Inclusion', 'Issues of Concern', 'Processes Affected', 'Priority', 'Treatment Method', 'Records References/Notes'];
+                          }
+                          
+                          const rows = wizardTableRows[group.norm] || [];
+                          
+                          return (
+                            <div key={group.norm} className="col-span-1 sm:col-span-2 mt-2 border border-gray-200 rounded-lg overflow-hidden">
+                              <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                                <span className="text-[11px] font-semibold text-gray-700">{label} Builder</span>
+                                <button 
+                                  onClick={() => {
+                                    const newRow = Array(headers.length).fill("");
+                                    setWizardTableRows({
+                                      ...wizardTableRows,
+                                      [group.norm]: [...rows, newRow]
+                                    });
+                                  }}
+                                  className="text-[10px] bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded hover:bg-gray-50 flex items-center gap-1 shadow-2xs"
+                                >
+                                  <Plus className="w-3 h-3" /> Add Row
+                                </button>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                  <thead>
+                                    <tr>
+                                      {headers.map((h, i) => <th key={i} className="p-2 border-b border-gray-200 font-medium text-gray-600 whitespace-nowrap bg-gray-50/50">{h}</th>)}
+                                      <th className="p-2 border-b border-gray-200 w-10 bg-gray-50/50"></th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {rows.map((row, rIdx) => (
+                                      <tr key={rIdx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/30">
+                                        {row.map((cell, cIdx) => (
+                                          <td key={cIdx} className="p-1">
+                                            <input 
+                                              type="text"
+                                              value={cell}
+                                              onChange={(e) => {
+                                                const newRows = [...rows];
+                                                newRows[rIdx] = [...newRows[rIdx]];
+                                                newRows[rIdx][cIdx] = e.target.value;
+                                                setWizardTableRows({
+                                                  ...wizardTableRows,
+                                                  [group.norm]: newRows
+                                                });
+                                              }}
+                                              className="w-full p-1.5 border border-gray-200 rounded focus:ring-1 focus:ring-[#DD7230] outline-none text-[11px]"
+                                            />
+                                          </td>
+                                        ))}
+                                        <td className="p-1 text-center">
+                                          <button 
+                                            onClick={() => {
+                                              const newRows = rows.filter((_, idx) => idx !== rIdx);
+                                              setWizardTableRows({
+                                                ...wizardTableRows,
+                                                [group.norm]: newRows
+                                              });
+                                            }}
+                                            className="text-gray-400 hover:text-rose-500 p-1.5 rounded hover:bg-rose-50 transition-colors"
+                                            title="Delete row"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {rows.length === 0 && (
+                                      <tr>
+                                        <td colSpan={headers.length + 1} className="p-6 text-center text-gray-400 italic text-[11px]">
+                                          No rows added. Click "Add Row" to start.
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        }
+
                         return (
                         <div key={group.norm}>
                           <label className="block text-[11px] font-medium text-gray-700 mb-1.5">{label}</label>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Risk Identification - MRC Form 5</title>
+<style>
+  @page { size: 11in 8.5in; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; background: #e9e9e9; font-family: Arial, sans-serif; color: #000; }
+  .page { width: 11in; min-height: 8.5in; margin: 0.3in auto; background: #fff; padding: 0.5in 0.6in; box-shadow: 0 0 6px rgba(0,0,0,.25); position: relative; }
+  @media print { body { background: #fff; } .page { margin: 0; box-shadow: none; } }
+
+  .univ { font-weight: bold; font-size: 10pt; margin-bottom: 5px; }
+  .thick-line { border-top: 3px solid #000; margin-bottom: 10px; }
+
+  .top-meta { position: absolute; right: 0.6in; top: 0.75in; font-size: 8pt; line-height: 1.3; }
+  
+  .title-wrapper { text-align: center; margin-top: 30px; margin-bottom: 20px; }
+  .title-wrapper h2 { margin: 0 0 15px 0; font-size: 11pt; font-weight: bold; }
+  .unit-line { border-bottom: 1px solid #000; display: inline-block; min-width: 250px; font-size: 10pt; font-weight: bold; padding: 0 10px; min-height: 18px; }
+  .unit-label { font-size: 9pt; margin-top: 3px; }
+
+  .objective-row { font-size: 9pt; margin-bottom: 10px; display: flex; align-items: flex-end; }
+  .objective-row strong { margin-right: 10px; }
+  .obj-text { border-bottom: 1px solid #000; flex: 1; padding: 0 5px; font-weight: bold; min-height: 16px; }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; margin-bottom: 40px; }
+  th, td { border: 1px solid #000; padding: 5px; }
+  th { font-weight: bold; text-align: center; vertical-align: middle; background: #fff; }
+  td { height: 25px; text-align: center; vertical-align: top; }
+
+  .footer-flex { display: flex; justify-content: space-between; font-size: 8pt; }
+  .footer-flex p { margin: 0 0 25px 0; }
+  .sig-block { text-align: center; display: inline-block; }
+  .sig-line { border-bottom: 1px solid #000; min-width: 220px; min-height: 16px; display: flex; align-items: flex-end; justify-content: center; padding: 0 5px; font-weight: bold; }
+  .sig-label { font-size: 8pt; margin-top: 3px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="univ">CEBU TECHNOLOGICAL UNIVERSITY</div>
+  <div class="thick-line"></div>
+
+  <div class="top-meta">MRC Form 5<br>March 2021<br>Revision: 0</div>
+
+  <div class="title-wrapper">
+    <h2>RISK IDENTIFICATION</h2>
+    <div class="unit-line">[UNIT_NAME]</div>
+    <div class="unit-label">College/Department/Section/Unit</div>
+  </div>
+
+  <div class="objective-row">
+    <strong>OBJECTIVE :</strong> <div class="obj-text">[OBJECTIVE_TEXT]</div>
+  </div>
+
+  <table>
+    <colgroup>
+      <col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:9%">
+      <col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:8%"><col style="width:8%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>ISSUES</th>
+        <th>RISKS</th>
+        <th>IMPACT</th>
+        <th>LIKELIHOOD</th>
+        <th>RISK FACTOR</th>
+        <th>RISK CONTROL/ACTION TO<br>BE TAKEN</th>
+        <th>TARGET DATE</th>
+        <th>PERSON/S<br>RESPONSIBLE</th>
+        <th>DATE OF<br>ASSESSMENT</th>
+        <th>DATE OF<br>ACTUAL<br>COMPLETION</th>
+      </tr>
+    </thead>
+    <tbody>
+      [LOGSHEET_ROWS]
+    </tbody>
+  </table>
+
+  <div class="footer-flex">
+    <div>
+      <p>Prepared by:</p>
+      <div class="sig-block"><div class="sig-line">[PREPARED_BY]</div><div class="sig-label">Process Owner/ Department/Section Head</div></div>
+    </div>
+    <div>
+      <p>Reviewed by:</p>
+      <div class="sig-block"><div class="sig-line">[REVIEWED_BY]</div><div class="sig-label">Supervisor</div></div>
+    </div>
+    <div>
+      <p>APPROVED:</p>
+      <div class="sig-block"><div class="sig-line">[APPROVED_BY]</div><div class="sig-label">Campus Director</div></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

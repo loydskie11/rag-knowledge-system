@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Relevant Issues Log - MRC Form 7</title>
+<style>
+  @page { size: 11in 8.5in; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; background: #e9e9e9; font-family: Arial, sans-serif; color: #000; }
+  .page { width: 11in; min-height: 8.5in; margin: 0.3in auto; background: #fff; padding: 0.6in 0.75in; box-shadow: 0 0 6px rgba(0,0,0,.25); position: relative; }
+  @media print { body { background: #fff; } .page { margin: 0; box-shadow: none; } }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .univ { font-weight: bold; font-size: 10pt; margin-top: 5px; }
+  .meta { font-size: 8pt; line-height: 1.3; text-align: left; }
+
+  .title-wrapper { text-align: center; margin-top: 40px; margin-bottom: 20px; }
+  .title-wrapper h2 { margin: 0; font-size: 11pt; font-weight: bold; font-family: "Times New Roman", serif; }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; margin-bottom: 50px; }
+  th, td { border: 1px solid #000; padding: 6px; }
+  th { font-weight: bold; text-align: center; vertical-align: middle; background: #fff; height: 35px; }
+  td { height: 30px; text-align: center; vertical-align: top; }
+
+  .footer-flex { display: flex; justify-content: space-between; font-size: 9pt; font-weight: bold; padding: 0 20px; }
+  .footer-flex p { margin: 0 0 35px 0; }
+  .sig-block { text-align: center; display: inline-block; }
+  .sig-line { border-top: 1px solid #000; min-width: 250px; padding-top: 5px; display: flex; align-items: flex-start; justify-content: center; }
+  .sig-label { font-size: 9pt; font-weight: normal; }
+  .sig-name { font-weight: bold; font-size: 10pt; min-height: 15px; margin-bottom: 2px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="univ">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="meta">MRC FORM 7<br>March 2021<br>Rev. 0</div>
+  </div>
+
+  <div class="title-wrapper">
+    <h2>RELEVANT ISSUES LOG</h2>
+  </div>
+
+  <table>
+    <colgroup>
+      <col style="width:14%"><col style="width:10%"><col style="width:16%"><col style="width:16%">
+      <col style="width:10%"><col style="width:11%"><col style="width:11%"><col style="width:12%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>INTERESTED PARTIES</th>
+        <th>INTERNAL/<br>EXTERNAL</th>
+        <th>REASONS FOR INCLUSION</th>
+        <th>ISSUES OF CONCERN</th>
+        <th>PROCESSES<br>AFFECTED</th>
+        <th>PRIORITY</th>
+        <th>TREATMENT<br>METHOD</th>
+        <th>RECORDS<br>REFERENCES/NOTES</th>
+      </tr>
+    </thead>
+    <tbody>
+      [LOGSHEET_ROWS]
+    </tbody>
+  </table>
+
+  <div class="footer-flex">
+    <div>
+      <p>Prepared by:</p>
+      <div class="sig-block">
+        <div class="sig-name">[PREPARED_BY]</div>
+        <div class="sig-line"><span class="sig-label">Quality Assurance Chair/Head</span></div>
+      </div>
+    </div>
+    <div>
+      <p>APPROVED:</p>
+      <div class="sig-block">
+        <div class="sig-name">[APPROVED_BY]</div>
+        <div class="sig-line"><span class="sig-label">Campus Director</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -197,19 +197,45 @@ def process_document_background(
         category = metadata.get("category", "")
         if category in ["Forms / Templates", "Branding Asset"]:
             print(f"[BG] Category '{category}' is template-only. OCR and vector indexing bypassed.")
+            
+            # For HTML templates (like MRC Form 2), store the full content_html directly in metadata
+            if filename_lower.endswith((".html", ".htm")):
+                try:
+                    metadata["content_html"] = contents.decode("utf-8", errors="ignore")
+                except Exception as h_err:
+                    print(f"[BG] HTML decode warning: {h_err}")
+            elif filename_lower.endswith(".pdf"):
+                try:
+                    metadata["content_html"] = pdf_to_html(contents)
+                except Exception:
+                    pass
+
+            # Store 1 record in document_sections so Knowledge Repository and Document Studio can see & load it
             try:
+                from vector_store import supabase as db_supabase
+                db_supabase.table("document_sections").insert({
+                    "content": f"[{category.upper()}] - {metadata.get('name', filename)}",
+                    "metadata": metadata,
+                    "embedding": [0.0] * 384
+                }).execute()
+                print(f"[BG] Template '{metadata.get('name', filename)}' registered in repository sections.")
+            except Exception as ins_err:
+                print(f"[BG] Template insertion error: {ins_err}")
+
+            # Still log the audit event
+            try:
+                from vector_store import supabase as db_supabase
                 event_type = "Document Upload"
                 if is_ched_evidence: event_type = "CHED Evidence Upload"
                 elif is_iso_evidence: event_type = "ISO Evidence Upload"
                 
-                from database import supabase
-                supabase.table("system_events_logs").insert({
+                db_supabase.table("system_events_logs").insert({
                     "user_email": metadata.get("uploaded_by", "system"),
                     "event_type": event_type,
-                    "description": f"File '{metadata.get('name', filename)}' uploaded successfully (AI indexing bypassed for {category})."
+                    "description": f"Template '{metadata.get('name', filename)}' uploaded successfully (AI indexing bypassed for {category})."
                 }).execute()
-            except Exception:
-                pass
+            except Exception as audit_err:
+                print(f"[BG] Template audit warning: {audit_err}")
             return
         elif filename_lower.endswith(".pdf"):
             extracted_text = extract_pdf_text(contents)
@@ -249,13 +275,14 @@ def process_document_background(
 
         # ── Audit log ────────────────────────────────────────────────────────
         try:
+            from vector_store import supabase as db_supabase
             event_type = "Document Upload"
             if is_ched_evidence:
                 event_type = "CHED Evidence Upload"
             elif is_iso_evidence:
                 event_type = "ISO Evidence Upload"
 
-            supabase.table("system_events_logs").insert({
+            db_supabase.table("system_events_logs").insert({
                 "user_email": metadata.get("uploaded_by", "system"),
                 "event_type": event_type,
                 "description": (
@@ -6812,6 +6839,14 @@ def get_document_content(document_name: str):
             .order("id", desc=True)
             .execute()
         )
+        if not res.data:
+            res = (
+                supabase.table("document_sections")
+                .select("metadata, id")
+                .ilike("metadata->>name", f"%{document_name.strip()}%")
+                .order("id", desc=True)
+                .execute()
+            )
         if not res.data:
             raise HTTPException(status_code=404, detail="Document not found")
 
