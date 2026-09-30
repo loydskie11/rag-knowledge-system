@@ -825,7 +825,8 @@ export const IsoTabContent = ({
   setCarFormToDelete,
   newCarForm,
   setNewCarForm,
-  handleExportCarForm
+  handleExportCarForm,
+  handleExportCarForm3
 }: any) => {
   // Strict ISO Rule: Clause can only be approved if it has evidence, and ALL evidence is approved.
   const evidenceList = (expandedIsoClause?.evidences && expandedIsoClause.evidences.length > 0)
@@ -977,12 +978,21 @@ export const IsoTabContent = ({
                       <h3 className="text-lg font-bold text-gray-900">CAR / PAR Form 3 — Master Logsheet</h3>
                       <p className="text-xs text-gray-500 mt-1">Summary of all issued Corrective Action Requests for this audit cycle.</p>
                     </div>
-                    <button
-                      onClick={() => { setNewCarForm((prev: any) => ({...prev, area: "", iso_clause_id: ""})); setShowAddCarModal(true); }}
-                      className="w-full md:w-auto px-4 py-2.5 bg-[#DD7230] hover:bg-[#c45e22] text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                    >
-                      <Plus className="h-4 w-4" /> Issue CAR Form 1
-                    </button>
+                    <div className="flex gap-2 w-full md:w-auto">
+                      <button
+                        onClick={handleExportCarForm3}
+                        className="w-full md:w-auto px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                        title="Generate Official CAR Form 3 (Print / PDF)"
+                      >
+                        <Printer className="h-4 w-4" /> Export Logsheet
+                      </button>
+                      <button
+                        onClick={() => { setNewCarForm((prev: any) => ({...prev, area: "", iso_clause_id: ""})); setShowAddCarModal(true); }}
+                        className="w-full md:w-auto px-4 py-2.5 bg-[#DD7230] hover:bg-[#c45e22] text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                      >
+                        <Plus className="h-4 w-4" /> Issue CAR Form 1
+                      </button>
+                    </div>
                   </div>
 
                   {isLoadingCarForms ? (
@@ -2222,6 +2232,68 @@ export function AccreditationSupport() {
       
     } catch (err: any) {
       console.error("handleExportCarForm error:", err);
+      showToast(err.message || "Failed to route to Document Studio.", "error");
+    }
+  };
+
+  const handleExportCarForm3 = async () => {
+    try {
+      if (!carForms || carForms.length === 0) {
+        throw new Error("No CAR Forms available to export for this cycle.");
+      }
+      showToast("Redirecting to Document Studio...", "info");
+  
+      // 1. Fetch the template HTML
+      const resp = await apiClient.get(`/documents/${encodeURIComponent("CAR Form 3 Template")}/content`);
+      let html = resp.data?.content_html;
+  
+      if (!html || !html.trim()) {
+        throw new Error("CAR Form 3 Template not found in the Knowledge Repository. Please upload it first.");
+      }
+
+      // Strip or scope global styles to prevent leaking into the rest of the React app
+      html = html.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match: string, css: string) => {
+        let scopedCss = css
+          .replace(/(?:\b|^)body\s*\{/gi, '.wysiwyg-content {')
+          .replace(/(?:\b|^)html\s*\{/gi, '.wysiwyg-content {')
+          .replace(/(?:\b|^|\s)\*\s*\{/gi, ' .wysiwyg-content * {');
+        return `<style>\n${scopedCss}\n</style>`;
+      });
+  
+      // 2. Build rows
+      // Minimum 35 rows to match the physical logsheet height
+      let rowsHtml = "";
+      const MAX_ROWS = Math.max(35, carForms.length);
+      for (let i = 0; i < MAX_ROWS; i++) {
+        const car = carForms[i];
+        if (car) {
+          rowsHtml += `<tr>
+            <td style="font-weight: bold;">${car.car_no || ""}</td>
+            <td>${car.date_issued || ""}</td>
+            <td>${car.area || ""}</td>
+            <td>${car.auditee_name || ""}</td>
+            <td>${car.auditor_name || ""}</td>
+            <td style="font-weight: bold;">${car.status || ""}</td>
+          </tr>`;
+        } else {
+          rowsHtml += `<tr>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+          </tr>`;
+        }
+      }
+
+      html = html.replace("[LOGSHEET_ROWS]", rowsHtml);
+
+      // 4. Send the user and the injected HTML to the Document Generator
+      navigate("/app/document-generator", { state: { injectedHtml: html } });
+      
+    } catch (err: any) {
+      console.error("handleExportCarForm3 error:", err);
       showToast(err.message || "Failed to route to Document Studio.", "error");
     }
   };
@@ -4038,6 +4110,7 @@ export function AccreditationSupport() {
             newCarForm={newCarForm}
             setNewCarForm={setNewCarForm}
             handleExportCarForm={handleExportCarForm}
+            handleExportCarForm3={handleExportCarForm3}
           />
         </TabsContent>
 

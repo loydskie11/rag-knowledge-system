@@ -10,11 +10,14 @@ load_dotenv()
 # Get the Supabase URL
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Create the SQLAlchemy Engine with fast connection timeout to prevent startup hangs
+from sqlalchemy.pool import NullPool
+
+# Create the SQLAlchemy Engine
+# Using NullPool because Supabase already uses PgBouncer (pooler).
+# This prevents SQLAlchemy from holding idle connections and hitting the 15-connection limit.
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    pool_pre_ping=True,
-    connect_args={"connect_timeout": 2}
+    poolclass=NullPool,
 )
 
 # Create a Session class for your API endpoints to use
