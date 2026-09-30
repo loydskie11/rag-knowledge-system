@@ -1,7 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime, date
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Union
 
 # What the user sends us when they sign up
 class UserCreate(BaseModel):
@@ -473,6 +473,19 @@ class CARFormCreate(BaseModel):
     measures_proposed_by: Optional[str] = None
     target_date: Optional[str] = None
     status: str = "Open"
+    follow_up_result: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    comments_remarks: Optional[str] = None
+    non_conformity_closed: Optional[bool] = False
+
+    @field_validator("iso_clause_id", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v):
+        # Frontend sends "" when no ISO clause is selected; convert to None
+        # so the FK column receives NULL instead of an invalid UUID string
+        if v == "" or v is None:
+            return None
+        return v
 
 class CARFormUpdate(BaseModel):
     car_no: Optional[str] = None
@@ -491,11 +504,15 @@ class CARFormUpdate(BaseModel):
     measures_proposed_by: Optional[str] = None
     target_date: Optional[str] = None
     status: Optional[str] = None
+    follow_up_result: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    comments_remarks: Optional[str] = None
+    non_conformity_closed: Optional[bool] = None
 
 class CARFormResponse(BaseModel):
     id: uuid.UUID
     cycle_year: str
-    iso_clause_id: Optional[str] = None
+    iso_clause_id: Optional[uuid.UUID] = None  # DB returns UUID object, not str
     car_no: Optional[str] = None
     date_issued: Optional[str] = None
     revision: Optional[str] = None
@@ -512,6 +529,10 @@ class CARFormResponse(BaseModel):
     measures_proposed_by: Optional[str] = None
     target_date: Optional[str] = None
     status: str
+    follow_up_result: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    comments_remarks: Optional[str] = None
+    non_conformity_closed: Optional[bool] = False
     created_at: datetime
 
     class Config:

@@ -1,12 +1,20 @@
-﻿import urllib.request
-import json
+﻿import sys
+import requests
+import urllib.parse
 
+url = f"http://localhost:8000/documents/{urllib.parse.quote('CAR Form 1 Template')}/content"
+print(f"Requesting: {url}")
 try:
-    req = urllib.request.Request("http://127.0.0.1:8000/documents/MEMORANDUM%20TEMPLATE/content")
-    with urllib.request.urlopen(req, timeout=5) as response:
-        data = json.loads(response.read().decode())
-        html = data.get("content_html", "")
-        print(f"content_html length: {len(html)}")
-        print(f"Sample: {html[:200]}")
+    res = requests.get(url)
+    print("Status:", res.status_code)
+    data = res.json()
+    if 'content_html' in data:
+        html = data['content_html']
+        if html:
+            print("HTML length:", len(html))
+        else:
+            print("HTML is empty string")
+    else:
+        print("No content_html in response:", data)
 except Exception as e:
-    print(f"Error: {e}")
+    print("Request failed:", e)

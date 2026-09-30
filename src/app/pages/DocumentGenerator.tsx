@@ -53,6 +53,7 @@ import React, {
   useState, useRef, useEffect, useLayoutEffect, useMemo,
   type RefObject,
 } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Sparkles, RefreshCw, Image as ImageIcon, X, FileText, CheckCircle2, AlertCircle,
   ChevronDown, ChevronUp, AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -1681,6 +1682,7 @@ function PreviewPage(props: PreviewPageProps) {
  * MAIN COMPONENT
  * ==========================================================================*/
 export function DocumentGenerator() {
+  const location = useLocation();
   const [view, setView] = useState<"wizard" | "editor">("wizard");
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -1858,6 +1860,14 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
 
   const [previewFragments, setPreviewFragments] = useState<string[]>([]);
   const [fit, setFit] = useState<{ fontPt: number; lineHeight: string } | null>(null);
+
+  useEffect(() => {
+    if (location.state?.injectedHtml) {
+      setView("editor");
+      setPreviewFragments([location.state.injectedHtml]);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, setView, setPreviewFragments]);
 
   const previewWrapRef = useRef<HTMLDivElement>(null);
   const previewPagesRef = useRef<HTMLDivElement>(null);

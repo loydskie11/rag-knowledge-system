@@ -318,4 +318,8 @@ class CARForm(Base):
     measures_proposed_by = Column(String(255), nullable=True)
     target_date = Column(String(50), nullable=True)
     status = Column(String(50), default="Open")
+    follow_up_result = Column(String(255), nullable=True)
+    follow_up_date = Column(String(50), nullable=True)
+    comments_remarks = Column(Text, nullable=True)
+    non_conformity_closed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)

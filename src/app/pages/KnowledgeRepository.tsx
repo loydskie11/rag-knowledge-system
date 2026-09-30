@@ -363,7 +363,23 @@ export function KnowledgeRepository() {
       formData: submitData,
       isVersionUpdate: false,
       onComplete: (name) => {
-        loadDocs()
+        // Optimistically update the UI while background extraction runs
+        const newDoc = {
+            id: "temp_" + Date.now(),
+            name: name,
+            category: formData.category,
+            office: formData.office,
+            version: formData.version,
+            effectivity_date: formData.effectivityDate,
+            status: "Active",
+            uploaded_by: sessionStorage.getItem('userEmail') || 'Unknown',
+            created_at: new Date().toISOString()
+        };
+        setDocuments(prev => [newDoc, ...prev]);
+        
+        loadDocs();
+        setTimeout(loadDocs, 3000);
+        setTimeout(loadDocs, 7000);
         showToast(`"${name}" successfully added to repository!`, 'success')
       },
     })
@@ -674,7 +690,7 @@ export function KnowledgeRepository() {
                   )}
                   <input 
                     type="file" 
-                    accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"
+                    accept=".pdf,.docx,.txt,.html,.png,.jpg,.jpeg"
                     className="hidden" 
                     ref={updateFileInputRef}
                     onChange={(e) => handleFileSelect(e, true)}
@@ -806,7 +822,7 @@ export function KnowledgeRepository() {
                     )}
                     <input 
                       type="file" 
-                      accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"
+                      accept=".pdf,.docx,.txt,.html,.png,.jpg,.jpeg"
                       className="hidden" 
                       ref={fileInputRef}
                       onChange={(e) => handleFileSelect(e, false)}

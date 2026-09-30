@@ -1244,8 +1244,8 @@ async def upload_document(
     try:
         # Validate file type early (before reading)
         filename_lower = file.filename.lower()
-        if not filename_lower.endswith((".pdf", ".png", ".jpg", ".jpeg", ".txt", ".docx")):
-            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload PDF, DOCX, TXT, or Image.")
+        if not filename_lower.endswith((".pdf", ".png", ".jpg", ".jpeg", ".txt", ".docx", ".html")):
+            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload PDF, DOCX, TXT, HTML, or Image.")
 
         contents = await file.read()
 
@@ -1326,7 +1326,7 @@ async def upload_new_version(
     try:
         # ── 1. Validate file type early ───────────────────────────────────
         filename_lower = file.filename.lower()
-        if not filename_lower.endswith((".pdf", ".png", ".jpg", ".jpeg", ".txt", ".docx")):
+        if not filename_lower.endswith((".pdf", ".png", ".jpg", ".jpeg", ".txt", ".docx", ".html")):
             raise HTTPException(status_code=400, detail="Unsupported file format.")
 
         # ── 2. Lookup old document metadata (synchronous — fast Supabase query) ──
@@ -3312,12 +3312,20 @@ async def extract_car_form(file: UploadFile = File(...)):
             import fitz
             doc = fitz.open(stream=contents, filetype="pdf")
             page = doc.load_page(0)
-            pix = page.get_pixmap(dpi=150)
+            # Reduced DPI to 72 for absolute minimum token context
+            pix = page.get_pixmap(dpi=72)
             img_data = pix.tobytes("jpeg")
             base64_image = base64.b64encode(img_data).decode("utf-8")
             doc.close()
         elif filename_lower.endswith((".png", ".jpg", ".jpeg")):
-            base64_image = base64.b64encode(contents).decode("utf-8")
+            # Resize image to max 640px to ensure VRAM compliance
+            import io
+            from PIL import Image as PILImage
+            img = PILImage.open(io.BytesIO(contents)).convert("RGB")
+            img.thumbnail((640, 640))
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=80)
+            base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
         else:
             raise HTTPException(status_code=400, detail="Please upload a PDF or Image file (.pdf, .png, .jpg, .jpeg).")
 
@@ -3326,13 +3334,13 @@ Your job is to parse a scanned Corrective Action Request (CAR) Form 1 from the p
 
 CRITICAL CONTEXT: Only the TOP HALF of this form is filled out. The bottom sections (Immediate Action, Root Cause, Corrective Measure, Target Date) are completely blank. DO NOT try to extract them; return empty strings for those fields.
 
-Focus entirely on the top headers and checkboxes. For checkboxes (MAJOR, MINOR, OBSERVATION, QMS Related, etc.), visually look for an 'X' or checkmark. 
-CRITICAL DATE EXTRACTION: Prioritize extracting the date written explicitly next to the 'Date:' label (e.g. 'September 29, 2026'). Only if that line is completely blank, fallback to the date stamped in the top right corner. Look for signatures over the printed names.
+Focus entirely on the top headers and checkboxes. For checkboxes (MAJOR, MINOR, OBSERVATION, QMS Related, etc.), visually look for a slash ('/'), a standard checkmark, or an 'X'. Many users will simply draw a diagonal slash mark ('/') to select the box. 
+CRITICAL DATE EXTRACTION: Prioritize extracting the date written explicitly next to the 'Date:' label. Only if that line is completely blank, fallback to the date stamped in the top right corner. IMPORTANT: You must convert and format the final date strictly as YYYY-MM-DD (e.g. '2026-09-29'). Do not write words like 'September'. Look for signatures over the printed names.
 
 Return a pure JSON object exactly like this, replacing the values with the actual extracted text from the image:
 {
   "car_no": "Extracted CAR No",
-  "date_issued": "Extracted Date",
+  "date_issued": "YYYY-MM-DD",
   "campus": "Extracted Campus",
   "area": "Extracted Area",
   "findings": "Extracted Statement/Finding(s)",
@@ -3342,7 +3350,11 @@ Return a pure JSON object exactly like this, replacing the values with the actua
   "type_of_non_conformity": "QMS Related or Security Related or Customer Feedback or Customer Complaint or Other",
   "root_cause": "",
   "immediate_action": "",
-  "corrective_measure": ""
+  "corrective_measure": "",
+  "follow_up_result": "Measures complete and effective OR Measures ineffective",
+  "follow_up_date": "Extracted Follow Up Date (YYYY-MM-DD)",
+  "comments_remarks": "Extracted Comments/Remarks",
+  "non_conformity_closed": false
 }"""
 
         response = local_ai_client.chat.completions.create(
@@ -3362,7 +3374,8 @@ Return a pure JSON object exactly like this, replacing the values with the actua
                     ]
                 }
             ],
-            temperature=0.1,
+            temperature=0.0,
+            max_tokens=250,
             response_format={"type": "json_object"}
         )
 

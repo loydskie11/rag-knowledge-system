@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, MessageSquare, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal , Printer} from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
@@ -823,7 +824,8 @@ export const IsoTabContent = ({
   setEditingCarForm,
   setCarFormToDelete,
   newCarForm,
-  setNewCarForm
+  setNewCarForm,
+  handleExportCarForm
 }: any) => {
   // Strict ISO Rule: Clause can only be approved if it has evidence, and ALL evidence is approved.
   const evidenceList = (expandedIsoClause?.evidences && expandedIsoClause.evidences.length > 0)
@@ -1337,7 +1339,6 @@ export const IsoTabContent = ({
                   {expandedIsoClause.status !== "Not Compliant" && (
                     <button
                       onClick={() => {
-                        confirmIsoStatusUpdate && confirmIsoStatusUpdate(expandedIsoClause.id, "Not Compliant", `${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}`);
                         setNewCarForm((prev: any) => ({...prev, area: expandedIsoClause.auditee_office || "", iso_clause_id: expandedIsoClause.id || "", findings: `Non-conformity under ${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}. ${expandedIsoClause.description || ""}`}));
                         setShowAddCarModal(true);
                       }}
@@ -1882,6 +1883,7 @@ export const ReusableUploadModal = ({
 };
 
 export function AccreditationSupport() {
+  const navigate = useNavigate();
   const userRole = sessionStorage.getItem('userRole') || 'STUDENT';
   const userDept = sessionStorage.getItem('userDepartment') || 'BSIT';
   const userName = sessionStorage.getItem('userName') || 'Faculty User';
@@ -2067,7 +2069,8 @@ export function AccreditationSupport() {
     iso_clause_id: "", car_no: "", date_issued: "", revision: "", finding_category: "UNKNOWN",
     type_of_non_conformity: "QMS Related", auditor_name: "", acknowledged_by: "", campus: "",
     area: "", findings: "", root_cause: "", immediate_action: "", corrective_measure: "",
-    measures_proposed_by: "", target_date: "", status: "Open"
+    measures_proposed_by: "", target_date: "", status: "Open",
+    follow_up_result: "", follow_up_date: "", comments_remarks: "", non_conformity_closed: false
   });
 
   const fetchCarForms = async (cycleYear: string) => {
@@ -2147,17 +2150,17 @@ export function AccreditationSupport() {
 
   const handleExportCarForm = async (car: any) => {
     try {
-      showToast("Generating official CAR Form 1...", "info");
+      showToast("Redirecting to Document Studio...", "info");
   
-      // 1. Fetch template HTML from repository
+      // 1. Fetch the template HTML
       const resp = await apiClient.get(`/documents/${encodeURIComponent("CAR Form 1 Template")}/content`);
       let html = resp.data?.content_html;
   
       if (!html || !html.trim()) {
-        throw new Error("Master 'CAR Form 1 Template' not found in the Knowledge Repository. Please upload it first.");
+        throw new Error("CAR Form 1 Template not found in the Knowledge Repository. Please upload it first.");
       }
   
-      // 2. Map standard text fields
+      // 2. Map text field placeholders
       const textReplacements: Record<string, string> = {
         "[CAR_NO]": car.car_no || "N/A",
         "[CAMPUS]": car.campus || "Argao Campus",
@@ -2173,73 +2176,49 @@ export function AccreditationSupport() {
         "[TARGET_DATE]": car.target_date || "N/A",
         "[OTHER_DESC]": car.other_type_description || "",
         "[FOLLOWUP_DATE]": car.follow_up_date || "N/A",
-        "[REMARKS]": (car.remarks || "No additional remarks.").replace(/\n/g, "<br>")
+        "[REMARKS]": (car.comments_remarks || "No additional remarks.").replace(/\n/g, "<br>")
       };
   
       for (const [placeholder, val] of Object.entries(textReplacements)) {
         html = html.split(placeholder).join(val);
       }
   
-      // 3. Map checkbox tokens to Unicode symbols
-      const CHECKED = "☑";
-      const UNCHECKED = "☐";
+      // 3. Map checkbox placeholders to Unicode box characters
+      const CHECKED = "\u2611";   // ☑
+      const UNCHECKED = "\u2610"; // ☐
   
       const category = (car.finding_category || "").toUpperCase();
-      html = html.split("[CAT_MAJOR]").join(category === "MAJOR" ? CHECKED : UNCHECKED);
-      html = html.split("[CAT_MINOR]").join(category === "MINOR" ? CHECKED : UNCHECKED);
-      html = html.split("[CAT_OBSERVATION]").join(category === "OBSERVATION" ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_MAJOR]").join(category === "MAJOR" ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_MINOR]").join(category === "MINOR" ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_OBS]").join(category === "OBSERVATION" ? CHECKED : UNCHECKED);
   
       const ncType = (car.type_of_non_conformity || "").toLowerCase();
-      html = html.split("[TYPE_QMS]").join(ncType.includes("qms") ? CHECKED : UNCHECKED);
-      html = html.split("[TYPE_SECURITY]").join(ncType.includes("security") ? CHECKED : UNCHECKED);
-      html = html.split("[TYPE_FEEDBACK]").join(ncType.includes("feedback") ? CHECKED : UNCHECKED);
-      html = html.split("[TYPE_COMPLAINT]").join(ncType.includes("complaint") ? CHECKED : UNCHECKED);
-      html = html.split("[TYPE_OTHER]").join(ncType.includes("other") ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_QMS]").join(ncType.includes("qms") ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_SECURITY]").join(ncType.includes("security") ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_FEEDBACK]").join(ncType.includes("feedback") ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_COMPLAINT]").join(ncType.includes("complaint") ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_OTHER]").join(ncType.includes("other") ? CHECKED : UNCHECKED);
+
+      const fuResult = (car.follow_up_result || "").toLowerCase();
+      html = html.split("[CHECK_EFFECTIVE]").join((fuResult.includes("effective") && !fuResult.includes("ineffective")) ? CHECKED : UNCHECKED);
+      html = html.split("[CHECK_INEFFECTIVE]").join(fuResult.includes("ineffective") ? CHECKED : UNCHECKED);
   
-      const isClosed = car.status === "Closed";
+      const isClosed = car.non_conformity_closed === true || car.status === "Closed";
       html = html.split("[STATUS_CLOSED]").join(isClosed ? CHECKED : UNCHECKED);
       html = html.split("[FOLLOWUP_COMPLETE]").join(isClosed ? CHECKED : UNCHECKED);
       html = html.split("[FOLLOWUP_INEFFECTIVE]").join(UNCHECKED);
-  
-      // 4. Open native Print/PDF dialog with official document styling
-      const printWindow = window.open("", "_blank", "width=900,height=800");
-      if (!printWindow) {
-        showToast("Please allow pop-ups to export or print the document.", "error");
-        return;
-      }
-  
-      printWindow.document.write(`<!DOCTYPE html>
-      <html>
-        <head>
-          <title>CAR_${car.car_no || "Form_1"}</title>
-          <style>
-            @page { size: A4 portrait; margin: 15mm; }
-            * { box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.35; color: #000; margin: 0; padding: 0; }
-            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-            td, th { border: 1px solid #000; padding: 5px 8px; vertical-align: top; font-size: 9.5pt; }
-            .controlled-copy { text-align: center; font-weight: bold; font-size: 8pt; margin-top: 10px; letter-spacing: 2px; }
-          </style>
-        </head>
-        <body>
-          ${html}
-          <div class="controlled-copy">CONTROLLED COPY</div>
-        </body>
-      </html>`);
-  
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 500);
-  
-      showToast("Official CAR Form 1 generated successfully!", "success");
+
+      // 4. Send the user and the injected HTML to the Document Generator
+      navigate("/app/document-generator", { state: { injectedHtml: html } });
+      
     } catch (err: any) {
-      console.error("Export error:", err);
-      showToast(err.message || "Failed to generate official CAR Form 1.", "error");
+      console.error("handleExportCarForm error:", err);
+      showToast(err.message || "Failed to route to Document Studio.", "error");
     }
   };
+  
+
+
 
   const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   const [newQmsPlan, setNewQmsPlan] = useState({
@@ -4049,6 +4028,7 @@ export function AccreditationSupport() {
             setCarFormToDelete={setCarFormToDelete}
             newCarForm={newCarForm}
             setNewCarForm={setNewCarForm}
+            handleExportCarForm={handleExportCarForm}
           />
         </TabsContent>
 
@@ -4652,7 +4632,7 @@ export function AccreditationSupport() {
       {/* --- ISO UPLOAD EVIDENCE MODAL --- */}
       {showIsoUploadModal && selectedIsoReq && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border-t-4 border-t-[#DD7230]">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Upload ISO Clause Evidence</h2>
@@ -4733,7 +4713,7 @@ export function AccreditationSupport() {
       {/* --- ADMIN ADD ISO REQUIREMENT MODAL --- */}
       {showAddIsoReqModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Add ISO 9001:2015 Clause Requirement</h2>
@@ -4835,7 +4815,7 @@ export function AccreditationSupport() {
       {/* --- ADMIN EDIT ISO REQUIREMENT MODAL --- */}
       {showEditIsoModal && editingIsoReq && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Edit ISO Clause Requirement</h2>
@@ -4958,7 +4938,7 @@ export function AccreditationSupport() {
       {/* --- EDIT 3-DAY IQA AUDIT PROGRAM SCHEDULE MODAL --- */}
       {showEditIqaModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Edit 3-Day IQA Audit Program Schedule</h2>
@@ -5122,7 +5102,7 @@ export function AccreditationSupport() {
       {/* --- ADD DYNAMIC IQA AUDIT DAY MODAL --- */}
       {showAddIqaDayModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Add IQA Audit Day</h2>
@@ -5207,7 +5187,7 @@ export function AccreditationSupport() {
       {/* --- EDIT DYNAMIC IQA AUDIT DAY MODAL --- */}
       {showEditIqaDayModal && editingIqaDay && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Edit IQA Audit Day</h2>
@@ -5448,7 +5428,7 @@ export function AccreditationSupport() {
       {/* Start New ISO Audit Cycle Modal */}
       {showAddIsoCycleModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-[#1F2937]">Initialize New Audit Cycle</h2>
@@ -5493,7 +5473,7 @@ export function AccreditationSupport() {
       {/* --- ADD DIGITAL QMS ACTION PLAN MODAL --- */}
       {showAddQmsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Create QMS Action Plan (MRC Form 6)</h2>
@@ -5532,7 +5512,16 @@ export function AccreditationSupport() {
                           findings: data.findings || "",
                             root_cause: data.root_cause || "",
                             immediate_action: data.immediate_action || "",
-                            corrective_measure: data.corrective_measure || ""
+                            corrective_measure: data.corrective_measure || "",
+                            follow_up_result: data.follow_up_result || "",
+                            follow_up_date: (() => {
+                                const rawDate = data.follow_up_date || "";
+                                if (!rawDate || rawDate.includes("YYYY") || rawDate.includes("Extracted")) return "";
+                                const d = new Date(rawDate);
+                                return isNaN(d.getTime()) ? "" : d.toISOString().split('T')[0];
+                            })(),
+                            comments_remarks: data.comments_remarks || "",
+                            non_conformity_closed: data.non_conformity_closed || false
                         }));
                         showToast("CAR Form successfully extracted and populated!", "success");
                       } catch {
@@ -5703,7 +5692,7 @@ export function AccreditationSupport() {
       {/* --- EDIT DIGITAL QMS ACTION PLAN MODAL --- */}
       {showEditQmsModal && editingQmsPlan && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937] shrink-0">Edit QMS Action Plan</h2>
@@ -5856,7 +5845,7 @@ export function AccreditationSupport() {
       {/* === ADD CAR FORM 1 MODAL === */}
       {showAddCarModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] my-8 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Issue Corrective Action Request (CAR Form 1)</h2>
@@ -5901,7 +5890,12 @@ export function AccreditationSupport() {
                           setNewCarForm((prev: any) => ({
                             ...prev,
                             car_no: data.car_no || "",
-                            date_issued: data.date_issued || data.date || "",
+                            date_issued: (() => {
+                                const rawDate = data.date_issued || data.date || "";
+                                if (!rawDate) return "";
+                                const d = new Date(rawDate);
+                                return isNaN(d.getTime()) ? "" : d.toISOString().split('T')[0];
+                              })(),
                             campus: data.campus || "",
                             area: data.area || prev.area || "",
                             findings: data.findings || prev.findings || "",
@@ -6016,6 +6010,39 @@ export function AccreditationSupport() {
                     <input type="date" value={newCarForm.target_date} onChange={(e) => setNewCarForm({...newCarForm, target_date: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm" />
                   </div>
                 </div>
+                
+                <div className="flex items-center gap-2 mt-4 pb-2 border-b border-gray-100">
+                  <div className="h-6 w-1 bg-emerald-500 rounded-full"></div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Section 3: Auditor Follow-Up & Closeout Verification</h3>
+                    <p className="text-[10px] text-gray-500">To be filled in by the Auditor upon verification</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Follow-Up Action Result</label>
+                    <select value={newCarForm.follow_up_result || ""} onChange={(e) => setNewCarForm({...newCarForm, follow_up_result: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
+                      <option value="">-- Select Result --</option>
+                      <option value="Measures complete and effective">Measures complete and effective</option>
+                      <option value="Measures ineffective">Measures ineffective & for re-follow up</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Follow-Up / Re-evaluation Date</label>
+                    <input type="date" value={newCarForm.follow_up_date || ""} onChange={(e) => setNewCarForm({...newCarForm, follow_up_date: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Comments / Remarks</label>
+                  <textarea rows={2} value={newCarForm.comments_remarks || ""} onChange={(e) => setNewCarForm({...newCarForm, comments_remarks: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="Auditor remarks upon verification..." />
+                </div>
+                
+                <div className="flex items-center gap-2 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+                  <input type="checkbox" id="closeout_add" checked={newCarForm.non_conformity_closed || false} onChange={(e) => setNewCarForm({...newCarForm, non_conformity_closed: e.target.checked})} className="h-4 w-4 text-emerald-600 rounded" />
+                  <label htmlFor="closeout_add" className="text-sm font-bold text-emerald-900 cursor-pointer">Non-Conformity Officially Closed</label>
+                </div>
               </div>
 
               <div className="p-6 border-t border-gray-100 flex justify-end shrink-0 gap-3">
@@ -6033,7 +6060,7 @@ export function AccreditationSupport() {
       {/* === EDIT CAR FORM 1 MODAL === */}
       {showEditCarModal && editingCarForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230] my-8 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Edit CAR Form 1</h2>
@@ -6084,6 +6111,39 @@ export function AccreditationSupport() {
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Corrective Measure(s)</label>
                   <textarea rows={2} value={editingCarForm.corrective_measure || ""} onChange={(e) => setEditingCarForm({...editingCarForm, corrective_measure: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                </div>
+                
+                <div className="flex items-center gap-2 mt-4 pb-2 border-b border-gray-100">
+                  <div className="h-6 w-1 bg-emerald-500 rounded-full"></div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Section 3: Auditor Follow-Up & Closeout Verification</h3>
+                    <p className="text-[10px] text-gray-500">To be filled in by the Auditor upon verification</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Follow-Up Action Result</label>
+                    <select value={editingCarForm.follow_up_result || ""} onChange={(e) => setEditingCarForm({...editingCarForm, follow_up_result: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
+                      <option value="">-- Select Result --</option>
+                      <option value="Measures complete and effective">Measures complete and effective</option>
+                      <option value="Measures ineffective">Measures ineffective & for re-follow up</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Follow-Up / Re-evaluation Date</label>
+                    <input type="date" value={editingCarForm.follow_up_date || ""} onChange={(e) => setEditingCarForm({...editingCarForm, follow_up_date: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Comments / Remarks</label>
+                  <textarea rows={2} value={editingCarForm.comments_remarks || ""} onChange={(e) => setEditingCarForm({...editingCarForm, comments_remarks: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="Auditor remarks upon verification..." />
+                </div>
+                
+                <div className="flex items-center gap-2 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 mb-2">
+                  <input type="checkbox" id="closeout_edit" checked={editingCarForm.non_conformity_closed || false} onChange={(e) => setEditingCarForm({...editingCarForm, non_conformity_closed: e.target.checked})} className="h-4 w-4 text-emerald-600 rounded" />
+                  <label htmlFor="closeout_edit" className="text-sm font-bold text-emerald-900 cursor-pointer">Non-Conformity Officially Closed</label>
                 </div>
               </div>
               <div className="pt-4 border-t border-gray-100 flex justify-end shrink-0">
@@ -6148,7 +6208,7 @@ export function AccreditationSupport() {
       {/* --- ATTACH QMS EVIDENCE / PROOF MODAL --- */}
       {showQmsEvidenceUploadModal && targetQmsPlanForEvidence && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border-t-4 border-t-[#DD7230]">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Attach Proof of Execution</h2>
