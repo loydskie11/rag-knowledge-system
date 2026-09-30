@@ -62,6 +62,33 @@ def run_ocr(ocr_instance, img_array):
 # Pages with tables/images embedded as images usually yield < 50 chars.
 OCR_FALLBACK_THRESHOLD = 50
 
+def is_complex_ocr_garbage(text: str) -> bool:
+    text_stripped = text.strip()
+    if not text_stripped: return True
+    letters = sum(c.isalpha() for c in text_stripped)
+    total = len(text_stripped)
+    if total > 0 and (letters / total) < 0.4: return True
+    lines = [l.strip() for l in text_stripped.split('\n') if l.strip()]
+    if len(lines) > 5:
+        if (sum(len(l) < 15 for l in lines) / len(lines)) > 0.7: return True
+    return False
+
+def extract_with_vision(img_array) -> str:
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    try:
+        img = Image.fromarray(img_array)
+        buffered = BytesIO()
+        img.save(buffered, format="JPEG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        from ollama import Client
+        client = Client(host='http://localhost:11434')
+        response = client.chat(model="llama3.2-vision", messages=[{"role": "user", "content": "Extract the text and describe any tables or charts.", "images": [img_str]}])
+        return response['message']['content']
+    except Exception as e:
+        return ""
+
 def extract_pdf_text(contents: bytes) -> str:
     """
     Fast, robust PDF text extraction with PyMuPDF (fitz) and selective OCR fallback.
@@ -99,6 +126,9 @@ def extract_pdf_text(contents: bytes) -> str:
             if pix.n == 4:
                 img_array = img_array[:, :, :3]
             page_ocr = run_ocr(ocr_instance, img_array)
+            if is_complex_ocr_garbage(page_ocr):
+                vision_text = extract_with_vision(img_array)
+                if vision_text.strip(): page_ocr = vision_text
             ocr_text += (page_ocr if page_ocr.strip() else page_text) + "\n"
         else:
             ocr_text += page_text + "\n"
@@ -164,9 +194,23 @@ def process_document_background(
         filename_lower = filename.lower()
 
         # ── Text extraction ──────────────────────────────────────────────────
-        # If the category is Branding Asset, skip OCR completely!
-        if metadata.get("category") == "Branding Asset":
-            extracted_text = f"[BRANDING ASSET] - Image placeholder for {metadata.get('name', filename)}. OCR Bypassed."
+        category = metadata.get("category", "")
+        if category in ["Forms / Templates", "Branding Asset"]:
+            print(f"[BG] Category '{category}' is template-only. OCR and vector indexing bypassed.")
+            try:
+                event_type = "Document Upload"
+                if is_ched_evidence: event_type = "CHED Evidence Upload"
+                elif is_iso_evidence: event_type = "ISO Evidence Upload"
+                
+                from database import supabase
+                supabase.table("system_events_logs").insert({
+                    "user_email": metadata.get("uploaded_by", "system"),
+                    "event_type": event_type,
+                    "description": f"File '{metadata.get('name', filename)}' uploaded successfully (AI indexing bypassed for {category})."
+                }).execute()
+            except Exception:
+                pass
+            return
         elif filename_lower.endswith(".pdf"):
             extracted_text = extract_pdf_text(contents)
         elif filename_lower.endswith((".png", ".jpg", ".jpeg")):
@@ -174,6 +218,9 @@ def process_document_background(
             img_array = np.array(img)
             ocr = get_ocr()
             extracted_text = run_ocr(ocr, img_array)
+            if is_complex_ocr_garbage(extracted_text):
+                vision_text = extract_with_vision(img_array)
+                if vision_text.strip(): extracted_text = vision_text
         elif filename_lower.endswith((".txt", ".html")):
             extracted_text = contents.decode("utf-8", errors="ignore")
         elif filename_lower.endswith(".docx"):
@@ -3243,12 +3290,16 @@ def get_car_forms(
 @app.post("/car-forms", response_model=schemas.CARFormResponse, status_code=status.HTTP_201_CREATED)
 def create_car_form(
     payload: schemas.CARFormCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin)
 ):
     data = payload.dict()
     # Fix for SQLAlchemy UUID casting error when frontend passes empty string
     if data.get("iso_clause_id") == "":
         data["iso_clause_id"] = None
+        
+    if not data.get("initiator"):
+        data["initiator"] = current_user.full_name or current_user.email
         
     new_car = models.CARForm(**data)
     db.add(new_car)
@@ -9129,6 +9180,13 @@ def update_iso_status(
         raise HTTPException(status_code=404, detail="ISO requirement not found.")
 
     req.status = payload.status
+    
+    if payload.status == "Compliant":
+        cars = db.query(models.CARForm).filter(models.CARForm.iso_clause_id == req_id).all()
+        for car in cars:
+            if car.status != "CLOSED":
+                car.status = "CLOSED"
+                
     db.commit()
     db.refresh(req)
     return req

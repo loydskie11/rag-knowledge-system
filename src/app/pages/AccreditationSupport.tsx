@@ -828,6 +828,8 @@ export const IsoTabContent = ({
   handleExportCarForm,
   handleExportCarForm3
 }: any) => {
+  const [carSearchQuery, setCarSearchQuery] = useState("");
+  
   // Strict ISO Rule: Clause can only be approved if it has evidence, and ALL evidence is approved.
   const evidenceList = (expandedIsoClause?.evidences && expandedIsoClause.evidences.length > 0)
     ? expandedIsoClause.evidences
@@ -971,41 +973,66 @@ export const IsoTabContent = ({
               
 
               
-              {isoSubTab === "car_logsheet" && (
-                <div className="p-6 space-y-6">
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">CAR / PAR Form 3 — Master Logsheet</h3>
-                      <p className="text-xs text-gray-500 mt-1">Summary of all issued Corrective Action Requests for this audit cycle.</p>
-                    </div>
-                    <div className="flex gap-2 w-full md:w-auto">
-                      <button
-                        onClick={handleExportCarForm3}
-                        className="w-full md:w-auto px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                        title="Generate Official CAR Form 3 (Print / PDF)"
-                      >
-                        <Printer className="h-4 w-4" /> Export Logsheet
-                      </button>
-                      <button
-                        onClick={() => { setNewCarForm((prev: any) => ({...prev, area: "", iso_clause_id: ""})); setShowAddCarModal(true); }}
-                        className="w-full md:w-auto px-4 py-2.5 bg-[#DD7230] hover:bg-[#c45e22] text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                      >
-                        <Plus className="h-4 w-4" /> Issue CAR Form 1
-                      </button>
-                    </div>
-                  </div>
+              {isoSubTab === "car_logsheet" && (() => {
+                const filteredCarForms = carForms?.filter((car: any) => {
+                  if (!carSearchQuery) return true;
+                  const q = carSearchQuery.toLowerCase();
+                  return (
+                    car.car_no?.toLowerCase().includes(q) ||
+                    car.area?.toLowerCase().includes(q) ||
+                    car.auditee_name?.toLowerCase().includes(q) ||
+                    car.auditor_name?.toLowerCase().includes(q) ||
+                    car.status?.toLowerCase().includes(q)
+                  );
+                }) || [];
 
-                  {isLoadingCarForms ? (
-                    <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
-                      <Loader2 className="h-5 w-5 animate-spin text-[#DD7230]" />
-                      <span className="text-sm font-semibold">Loading CAR Forms...</span>
+                return (
+                  <div className="p-6 space-y-6">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">CAR / PAR Form 3 – Master Logsheet</h3>
+                        <p className="text-xs text-gray-500 mt-1">Summary of all issued Corrective Action Requests for this audit cycle.</p>
+                      </div>
+                      <div className="flex items-center gap-2 w-full md:w-auto flex-col sm:flex-row">
+                        <div className="relative w-full sm:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Search CARs..."
+                            value={carSearchQuery}
+                            onChange={(e) => setCarSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#DD7230] focus:border-[#DD7230] transition-all shadow-2xs"
+                          />
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button
+                            onClick={handleExportCarForm3}
+                            className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer w-full sm:w-auto justify-center"
+                            title="Generate Official CAR Form 3 (Print / PDF)"
+                          >
+                            <Printer className="h-3.5 w-3.5" /> Export Logsheet
+                          </button>
+                          <button
+                            onClick={() => { setNewCarForm((prev: any) => ({...prev, area: "", iso_clause_id: ""})); setShowAddCarModal(true); }}
+                            className="px-3.5 py-2 bg-[#DD7230] hover:bg-[#c45e22] text-white font-medium text-xs rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 w-full sm:w-auto justify-center"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Issue CAR Form 1
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  ) : (!carForms || carForms.length === 0) ? (
-                    <div className="py-16 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs font-medium">
-                      No Corrective Action Requests issued for this cycle.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-2xs">
+
+                    {isLoadingCarForms ? (
+                      <div className="py-16 text-center text-gray-500 flex justify-center items-center gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin text-[#DD7230]" />
+                        <span className="text-sm font-semibold">Loading CAR Forms...</span>
+                      </div>
+                    ) : (filteredCarForms.length === 0) ? (
+                      <div className="py-16 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs font-medium">
+                        {carSearchQuery ? "No matching CAR Forms found." : "No Corrective Action Requests issued for this cycle."}
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-2xs">
                       <table className="min-w-full text-left">
                         <thead className="bg-gray-50 border-b border-gray-200">
                           <tr>
@@ -1013,13 +1040,14 @@ export const IsoTabContent = ({
                             <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Date</th>
                             <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Category</th>
                             <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Dept / Area Affected</th>
+                            <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Initiator</th>
                             <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Auditor</th>
                             <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Status</th>
                             <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {carForms.map((car: any) => (
+                          {filteredCarForms.map((car: any) => (
                             <tr key={car.id} className="hover:bg-orange-50/30 transition-colors">
                               <td className="p-3 text-sm font-bold text-gray-900">{car.car_no || "—"}</td>
                               <td className="p-3 text-sm text-gray-600">{car.date_issued || "—"}</td>
@@ -1032,6 +1060,7 @@ export const IsoTabContent = ({
                                 }`}>{car.finding_category || "—"}</span>
                               </td>
                               <td className="p-3 text-sm text-gray-700 max-w-xs truncate">{car.area || "—"}</td>
+                              <td className="p-3 text-sm text-gray-700">{car.initiator || "—"}</td>
                               <td className="p-3 text-sm text-gray-700">{car.auditor_name || "—"}</td>
                               <td className="p-3">
                                 <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
@@ -1058,7 +1087,8 @@ export const IsoTabContent = ({
                     </div>
                   )}
                 </div>
-              )}
+                );
+              })()}
 
               {isoSubTab === "clauses" && (
               /* --- CLAUSES TAB CONTENT --- */
@@ -1484,6 +1514,40 @@ export const IsoTabContent = ({
               )}
             </div>
           )}
+
+          {/* NEW LINKED CARS SECTION */}
+          {expandedIsoClause && (() => {
+            const linkedCars = carForms?.filter((car: any) => car.iso_clause_id === expandedIsoClause.id) || [];
+            if (linkedCars.length === 0) return null;
+            
+            return (
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-rose-500" /> Corrective Action Requests (CAR) Linked to this Clause
+                </h3>
+                <div className="grid gap-3">
+                  {linkedCars.map((car: any) => (
+                    <div key={car.id} className="bg-white rounded-xl border border-rose-100 p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden group hover:border-rose-300 transition-colors">
+                      <div className="absolute top-0 left-0 bottom-0 w-1 bg-rose-500"></div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-bold text-white bg-rose-500 px-2 py-0.5 rounded-full uppercase tracking-wider">CAR {car.car_no || "DRAFT"}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${car.status === 'CLOSED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{car.status || "OPEN"}</span>
+                        </div>
+                        <h4 className="text-xs font-semibold text-gray-900 line-clamp-1">{car.findings || "No findings described."}</h4>
+                        <p className="text-[10px] text-gray-500 mt-1">Issued: {car.date_issued || "N/A"} • Auditor: {car.auditor_name || "N/A"}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => { setEditingCarForm(car); setShowEditCarModal(true); }} className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer">Edit CAR</button>
+                        <button onClick={() => handleExportCarForm(car)} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"><Printer className="h-3.5 w-3.5"/> Export</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       )}
     </>
@@ -2077,7 +2141,7 @@ export function AccreditationSupport() {
   const [carFormToDelete, setCarFormToDelete] = useState<any>(null);
   const [newCarForm, setNewCarForm] = useState({
     iso_clause_id: "", car_no: "", date_issued: "", revision: "", finding_category: "UNKNOWN",
-    type_of_non_conformity: "QMS Related", auditor_name: "", acknowledged_by: "", campus: "",
+    type_of_non_conformity: "QMS Related", auditor_name: "", initiator: sessionStorage.getItem('userName') || "", acknowledged_by: "", campus: "",
     area: "", findings: "", root_cause: "", immediate_action: "", corrective_measure: "",
     measures_proposed_by: "", target_date: "", status: "Open",
     follow_up_result: "", follow_up_date: "", comments_remarks: "", non_conformity_closed: false
@@ -2112,9 +2176,10 @@ export function AccreditationSupport() {
       setShowAddCarModal(false);
       setNewCarForm({
         iso_clause_id: "", car_no: "", date_issued: "", revision: "", finding_category: "UNKNOWN",
-        type_of_non_conformity: "QMS Related", auditor_name: "", acknowledged_by: "", campus: "",
+        type_of_non_conformity: "QMS Related", auditor_name: "", initiator: sessionStorage.getItem('userName') || "", acknowledged_by: "", campus: "",
         area: "", findings: "", root_cause: "", immediate_action: "", corrective_measure: "",
-        measures_proposed_by: "", target_date: "", status: "Open"
+        measures_proposed_by: "", target_date: "", status: "Open",
+        follow_up_result: "", follow_up_date: "", comments_remarks: "", non_conformity_closed: false
       });
       setAttachedCarFile(null);
       fetchCarForms(selectedIsoCycleYear);
@@ -5931,7 +5996,12 @@ export function AccreditationSupport() {
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Issue Corrective Action Request (CAR Form 1)</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Record auditor findings and auditee corrective response.</p>
+                <p className="text-xs text-gray-500 mt-0.5 mb-1">Record auditor findings and auditee corrective response.</p>
+                {newCarForm?.iso_clause_id && (
+                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-rose-50 text-rose-700 text-[10px] font-bold rounded-md border border-rose-200 uppercase tracking-wider shadow-sm">
+                    <AlertTriangle className="h-3 w-3" /> Linked to ISO Clause
+                  </div>
+                )}
               </div>
               <button onClick={() => { setShowAddCarModal(false); setAttachedCarFile(null); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
                 <X className="h-5 w-5" />
@@ -6041,7 +6111,11 @@ export function AccreditationSupport() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Initiator / Auditor-in-Charge</label>
+                    <input type="text" value={newCarForm.initiator} onChange={(e) => setNewCarForm({...newCarForm, initiator: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="Your name (Auto)" />
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#1F2937] mb-1">Auditor / Complainant</label>
                     <input type="text" value={newCarForm.auditor_name} onChange={(e) => setNewCarForm({...newCarForm, auditor_name: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
@@ -6146,7 +6220,12 @@ export function AccreditationSupport() {
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Edit CAR Form 1</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Update findings or corrective response.</p>
+                <p className="text-xs text-gray-500 mt-0.5 mb-1">Update findings or corrective response.</p>
+                {editingCarForm?.iso_clause_id && (
+                  <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-rose-50 text-rose-700 text-[10px] font-bold rounded-md border border-rose-200 uppercase tracking-wider shadow-sm">
+                    <AlertTriangle className="h-3 w-3" /> Linked to ISO Clause
+                  </div>
+                )}
               </div>
               <button onClick={() => setShowEditCarModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
                 <X className="h-5 w-5" />
@@ -6175,6 +6254,24 @@ export function AccreditationSupport() {
                     <option value="OBSERVATION">OBSERVATION</option>
                     <option value="UNKNOWN">UNKNOWN</option>
                   </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Dept / Area</label>
+                  <input type="text" value={editingCarForm.area || ""} onChange={(e) => setEditingCarForm({...editingCarForm, area: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Initiator / Auditor-in-Charge</label>
+                  <input type="text" value={editingCarForm.initiator || ""} onChange={(e) => setEditingCarForm({...editingCarForm, initiator: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Auditor / Complainant</label>
+                  <input type="text" value={editingCarForm.auditor_name || ""} onChange={(e) => setEditingCarForm({...editingCarForm, auditor_name: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Acknowledged By</label>
+                  <input type="text" value={editingCarForm.acknowledged_by || ""} onChange={(e) => setEditingCarForm({...editingCarForm, acknowledged_by: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
                 </div>
               </div>
               <div>

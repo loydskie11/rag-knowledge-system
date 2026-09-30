@@ -152,6 +152,7 @@ class ISORequirement(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     evidences = relationship("ISOEvidence", back_populates="requirement", cascade="all, delete-orphan")
+    car_forms = relationship("CARForm", backref="iso_requirement", lazy="joined")
 
 
 class ISOEvidence(Base):
@@ -301,13 +302,14 @@ class CARForm(Base):
     __tablename__ = "car_forms"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     cycle_year = Column(String(50), default="2025 Surveillance", nullable=False)
-    iso_clause_id = Column(UUID(as_uuid=True), nullable=True)
+    iso_clause_id = Column(UUID(as_uuid=True), ForeignKey("iso_requirements.id", ondelete="SET NULL"), nullable=True)
     car_no = Column(String(100), nullable=True)
     date_issued = Column(String(50), nullable=True)
     revision = Column(String(50), nullable=True)
     finding_category = Column(String(50), default="UNKNOWN")
     type_of_non_conformity = Column(String(255), nullable=True)
     auditor_name = Column(String(255), nullable=True)
+    initiator = Column(String(255), nullable=True)
     acknowledged_by = Column(String(255), nullable=True)
     campus = Column(String(255), nullable=True)
     area = Column(String(255), nullable=True)

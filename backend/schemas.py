@@ -463,6 +463,7 @@ class CARFormCreate(BaseModel):
     finding_category: Optional[str] = "UNKNOWN"
     type_of_non_conformity: Optional[str] = None
     auditor_name: Optional[str] = None
+    initiator: Optional[str] = None
     acknowledged_by: Optional[str] = None
     campus: Optional[str] = None
     area: Optional[str] = None
@@ -494,6 +495,7 @@ class CARFormUpdate(BaseModel):
     finding_category: Optional[str] = None
     type_of_non_conformity: Optional[str] = None
     auditor_name: Optional[str] = None
+    initiator: Optional[str] = None
     acknowledged_by: Optional[str] = None
     campus: Optional[str] = None
     area: Optional[str] = None
@@ -519,6 +521,7 @@ class CARFormResponse(BaseModel):
     finding_category: Optional[str] = None
     type_of_non_conformity: Optional[str] = None
     auditor_name: Optional[str] = None
+    initiator: Optional[str] = None
     acknowledged_by: Optional[str] = None
     campus: Optional[str] = None
     area: Optional[str] = None

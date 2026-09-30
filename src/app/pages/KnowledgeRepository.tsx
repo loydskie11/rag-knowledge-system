@@ -770,6 +770,15 @@ export function KnowledgeRepository() {
                     </select>
                   </div>
                 </div>
+                
+                {(formData.category === "Forms / Templates" || formData.category === "Branding Asset") && (
+                  <div className="flex items-start gap-2.5 p-3 mt-2 bg-amber-50 border border-amber-200 rounded-lg animate-in fade-in zoom-in-95 duration-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800 font-medium">
+                      <strong>AI Indexing Bypassed:</strong> This file will be saved securely as a reference template for download and generation, but its contents will be excluded from the AI RAG search index.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
