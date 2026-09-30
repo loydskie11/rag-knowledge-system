@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
-import { Save, ShieldCheck, Building2, Server, Lock, Bot, Sliders, Loader2, CheckCircle } from "lucide-react";
-import axios from "axios";
+﻿import { useState, useEffect } from "react";
+import { Save, Building2, Bot, Sliders, Loader2, CheckCircle, Bell, FileText, ScanSearch, AlertTriangle } from "lucide-react";
 import { apiClient } from "../api/client";
 
-type TabType = "profile" | "security" | "ai_engine";
+type TabType = "profile" | "notifications" | "ocr_pipeline" | "ai_engine";
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState<TabType>("profile");
@@ -13,8 +12,16 @@ export function Settings() {
   // Settings State
   const [settings, setSettings] = useState({
     platform_name: "", campus: "", admin_email: "",
+    // Retaining these in state just in case the backend strict-validates them
     jwt_expiration: 30, otp_expiration: 10,
-    ai_model: "", ai_temperature: 0.3, ai_system_prompt: "", rag_max_chunks: 5
+    ai_model: "", ai_temperature: 0.3, ai_system_prompt: "", rag_max_chunks: 5,
+    
+    // New Advanced Settings
+    ocr_vision_fallback: true,
+    ocr_char_threshold: 50,
+    car_alerts: "instant",
+    iso_routing: "assigned",
+    rag_min_score: 0.75
   });
 
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
@@ -23,7 +30,7 @@ export function Settings() {
     const fetchSettings = async () => {
       try {
         const response = await apiClient.get("/settings");
-        setSettings(response.data);
+        setSettings(prev => ({ ...prev, ...response.data }));
       } catch (error) {
         console.error("Failed to fetch settings");
       } finally {
@@ -73,42 +80,24 @@ export function Settings() {
       {/* Page Header */}
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">System Settings</h1>
-        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Configure institutional profile, authentication parameters, and AI thresholds</p>
+        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Manage governance configurations, AI extraction rules, and notifications.</p>
       </div>
 
       {/* Main Settings Container */}
       <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden">
         
         {/* Navigation Tabs */}
-        <div className="flex border-b border-gray-200 bg-gray-50/60 overflow-x-auto">
-          <button 
-            onClick={() => setActiveTab("profile")} 
-            className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === "profile" 
-                ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" 
-                : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"
-            }`}
-          >
+        <div className="flex border-b border-gray-200 bg-gray-50/60 overflow-x-auto hide-scrollbar">
+          <button onClick={() => setActiveTab("profile")} className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${activeTab === "profile" ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"}`}>
             <Building2 className="h-3.5 w-3.5" /> Institutional Profile
           </button>
-          <button 
-            onClick={() => setActiveTab("security")} 
-            className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === "security" 
-                ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" 
-                : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"
-            }`}
-          >
-            <ShieldCheck className="h-3.5 w-3.5" /> Security & Authentication
+          <button onClick={() => setActiveTab("notifications")} className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${activeTab === "notifications" ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"}`}>
+            <Bell className="h-3.5 w-3.5" /> Notifications & Audit
           </button>
-          <button 
-            onClick={() => setActiveTab("ai_engine")} 
-            className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === "ai_engine" 
-                ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" 
-                : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"
-            }`}
-          >
+          <button onClick={() => setActiveTab("ocr_pipeline")} className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${activeTab === "ocr_pipeline" ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"}`}>
+            <ScanSearch className="h-3.5 w-3.5" /> Document & OCR Pipeline
+          </button>
+          <button onClick={() => setActiveTab("ai_engine")} className={`flex items-center gap-2 px-5 py-3 text-xs transition-all whitespace-nowrap cursor-pointer ${activeTab === "ai_engine" ? "border-b-2 border-[#DD7230] text-[#DD7230] font-semibold bg-white" : "text-gray-500 hover:text-gray-900 font-medium hover:bg-gray-50"}`}>
             <Bot className="h-3.5 w-3.5" /> AI & RAG Engine
           </button>
         </div>
@@ -117,108 +106,91 @@ export function Settings() {
           
           {/* --- TAB 1: INSTITUTIONAL PROFILE --- */}
           {activeTab === "profile" && (
-            <div className="space-y-6 animate-in slide-in-from-right-1 duration-200">
+            <div className="space-y-6 animate-in slide-in-from-right-1 duration-200 max-w-3xl">
               <div>
                 <h2 className="text-xs font-semibold text-gray-900 mb-0.5">Institutional Identity</h2>
                 <p className="text-xs text-gray-500 mb-4">These details appear on system exports, notifications, and document headers.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Platform Name</label>
-                    <input 
-                      type="text" 
-                      value={settings.platform_name} 
-                      onChange={(e) => handleChange("platform_name", e.target.value)} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" 
-                    />
+                    <input type="text" value={settings.platform_name} onChange={(e) => handleChange("platform_name", e.target.value)} className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Campus</label>
-                    <input 
-                      type="text" 
-                      value={settings.campus} 
-                      onChange={(e) => handleChange("campus", e.target.value)} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" 
-                    />
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Campus / Branch</label>
+                    <input type="text" value={settings.campus} onChange={(e) => handleChange("campus", e.target.value)} className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">System Administrator Email</label>
-                    <input 
-                      type="email" 
-                      value={settings.admin_email} 
-                      onChange={(e) => handleChange("admin_email", e.target.value)} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" 
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-gray-200">
-                <h2 className="text-xs font-semibold text-gray-900 mb-0.5">Server Configuration</h2>
-                <p className="text-xs text-gray-500 mb-4">Database and vector store environmental settings.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Supabase Vector DB URL</label>
-                    <div className="flex items-center px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 text-xs font-mono select-none">
-                      <Server className="h-3.5 w-3.5 mr-2 text-gray-400" /> https://xyz.supabase.co
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Environment Status</label>
-                    <div className="flex items-center px-3 py-2 bg-emerald-50 border border-emerald-200/60 rounded-lg text-emerald-700 text-xs font-medium">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></div> Production (Active)
-                    </div>
+                    <input type="email" value={settings.admin_email} onChange={(e) => handleChange("admin_email", e.target.value)} className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" />
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* --- TAB 2: SECURITY & AUTHENTICATION --- */}
-          {activeTab === "security" && (
-            <div className="space-y-6 animate-in slide-in-from-right-1 duration-200">
+          {/* --- TAB 2: NOTIFICATIONS & AUDIT --- */}
+          {activeTab === "notifications" && (
+            <div className="space-y-6 animate-in slide-in-from-right-1 duration-200 max-w-3xl">
               <div>
                 <h2 className="text-xs font-semibold text-gray-900 mb-0.5 flex items-center gap-1.5">
-                  <Lock className="h-3.5 w-3.5 text-gray-500" /> Access Control Policies
+                  <Bell className="h-3.5 w-3.5 text-gray-500" /> Workflow Alerts
                 </h2>
-                <p className="text-xs text-gray-500 mb-4">Verification constraints and enrollment protocols for student and faculty accounts.</p>
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between p-4 bg-gray-50/40 border border-gray-200 rounded-xl">
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-900">Student Auto-Verification</h3>
-                      <p className="text-[11px] text-gray-500 mt-0.5">Student accounts bypass manual admin approval and are automatically verified upon successful OTP confirmation.</p>
-                    </div>
-                    <input type="checkbox" defaultChecked disabled className="w-4 h-4 mt-0.5 cursor-not-allowed accent-[#DD7230]" />
+                <p className="text-xs text-gray-500 mb-4">Manage how and when users are notified of ISO compliance changes and Corrective Action Requests (CAR).</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-gray-50/40 border border-gray-200 rounded-xl">
+                    <label className="block text-xs font-semibold text-gray-900 mb-1">CAR Form Issuance Alerts</label>
+                    <p className="text-[11px] text-gray-500 mb-3">Determines alert frequency when a new CAR is issued to a department.</p>
+                    <select value={settings.car_alerts} onChange={(e) => handleChange("car_alerts", e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]">
+                      <option value="instant">Instant Email Notification</option>
+                      <option value="digest">Daily Digest (End of Day)</option>
+                    </select>
                   </div>
-                  <div className="flex items-start justify-between p-4 bg-gray-50/40 border border-gray-200 rounded-xl">
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-900">Strict Faculty Verification</h3>
-                      <p className="text-[11px] text-gray-500 mt-0.5">Faculty and Administrator accounts remain in a 'Pending' state until manually verified by an existing Administrator.</p>
-                    </div>
-                    <input type="checkbox" defaultChecked disabled className="w-4 h-4 mt-0.5 cursor-not-allowed accent-[#DD7230]" />
+                  
+                  <div className="p-4 bg-gray-50/40 border border-gray-200 rounded-xl">
+                    <label className="block text-xs font-semibold text-gray-900 mb-1">ISO 'Needs Revision' Routing</label>
+                    <p className="text-[11px] text-gray-500 mb-3">Who receives notifications when an evidence file is returned for revision?</p>
+                    <select value={settings.iso_routing} onChange={(e) => handleChange("iso_routing", e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]">
+                      <option value="assigned">Only Assigned Department / Auditor</option>
+                      <option value="all_admins">All System Administrators</option>
+                    </select>
                   </div>
                 </div>
               </div>
+            </div>
+          )}
 
-              <div className="pt-6 border-t border-gray-200">
-                <h2 className="text-xs font-semibold text-gray-900 mb-0.5">Session & Token Parameters</h2>
-                <p className="text-xs text-gray-500 mb-4">Timeout limits and security expiration intervals.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">JWT Expiration (Minutes)</label>
-                    <input 
-                      type="number" 
-                      value={settings.jwt_expiration} 
-                      onChange={(e) => handleChange("jwt_expiration", Number(e.target.value))} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" 
-                    />
+          {/* --- TAB 3: DOCUMENT & OCR PIPELINE --- */}
+          {activeTab === "ocr_pipeline" && (
+            <div className="space-y-6 animate-in slide-in-from-right-1 duration-200 max-w-3xl">
+              <div>
+                <h2 className="text-xs font-semibold text-gray-900 mb-0.5 flex items-center gap-1.5">
+                  <ScanSearch className="h-3.5 w-3.5 text-gray-500" /> AI Vision & Extraction Rules
+                </h2>
+                <p className="text-xs text-gray-500 mb-4">Configure thresholds for the background PyMuPDF and PaddleOCR workers.</p>
+                
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gray-50/40 border border-gray-200 rounded-xl gap-4">
+                    <div>
+                      <h3 className="text-xs font-semibold text-gray-900">Hybrid Router: Llama3.2-Vision Fallback</h3>
+                      <p className="text-[11px] text-gray-500 mt-1 max-w-md">If PaddleOCR detects heavily fragmented text or complex charts, auto-forward the specific page to the Vision LLM. Highly accurate but increases processing time.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" checked={settings.ocr_vision_fallback} onChange={(e) => handleChange("ocr_vision_fallback", e.target.checked)} className="sr-only peer" />
+                      <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#DD7230]"></div>
+                    </label>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">OTP Expiration (Minutes)</label>
+
+                  <div className="p-4 bg-gray-50/40 border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xs font-semibold text-gray-900">OCR Native Text Threshold (Characters)</h3>
+                      <p className="text-[11px] text-gray-500 mt-1 max-w-md">If native digital extraction (PyMuPDF) yields fewer characters than this per page, the system classifies it as "Scanned" and triggers PaddleOCR.</p>
+                    </div>
                     <input 
                       type="number" 
-                      value={settings.otp_expiration} 
-                      onChange={(e) => handleChange("otp_expiration", Number(e.target.value))} 
-                      className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" 
+                      value={settings.ocr_char_threshold} 
+                      onChange={(e) => handleChange("ocr_char_threshold", Number(e.target.value))} 
+                      className="w-24 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-center font-mono font-bold" 
                     />
                   </div>
                 </div>
@@ -226,7 +198,7 @@ export function Settings() {
             </div>
           )}
 
-          {/* --- TAB 3: AI & RAG ENGINE --- */}
+          {/* --- TAB 4: AI & RAG ENGINE --- */}
           {activeTab === "ai_engine" && (
             <div className="space-y-6 animate-in slide-in-from-right-1 duration-200">
               <div>
@@ -278,7 +250,7 @@ export function Settings() {
                     <span className="text-[10px] text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">Strict Governance</span>
                   </div>
                   <textarea
-                    rows={5}
+                    rows={4}
                     value={settings.ai_system_prompt}
                     onChange={(e) => handleChange("ai_system_prompt", e.target.value)}
                     className="w-full px-3 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-all resize-none text-xs font-mono text-gray-700 leading-relaxed"
@@ -287,15 +259,9 @@ export function Settings() {
               </div>
 
               <div className="pt-6 border-t border-gray-200">
-                <h2 className="text-xs font-semibold text-gray-900 mb-0.5">Vector Search (RAG) Settings</h2>
+                <h2 className="text-xs font-semibold text-gray-900 mb-0.5">Vector Search (RAG) Retrieval Rules</h2>
                 <p className="text-xs text-gray-500 mb-4">Control semantic chunk retrieval volume and distance metrics.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Similarity Distance Metric</label>
-                    <select disabled className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-xs text-gray-400 cursor-not-allowed">
-                      <option>Cosine Similarity (pgvector locked)</option>
-                    </select>
-                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Max Chunks Retrieved (Top K)</label>
                     <input 
@@ -304,6 +270,27 @@ export function Settings() {
                       onChange={(e) => handleChange("rag_max_chunks", Number(e.target.value))} 
                       className="w-full px-3 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] text-gray-900" 
                     />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-medium text-gray-700">Min. Similarity Confidence Score</label>
+                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                        {(settings.rag_min_score * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="1" 
+                      step="0.05" 
+                      value={settings.rag_min_score} 
+                      onChange={(e) => handleChange("rag_min_score", parseFloat(e.target.value))} 
+                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2 accent-indigo-600" 
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-1.5">
+                      <span>Lenient (0.0)</span>
+                      <span>Strict (1.0)</span>
+                    </div>
                   </div>
                 </div>
               </div>
