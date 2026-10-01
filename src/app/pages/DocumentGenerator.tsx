@@ -1231,9 +1231,11 @@ function buildSinglePageHtml(opts: SinglePageOptions): string {
   const headerDims = fitImageInBand(headerImage, bandWidth, HEADER_AREA_HEIGHT - 8);
   const footerDims = fitImageInBand(footerImage, bandWidth, FOOTER_AREA_HEIGHT - 6);
 
+  const isStandalone = fragment.includes('class="page"') || fragment.includes("MRC Form") || fragment.includes("MANAGEMENT REVIEW");
+
   const pageStyle =
     `width:${cfg.cssWidth}px;height:${cfg.cssHeight}px;` +
-    `padding:${PAGE_PADDING_TOP}px ${PAGE_PADDING_RIGHT}px ${PAGE_PADDING_BOTTOM}px ${PAGE_PADDING_LEFT}px;` +
+    `padding:${isStandalone ? '0' : `${PAGE_PADDING_TOP}px ${PAGE_PADDING_RIGHT}px ${PAGE_PADDING_BOTTOM}px ${PAGE_PADDING_LEFT}px`};` +
     `box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;` +
     `background:#ffffff;font-family:${fontCss};font-size:${fontSizePt}pt;` +
     `color:#111827;line-height:${lineSpacing};position:relative;`;
@@ -1590,7 +1592,7 @@ function PreviewPage(props: PreviewPageProps) {
         position: "relative",
       }}
     >
-      {headerImage && headerDims && !isStandalone && (
+      {headerImage && headerDims && (
         <div
           style={{
             height: HEADER_AREA_HEIGHT,
@@ -1805,7 +1807,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
       
       // 1. Map grouped form fields using split/join to avoid RegExp escaping issues entirely!
       for (const group of wizardPlaceholders) {
-        const isRow = group.norm.toLowerCase().includes("row");
+        const isRow = group.norm.toLowerCase().includes("row") || group.norm.toLowerCase() === "recipients" || group.norm.toLowerCase() === "recipient rows";
         const val = wizardForm[group.norm];
         
         for (const exactPh of group.exact) {
@@ -1814,9 +1816,15 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
             if (isRow) {
                 const rows = wizardTableRows[group.norm] || [];
                 if (rows.length > 0) {
-                    replaceVal = rows.map(row => 
-                        `<tr>${row.map(cell => `<td style="border: 1px solid #d1d5db; padding: 5px 8px;">${cell || ''}</td>`).join('')}</tr>`
-                    ).join('');
+                    if (wizardTemplate?.name?.toLowerCase().includes("memorandum")) {
+                        replaceVal = rows.map(row => 
+                            `<div class="recipient-item"><strong>${row[0] || ''}</strong><br><span style="font-style: italic; color: #444;">${row[1] || ''}</span></div>`
+                        ).join('');
+                    } else {
+                        replaceVal = rows.map(row => 
+                            `<tr>${row.map(cell => `<td style="border: 1px solid #d1d5db; padding: 5px 8px;">${cell || ''}</td>`).join('')}</tr>`
+                        ).join('');
+                    }
                 } else {
                     replaceVal = "";
                 }
@@ -2989,7 +2997,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
       (f) => f.includes('class="page"') || f.includes("MRC Form") || f.includes("MANAGEMENT REVIEW")
     );
 
-    if (isStandalonePage) {
+    if (false) {
       const printWindow = window.open("", "_blank", "width=900,height=750");
       if (!printWindow) return setErrorMessage("Please allow pop-ups to print the document.");
 
@@ -3101,8 +3109,8 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
     return (
       <div className="space-y-4">
         {errorMessage && (
-          <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
-            <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5 flex-shrink-0" />
+          <div className="flex items-start gap-3 p-4 bg-gray-100 border border-rose-200 rounded-xl">
+            <AlertCircle className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
             <p className="text-sm text-rose-700">{errorMessage}</p>
           </div>
         )}
@@ -3120,12 +3128,11 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                   }}
                   className="flex items-center gap-2 px-3.5 py-2 bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#374151] transition-all shadow-sm active:scale-95"
                 >
-                  <ArrowLeft className="h-4 w-4 text-[#dd7230]" />
+                  <ArrowLeft className="h-4 w-4 text-[#111827]" />
                   <span>"Back to Wizard"</span>
                 </button>
                 <div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#dd7230] flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#111827] flex items-center gap-1.5">
                     {activeTemplateId ? "TEMPLATE DOCUMENT" : "AI DOCUMENT GENERATOR"}
                   </span>
                   <p className="text-sm font-semibold text-[#1F2937] truncate max-w-[260px] sm:max-w-md">
@@ -3138,9 +3145,9 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                 <button
                   onClick={handleDownloadDocx}
                   disabled={downloading !== null}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-gray-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50"
                 >
-                  {downloading === "docx" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                  {downloading === "docx" ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
                   <span>Download DOCX</span>
                 </button>
 
@@ -3148,7 +3155,6 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                   onClick={handleDownloadPdf}
                   className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95"
                 >
-                  <FileText className="h-4 w-4" />
                   <span>Download PDF</span>
                 </button>
 
@@ -3171,7 +3177,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                   onClick={() => setActiveRibbonTab(tab)}
                   className={`px-4 py-2 text-xs font-bold rounded-t-lg transition-all ${
                     activeRibbonTab === tab
-                      ? "bg-white text-[#dd7230] border-t-2 border-t-[#dd7230] shadow-sm"
+                      ? "bg-white text-[#111827] border-t-2 border-t-[#111827] shadow-sm"
                       : "text-[#6B7280] hover:text-[#1F2937]"
                   }`}
                 >
@@ -3186,10 +3192,10 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">History</span>
                     <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB] p-0.5 gap-0.5">
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleUndo(); }} className="p-1.5 rounded hover:bg-[#E5E7EB] text-[#374151] hover:text-[#dd7230]">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleUndo(); }} className="p-1.5 rounded hover:bg-[#E5E7EB] text-[#374151] hover:text-[#111827]">
                         <Undo className="h-4 w-4" />
                       </button>
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleRedo(); }} className="p-1.5 rounded hover:bg-[#E5E7EB] text-[#374151] hover:text-[#dd7230]">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleRedo(); }} className="p-1.5 rounded hover:bg-[#E5E7EB] text-[#374151] hover:text-[#111827]">
                         <Redo className="h-4 w-4" />
                       </button>
                     </div>
@@ -3205,7 +3211,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                         onMouseDown={(e) => { e.preventDefault(); setShowFontDropdown((v) => !v); }}
                         className="px-3 py-1.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg text-xs font-bold text-[#1F2937] hover:bg-[#F3F4F6] flex items-center justify-between gap-3 min-w-[168px]"
                       >
-                        <span className={getActiveLiveRange() ? "text-[#dd7230]" : ""}>{FONT_CONFIG[activeStyles.font || docFont].name}</span>
+                        <span className={getActiveLiveRange() ? "text-[#111827]" : ""}>{FONT_CONFIG[activeStyles.font || docFont].name}</span>
                         <ChevronDown className="h-3.5 w-3.5 text-[#6B7280]" />
                       </button>
                       {showFontDropdown && (
@@ -3215,12 +3221,12 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                               key={fKey}
                               type="button"
                               onMouseDown={(e) => { e.preventDefault(); handleFontFamilyChange(fKey); }}
-                              className={`w-full text-left px-3.5 py-2 text-xs font-semibold hover:bg-[#FFF4E5] hover:text-[#dd7230] flex items-center justify-between ${
-                                (activeStyles.font || docFont) === fKey ? "bg-[#FFF4E5] text-[#dd7230] font-bold" : "text-[#374151]"
+                              className={`w-full text-left px-3.5 py-2 text-xs font-semibold hover:bg-[#F3F4F6] hover:text-[#111827] flex items-center justify-between ${
+                                (activeStyles.font || docFont) === fKey ? "bg-[#F3F4F6] text-[#111827] font-bold" : "text-[#374151]"
                               }`}
                             >
                               <span>{FONT_CONFIG[fKey].name}</span>
-                              {(activeStyles.font || docFont) === fKey && <Check className="h-3.5 w-3.5 text-[#dd7230]" />}
+                              {(activeStyles.font || docFont) === fKey && <Check className="h-3.5 w-3.5 text-[#111827]" />}
                             </button>
                           ))}
                         </div>
@@ -3233,7 +3239,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Font Size (8–124)</span>
                     <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB]">
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(-1, false); }} className="px-2 py-1.5 hover:bg-[#E5E7EB] text-[#6B7280] hover:text-[#dd7230] border-r border-[#E5E7EB]">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(-1, false); }} className="px-2 py-1.5 hover:bg-[#E5E7EB] text-[#6B7280] hover:text-[#111827] border-r border-[#E5E7EB]">
                         <Minus className="h-3 w-3" />
                       </button>
                       <div className="flex items-center px-1">
@@ -3250,11 +3256,11 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                             handleFontSizeChange(v, true);
                           }}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
-                          className="w-10 text-center py-1 text-xs font-extrabold text-[#1F2937] focus:text-[#dd7230] outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-10 text-center py-1 text-xs font-extrabold text-[#1F2937] focus:text-[#111827] outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <span className="text-[10px] font-bold text-gray-400 select-none mr-1">pt</span>
                       </div>
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(1, false); }} className="px-2 py-1.5 hover:bg-[#E5E7EB] text-[#6B7280] hover:text-[#dd7230] border-l border-[#E5E7EB]">
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(1, false); }} className="px-2 py-1.5 hover:bg-[#E5E7EB] text-[#6B7280] hover:text-[#111827] border-l border-[#E5E7EB]">
                         <Plus className="h-3 w-3" />
                       </button>
                     </div>
@@ -3265,16 +3271,16 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Text Style (Selection Only)</span>
                     <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB] p-0.5 gap-0.5">
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("bold"); }} className={`p-1.5 rounded ${activeStyles.bold ? "text-[#dd7230] font-black" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("bold"); }} className={`p-1.5 rounded ${activeStyles.bold ? "text-[#111827] font-black" : "text-[#374151] hover:text-[#111827]"}`}>
                         <Bold className={`h-4 w-4 ${activeStyles.bold ? "stroke-[3.4]" : "stroke-[2]"}`} />
                       </button>
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("italic"); }} className={`p-1.5 rounded ${activeStyles.italic ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("italic"); }} className={`p-1.5 rounded ${activeStyles.italic ? "text-[#111827] font-bold" : "text-[#374151] hover:text-[#111827]"}`}>
                         <Italic className={`h-4 w-4 ${activeStyles.italic ? "stroke-[3.4]" : "stroke-[2]"}`} />
                       </button>
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("underline"); }} className={`p-1.5 rounded ${activeStyles.underline ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("underline"); }} className={`p-1.5 rounded ${activeStyles.underline ? "text-[#111827] font-bold" : "text-[#374151] hover:text-[#111827]"}`}>
                         <UnderlineIcon className={`h-4 w-4 ${activeStyles.underline ? "stroke-[3.4]" : "stroke-[2]"}`} />
                       </button>
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("strikeThrough"); }} className={`p-1.5 rounded ${activeStyles.strike ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("strikeThrough"); }} className={`p-1.5 rounded ${activeStyles.strike ? "text-[#111827] font-bold" : "text-[#374151] hover:text-[#111827]"}`}>
                         <Strikethrough className={`h-4 w-4 ${activeStyles.strike ? "stroke-[3.4]" : "stroke-[2]"}`} />
                       </button>
                     </div>
@@ -3291,7 +3297,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                         { key: "right", Icon: AlignRight, active: activeStyles.alignRight },
                         { key: "justify", Icon: AlignJustify, active: activeStyles.alignJustify },
                       ] as const).map(({ key, Icon, active }) => (
-                        <button key={key} type="button" onMouseDown={(e) => { e.preventDefault(); handleAlignmentChange(key); }} className={`p-1.5 rounded ${active ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                        <button key={key} type="button" onMouseDown={(e) => { e.preventDefault(); handleAlignmentChange(key); }} className={`p-1.5 rounded ${active ? "text-[#111827] font-bold" : "text-[#374151] hover:text-[#111827]"}`}>
                           <Icon className={`h-4 w-4 ${active ? "stroke-[3]" : "stroke-[2]"}`} />
                         </button>
                       ))}
@@ -3303,10 +3309,10 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">Lists</span>
                     <div className="flex items-center rounded-lg border border-[#E5E7EB] overflow-hidden bg-[#F9FAFB]">
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("insertUnorderedList"); }} className={`p-2 border-r border-[#E5E7EB] ${activeStyles.ul ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("insertUnorderedList"); }} className={`p-2 border-r border-[#E5E7EB] ${activeStyles.ul ? "text-[#111827] font-bold" : "text-[#374151] hover:text-[#111827]"}`}>
                         <List className={`h-3.5 w-3.5 ${activeStyles.ul ? "stroke-[3]" : "stroke-[2]"}`} />
                       </button>
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("insertOrderedList"); }} className={`p-2 ${activeStyles.ol ? "text-[#dd7230] font-bold" : "text-[#374151] hover:text-[#dd7230]"}`}>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormattingCommand("insertOrderedList"); }} className={`p-2 ${activeStyles.ol ? "text-[#111827] font-bold" : "text-[#374151] hover:text-[#111827]"}`}>
                         <ListOrdered className={`h-3.5 w-3.5 ${activeStyles.ol ? "stroke-[3]" : "stroke-[2]"}`} />
                       </button>
                     </div>
@@ -3329,11 +3335,11 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                             onClick={() => handlePageSizeChange(psKey)}
                             className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all text-left flex items-center gap-2.5 ${
                               isSelected
-                                ? "bg-[#FFF4E5] border-[#dd7230] text-[#dd7230] shadow-sm ring-1 ring-[#dd7230]"
+                                ? "bg-[#F3F4F6] border-[#111827] text-[#111827] shadow-sm ring-1 ring-[#111827]"
                                 : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
                             }`}
                           >
-                            <FileSpreadsheet className={`h-4 w-4 ${isSelected ? "text-[#dd7230]" : "text-[#6B7280]"}`} />
+                            <FileSpreadsheet className={`h-4 w-4 ${isSelected ? "text-[#111827]" : "text-[#6B7280]"}`} />
                             <div>
                               <span className="block leading-none">{c.label}</span>
                               <span className="text-[10px] font-normal text-[#6B7280] block mt-0.5">{c.subLabel}</span>
@@ -3354,7 +3360,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                           onClick={() => handleLineSpacingChange(ls)}
                           className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
                             lineSpacing === ls
-                              ? "bg-[#FFF4E5] text-[#dd7230] border-[#dd7230] font-extrabold"
+                              ? "bg-[#F3F4F6] text-[#111827] border-[#111827] font-extrabold"
                               : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
                           }`}
                         >
@@ -3378,14 +3384,14 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                         type="button"
                         onClick={() => headerInputRef.current?.click()}
                         className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
-                          headerImage ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-bold" : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
+                          headerImage ? "bg-gray-50 border-gray-300 text-gray-700 font-bold" : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
                         }`}
                       >
                         <ImageIcon className="h-3.5 w-3.5" />
                         <span>{headerImage ? "Header Attached" : "Upload Header"}</span>
                       </button>
                       {headerImage && (
-                        <button type="button" onClick={removeHeaderLetterhead} className="px-2.5 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1">
+                        <button type="button" onClick={removeHeaderLetterhead} className="px-2.5 py-1.5 bg-gray-100 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1">
                           <Trash2 className="h-3.5 w-3.5" /><span>Remove</span>
                         </button>
                       )}
@@ -3401,14 +3407,14 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                         type="button"
                         onClick={() => footerInputRef.current?.click()}
                         className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
-                          footerImage ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-bold" : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
+                          footerImage ? "bg-gray-50 border-gray-300 text-gray-700 font-bold" : "bg-[#F9FAFB] border-[#E5E7EB] text-[#374151] hover:bg-[#F3F4F6]"
                         }`}
                       >
                         <ImageIcon className="h-3.5 w-3.5" />
                         <span>{footerImage ? "Footer Attached" : "Upload Footer"}</span>
                       </button>
                       {footerImage && (
-                        <button type="button" onClick={removeFooterLetterhead} className="px-2.5 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1">
+                        <button type="button" onClick={removeFooterLetterhead} className="px-2.5 py-1.5 bg-gray-100 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold flex items-center gap-1">
                           <Trash2 className="h-3.5 w-3.5" /><span>Remove</span>
                         </button>
                       )}
@@ -3440,7 +3446,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
         >
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#E5E7EB] bg-[#F9FAFB] flex-shrink-0">
             <div className="flex items-center gap-2">
-              <Eye className="h-3.5 w-3.5 text-[#dd7230]" />
+              <Eye className="h-3.5 w-3.5 text-[#111827]" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#374151]">
                 Document — click any page to edit
               </span>
@@ -3508,8 +3514,8 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
 
         <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm p-4 flex flex-wrap items-center justify-between text-xs text-[#6B7280]">
           <div className="flex items-center gap-4">
-            <span className="font-extrabold text-[#1F2937] flex items-center gap-1.5 bg-[#FFF4E5] text-[#dd7230] px-3 py-1 rounded-lg border border-[#dd7230]/30">
-              <Layers className="h-4 w-4 text-[#dd7230]" />
+            <span className="font-extrabold text-[#1F2937] flex items-center gap-1.5 bg-[#F3F4F6] text-[#111827] px-3 py-1 rounded-lg border border-[#111827]/30">
+              <Layers className="h-4 w-4 text-[#111827]" />
               {fragments.length} {fragments.length === 1 ? "Page" : "Pages"}
             </span>
             <span>·</span>
@@ -3539,8 +3545,8 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
         </div>
 
         {errorMessage && (
-          <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl">
-            <AlertCircle className="h-4 w-4 text-rose-500 mt-0.5 flex-shrink-0" />
+          <div className="flex items-start gap-3 p-3 bg-gray-100 border border-rose-200 rounded-xl">
+            <AlertCircle className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
             <div>
               <h3 className="text-xs font-semibold text-rose-800">Error</h3>
               <p className="text-[11px] text-rose-600 mt-0.5">{errorMessage}</p>
@@ -3554,7 +3560,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
             <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden">
               <div className="p-3.5 bg-gray-50/80 border-b border-gray-200">
                 <h3 className="font-semibold text-gray-900 text-xs flex items-center gap-2">
-                  <FileText className="h-3.5 w-3.5 text-[#DD7230]" /> Document Configuration
+                  Document Configuration
                 </h3>
               </div>
               <div className="p-5 space-y-5">
@@ -3564,7 +3570,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                     <select 
                       value={wizardTemplate ? wizardTemplate.name : ""} 
                       onChange={handleWizardTemplateSelect}
-                      className="w-full py-2 px-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-colors"
+                      className="w-full py-2 px-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#111827] transition-colors"
                     >
                       <option value="">-- Choose a Template --</option>
                       {templates.map(t => (
@@ -3605,7 +3611,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       placeholder="Optional: e.g. Draft a memo informing college deans about upcoming midterms..."
-                      className="w-full h-28 p-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] resize-none transition-colors"
+                      className="w-full h-28 p-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#111827] resize-none transition-colors"
                     />
                     
                     <button
@@ -3629,7 +3635,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
           <div className="lg:col-span-2">
             {wizardLoading ? (
               <div className="bg-white rounded-xl shadow-2xs border border-gray-200 h-full min-h-[460px] flex flex-col items-center justify-center p-8 text-center">
-                <Loader2 className="h-8 w-8 text-[#DD7230] animate-spin mb-4" />
+                <Loader2 className="h-8 w-8 text-[#111827] animate-spin mb-4" />
                 <h3 className="text-base font-semibold text-gray-900">Extracting Fields...</h3>
                 <p className="text-xs text-gray-500 max-w-sm mt-1.5 leading-relaxed">Analyzing template structure and extracting dynamic placeholders.</p>
               </div>
@@ -3637,7 +3643,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
               <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden h-full min-h-[460px] animate-in fade-in duration-300 flex flex-col">
                 <div className="p-3.5 bg-gray-50/80 border-b border-gray-200">
                   <h3 className="font-semibold text-gray-900 text-xs flex items-center gap-2">
-                    <FileText className="h-3.5 w-3.5 text-[#DD7230]" /> Template Details
+                    Template Details
                   </h3>
                 </div>
                 <div className="p-6 sm:p-8 flex-1">
@@ -3652,7 +3658,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                       {wizardPlaceholders.map(group => {
                         const label = group.norm.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                        const isRow = group.norm.toLowerCase().includes("row");
+                        const isRow = group.norm.toLowerCase().includes("row") || group.norm.toLowerCase() === "recipients" || group.norm.toLowerCase() === "recipient rows";
                         
                         if (isRow) {
                           const formName = wizardTemplate.name || "";
@@ -3667,6 +3673,8 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                             headers = ['Opportunity', 'Action Plan', 'Target Date', 'Person/s Responsible', 'Date of Assessment', 'Date of Actual Completion'];
                           } else if (formName.includes("Form 3")) {
                             headers = ['Function Areas', 'Objective', 'KRA (Short Term)', 'Timetable Short Term', 'KRA (Medium Term)', 'Timetable Medium Term', 'KRA (Long Term)', 'Timetable Long Term'];
+                          } else if (formName.toLowerCase().includes("memorandum")) {
+                            headers = ['Recipient Name', 'Recipient Title'];
                           }
                           const rows = wizardTableRows[group.norm] || [];
                           
@@ -3712,7 +3720,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                                                   [group.norm]: newRows
                                                 });
                                               }}
-                                              className="w-full p-1.5 border border-gray-200 rounded focus:ring-1 focus:ring-[#DD7230] outline-none text-[11px]"
+                                              className="w-full p-1.5 border border-gray-200 rounded focus:ring-1 focus:ring-[#111827] outline-none text-[11px]"
                                             />
                                           </td>
                                         ))}
@@ -3725,7 +3733,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                                                 [group.norm]: newRows
                                               });
                                             }}
-                                            className="text-gray-400 hover:text-rose-500 p-1.5 rounded hover:bg-rose-50 transition-colors"
+                                            className="text-gray-400 hover:text-gray-500 p-1.5 rounded hover:bg-gray-100 transition-colors"
                                             title="Delete row"
                                           >
                                             <Trash2 className="w-3.5 h-3.5" />
@@ -3784,7 +3792,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                                         });
                                       }}
                                       placeholder={`Enter ${label.toLowerCase()} item...`}
-                                      className="flex-1 p-1.5 border border-gray-200 rounded focus:ring-1 focus:ring-[#DD7230] outline-none text-[11px]"
+                                      className="flex-1 p-1.5 border border-gray-200 rounded focus:ring-1 focus:ring-[#111827] outline-none text-[11px]"
                                     />
                                     <button 
                                       onClick={() => {
@@ -3794,7 +3802,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                                           [group.norm]: newRows
                                         });
                                       }}
-                                      className="text-gray-400 hover:text-rose-500 p-1.5 rounded hover:bg-rose-50 transition-colors"
+                                      className="text-gray-400 hover:text-gray-500 p-1.5 rounded hover:bg-gray-100 transition-colors"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
@@ -3810,16 +3818,30 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                           );
                         }
 
+                        const isLongText = label.toLowerCase().includes("body") || 
+                                           label.toLowerCase().includes("details") || 
+                                           label.toLowerCase().includes("description") || 
+                                           label.toLowerCase().includes("remarks") || 
+                                           label.toLowerCase().includes("findings");
                         return (
-                        <div key={group.norm}>
+                        <div key={group.norm} className={isLongText ? "col-span-1 sm:col-span-2" : ""}>
                           <label className="block text-[11px] font-medium text-gray-700 mb-1.5">{label}</label>
-                          <input 
-                            type="text"
-                            value={wizardForm[group.norm] || ""}
-                            onChange={(e) => setWizardForm({...wizardForm, [group.norm]: e.target.value})}
-                            placeholder={`Enter ${label}`}
-                            className="w-full py-2 px-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] transition-colors"
-                          />
+                          {isLongText ? (
+                            <textarea 
+                              value={wizardForm[group.norm] || ""}
+                              onChange={(e) => setWizardForm({...wizardForm, [group.norm]: e.target.value})}
+                              placeholder={`Enter ${label}`}
+                              className="w-full h-32 py-2 px-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#111827] transition-colors resize-y"
+                            />
+                          ) : (
+                            <input 
+                              type="text"
+                              value={wizardForm[group.norm] || ""}
+                              onChange={(e) => setWizardForm({...wizardForm, [group.norm]: e.target.value})}
+                              placeholder={`Enter ${label}`}
+                              className="w-full py-2 px-3 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#111827] transition-colors"
+                            />
+                          )}
                         </div>
                         );
                       })}
@@ -3839,8 +3861,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
               <div className="bg-gray-50/50 rounded-xl border-2 border-dashed border-gray-200 h-full min-h-[460px] flex items-center justify-center p-8">
                 <div className="text-center">
                   <div className="bg-white w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-2xs border border-gray-200 text-gray-400">
-                    <FileText className="h-6 w-6" />
-                  </div>
+                    </div>
                   <h3 className="text-sm font-semibold text-gray-700">Awaiting Template Selection</h3>
                   <p className="text-xs text-gray-400 mt-1 max-w-[240px] mx-auto">Select a document template from the left panel to begin filling out details and drafting.</p>
                 </div>
@@ -3884,7 +3905,7 @@ function ImageUploadField(props: {
         const file = e.dataTransfer.files?.[0];
         if (file) onFileSelected(file);
       }}
-      className={`border rounded-xl overflow-hidden bg-white transition-all ${dragActive ? "border-[#dd7230] ring-2 ring-[#dd7230]/40 shadow-md" : "border-[#E5E7EB]"}`}
+      className={`border rounded-xl overflow-hidden bg-white transition-all ${dragActive ? "border-[#111827] ring-2 ring-[#111827]/40 shadow-md" : "border-[#E5E7EB]"}`}
     >
       <div className="flex items-center justify-between px-3.5 py-2 bg-[#F9FAFB] border-b border-[#E5E7EB]">
         <span className="text-xs font-bold text-[#374151]">{label}</span>
@@ -3893,14 +3914,14 @@ function ImageUploadField(props: {
 
       <div className="p-3">
         <p className="text-[11px] text-[#9CA3AF] mb-2">{helperText}</p>
-        {error && <p className="text-xs text-rose-500 mb-2">{error}</p>}
+        {error && <p className="text-xs text-gray-500 mb-2">{error}</p>}
 
         {!image ? (
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             className={`w-full flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-lg transition-colors ${
-              dragActive ? "border-[#dd7230] bg-[#FFF4E5] text-[#dd7230]" : "border-[#E5E7EB] text-[#9CA3AF] hover:text-[#6B7280] hover:border-[#dd7230]"
+              dragActive ? "border-[#111827] bg-[#F3F4F6] text-[#111827]" : "border-[#E5E7EB] text-[#9CA3AF] hover:text-[#6B7280] hover:border-[#111827]"
             }`}
           >
             <UploadCloud className="h-4 w-4" />
@@ -3913,11 +3934,11 @@ function ImageUploadField(props: {
               type="button"
               onClick={onRemove}
               aria-label="Remove image"
-              className="absolute -top-1.5 -right-1.5 h-5 w-5 flex items-center justify-center rounded-full bg-rose-500 text-white shadow"
+              className="absolute -top-1.5 -right-1.5 h-5 w-5 flex items-center justify-center rounded-full bg-gray-500 text-white shadow"
             >
               <X className="h-3 w-3" />
             </button>
-            <div className={`mt-2 text-[10px] font-semibold ${dragActive ? "text-[#dd7230]" : "text-[#9CA3AF]"}`}>
+            <div className={`mt-2 text-[10px] font-semibold ${dragActive ? "text-[#111827]" : "text-[#9CA3AF]"}`}>
               {dragActive ? "Drop to replace" : "Drag & drop a new image here to replace"}
             </div>
           </div>
