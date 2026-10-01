@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { Save, Building2, Bot, Sliders, Loader2, CheckCircle, Bell, FileText, ScanSearch, AlertTriangle } from "lucide-react";
 import { apiClient } from "../api/client";
+import { PageHeader } from "../components/PageHeader";
 
 type TabType = "profile" | "notifications" | "ocr_pipeline" | "ai_engine";
 
@@ -78,10 +79,7 @@ export function Settings() {
       )}
 
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">System Settings</h1>
-        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Manage governance configurations, AI extraction rules, and notifications.</p>
-      </div>
+      <PageHeader title="System Settings" description="Manage governance configurations, AI extraction rules, and notifications." />
 
       {/* Main Settings Container */}
       <div className="bg-white rounded-xl shadow-2xs border border-gray-200 overflow-hidden">

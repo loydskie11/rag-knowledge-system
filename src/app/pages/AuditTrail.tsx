@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Search, Download, Loader2, X, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { apiClient } from "../api/client";
+import { PageHeader } from "../components/PageHeader";
 
 type TabType = "queries" | "access" | "versions" | "system";
 
@@ -131,19 +132,13 @@ export function AuditTrail() {
       )}
 
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">System Audit Trail</h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Track and audit system activities, user queries, document access, and security events.</p>
-        </div>
-        <button 
+      <PageHeader title="System Audit Trail" description="Track and audit system activities, user queries, document access, and security events." actions={<button
           onClick={() => setShowExportModal(true)}
           className="flex items-center gap-2 px-3.5 py-2 bg-[#DD7230] text-white text-xs font-semibold rounded-lg hover:bg-[#DD7230] transition-colors shadow-2xs cursor-pointer active:scale-95 shrink-0"
         >
           <Download className="h-3.5 w-3.5" />
           Export Report
-        </button>
-      </div>
+        </button>} />
 
       {/* Statistics Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">

@@ -320,7 +320,7 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
           sidebarCollapsed ? "md:ml-16" : "md:ml-64"
         }`}
       >
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className="min-w-0 p-3 sm:p-6 lg:p-8">
           <Outlet />
         </div>
       </main>
@@ -334,9 +334,9 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
 
       {/* ✨ FLOATING ON-DISPLAY AI WIDGET SYSTEM ✨ */}
       {!isAskPolicy && (
-        <div ref={aiWidgetRef} className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 select-none">
+        <div ref={aiWidgetRef} className="fixed bottom-3 right-3 left-3 z-50 flex flex-col items-end gap-3 select-none sm:bottom-6 sm:left-auto sm:right-6">
           {isAIChatOpen && (
-            <div className="w-[360px] sm:w-[420px] h-[550px] bg-white rounded-2xl shadow-2xl border border-[#E5E7EB] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
+            <div className="w-full sm:w-[420px] h-[min(550px,calc(100dvh-6rem))] min-h-[360px] bg-white rounded-2xl shadow-2xl border border-[#E5E7EB] flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
               
               <div className="p-4 bg-[#DD7230] text-white flex justify-between items-center shadow-md shrink-0">
                 <div className="flex items-center gap-2">
@@ -372,7 +372,7 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
           Rendered here (in DashboardLayout) so it survives page navigation.
           KnowledgeRepository just calls enqueueUpload() on the context.       */}
       {uploadTasks.length > 0 && (
-        <div className="fixed top-20 right-6 z-[60] w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+        <div className="fixed top-[4.5rem] right-3 left-3 z-[60] w-auto sm:left-auto sm:right-6 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
           {/* Header */}
           <div className="px-4 py-2.5 bg-gray-900 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">

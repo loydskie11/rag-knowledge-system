@@ -5357,6 +5357,21 @@ def create_qms_action_plan(
     return item
 
 
+@app.delete("/iso/schedule-days/{day_id}")
+def delete_iqa_schedule_day(
+    day_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Admin deletes an existing dynamic IQA Audit Day."""
+    item = db.query(models.IQADaySchedule).filter(models.IQADaySchedule.id == day_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="IQA Audit Day not found.")
+    db.delete(item)
+    db.commit()
+    return {"message": "IQA Audit Day deleted."}
+
+
 
 
 @app.put("/qms/action-plans/{plan_id}", response_model=schemas.QMSActionPlanResponse)
@@ -5439,7 +5454,7 @@ async def upload_qms_action_plan_evidence(
     contents = await read_upload_limited(file)
     file_path = f"qms_evidences/{uuid.uuid4()}_{file.filename}"
     
-    file_url = f"http://localhost:8000/uploads/{file_path}"
+    file_url = ""
     try:
         if supabase:
             supabase.storage.from_("documents").upload(

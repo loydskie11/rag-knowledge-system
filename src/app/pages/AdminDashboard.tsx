@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import axios from "axios";
 import { useNavigate } from "react-router";
 import { apiClient } from "../api/client";
+import { PageHeader } from "../components/PageHeader";
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -204,16 +205,9 @@ export function AdminDashboard() {
   return (
     <div className="space-y-6 animate-in fade-in duration-200 pb-10">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Complete system telemetry, governance queues, and management controls</p>
-        </div>
-        <div className="flex items-center gap-2 bg-[#DD7230] text-white px-3.5 py-1.5 rounded-lg shadow-2xs self-start sm:self-auto">
-          <Shield className="h-4 w-4" />
+      <PageHeader title="Admin Dashboard" description="Complete system telemetry, governance queues, and management controls" actions={<div className="flex items-center gap-2 bg-[#DD7230] text-white px-3.5 py-1.5 rounded-lg shadow-2xs"><Shield className="h-4 w-4" />
           <span className="text-xs font-semibold uppercase tracking-wider">System Administrator</span>
-        </div>
-      </div>
+        </div>} />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Upload, FileText, AlertCircle, CheckCircle, TrendingUp, Loader2, Award, Calendar, BookOpen, AlertTriangle, Calculator, ChevronDown, ChevronUp, X } from "lucide-react";
 import axios from "axios";
 import { apiClient } from "../api/client";
+import { PageHeader } from "../components/PageHeader";
 
 interface SubjectScratchpad {
   subject: string;
@@ -144,10 +145,7 @@ export function GradeEvaluation() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Grade Evaluation</h1>
-        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Upload your CTU grade slip for instant academic analysis and GWA verification.</p>
-      </div>
+      <PageHeader title="AI Grade Evaluation" description="Upload your CTU grade slip for instant academic analysis and GWA verification." />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
         {/* --- UPLOAD SECTION --- */}
