@@ -14,7 +14,16 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
+
+# Install missing dependencies instantly without breaking cache
+RUN pip install --default-timeout=1000 --no-cache-dir Pillow passlib python-jose ollama paddleocr paddlepaddle bcrypt
+
+# Install missing system dependencies for PaddleOCR/OpenCV instantly without breaking cache
+RUN apt-get update && apt-get install -y libgl1 libglib2.0-0 libgomp1 && rm -rf /var/lib/apt/lists/*
+
+# Fix passlib compatibility bug instantly without breaking cache
+RUN pip install --no-cache-dir bcrypt==3.2.2
 
 # Copy the rest of the application
 COPY . .

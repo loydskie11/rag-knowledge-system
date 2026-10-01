@@ -2,58 +2,53 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Opportunities Identification - MRC Form 6</title>
 <style>
   @page { size: 11in 8.5in; margin: 0; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #e9e9e9; }
-  body { font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; color: #000; }
+  body { margin: 0; padding: 0; background: #e9e9e9; font-family: Arial, sans-serif; color: #000; }
+  .page { width: 11in; min-height: 8.5in; margin: 0.3in auto; background: #fff; padding: 0.5in 0.6in; box-shadow: 0 0 6px rgba(0,0,0,.25); position: relative; }
+  @media print { body { background: #fff; } .page { margin: 0; box-shadow: none; } }
 
-  .page {
-    width: 11in; min-height: 8.5in; margin: 0.3in auto; background: #fff;
-    padding: 0.6in 0.75in 0.5in 0.75in; box-shadow: 0 0 6px rgba(0,0,0,.25);
-  }
-  @media print { html, body { background: #fff; } .page { margin: 0; box-shadow: none; } }
-  @media (max-width: 11.1in) { .page { width: 100%; min-width: 11in; margin: 0; } }
+  .univ { font-weight: bold; font-size: 10pt; margin-bottom: 5px; }
+  .thick-line { border-top: 3px solid #000; margin-bottom: 10px; }
 
-  .univ { font-weight: bold; font-size: 7pt; margin-top: 0.02in; }
-  .univ span { font-weight: normal; }
-  .rule { border: 0; border-top: 2px solid #000; margin: 0.28in 0 0 0; }
+  .top-meta { position: absolute; right: 0.6in; top: 0.75in; font-size: 8pt; line-height: 1.3; text-align: left; }
+  
+  .title-wrapper { text-align: center; margin-top: 25px; margin-bottom: 20px; }
+  .title-wrapper h2 { margin: 0 0 12px 0; font-size: 11pt; font-weight: bold; }
+  .unit-line { border-bottom: 1px solid #000; display: inline-block; min-width: 250px; font-size: 10pt; font-weight: bold; padding: 0 10px; min-height: 18px; text-align: center; }
+  .unit-label { font-size: 9pt; margin-top: 3px; }
 
-  .top { position: relative; height: 1.4in; }
-  .meta { position: absolute; right: 0.05in; top: 0.17in; font-size: 6pt; line-height: 1.15; }
-  .title { position: absolute; left: 0; right: 0; top: 0.5in; text-align: center; font-size: 7pt; font-weight: bold; }
-  .unit { position: absolute; left: 0; right: 0; top: 0.95in; text-align: center; font-size: 7pt; }
-  .unit span { display: inline-block; border-top: 1px solid #000; padding-top: 1px; min-width: 1.75in; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; margin-bottom: 40px; }
+  th, td { border: 1px solid #000; padding: 6px; }
+  th { font-weight: bold; text-align: center; vertical-align: middle; background: #fff; height: 35px; }
+  td { height: 30px; text-align: center; vertical-align: top; }
 
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  th, td { border: 1px solid #000; }
-  th { font-size: 5.5pt; font-weight: bold; text-align: center; line-height: 1.25; height: 0.42in; padding: 0.02in; vertical-align: middle; }
-  td { height: 0.33in; }
-
-  .foot { position: relative; margin-top: 0.12in; height: 0.75in; font-size: 7pt; }
-  .foot .t { position: absolute; top: 0; white-space: nowrap; }
-  .sig { position: absolute; top: 0.52in; }
-  .sig .ln { border-top: 1px solid #000; margin-bottom: 0.05in; }
+  .footer-flex { display: flex; justify-content: space-between; font-size: 8pt; }
+  .footer-flex p { margin: 0 0 25px 0; }
+  .sig-block { text-align: center; display: inline-block; }
+  .sig-line { border-bottom: 1px solid #000; min-width: 220px; min-height: 16px; display: flex; align-items: flex-end; justify-content: center; padding: 0 5px; font-weight: bold; }
+  .sig-label { font-size: 8pt; margin-top: 3px; }
 </style>
 </head>
 <body>
 <div class="page">
+  <div class="univ">CEBU TECHNOLOGICAL UNIVERSITY <span style="font-weight: normal; font-size: 9pt;">(Use Campus Letterhead)</span></div>
+  <div class="thick-line"></div>
 
-  <div class="univ">CEBU TECHNOLOGICAL UNIVERSITY <span>(Use Campus Letterhead)</span></div>
-  <hr class="rule">
+  <div class="top-meta">MRC Form 6<br>March 2021<br>Revision: 0</div>
 
-  <div class="top">
-    <div class="meta">MRC Form 6<br>March 2021<br>Revision: 0</div>
-    <div class="title">OPPORTUNITIES IDENTIFICATION</div>
-    <div class="unit"><span>College/Department/Section/Unit</span></div>
+  <div class="title-wrapper">
+    <h2>OPPORTUNITIES IDENTIFICATION</h2>
+    <div class="unit-line">[UNIT_NAME]</div>
+    <div class="unit-label">College/Department/Section/Unit</div>
   </div>
 
   <table>
     <colgroup>
-      <col style="width:25.6%"><col style="width:25.5%"><col style="width:12%">
-      <col style="width:15.3%"><col style="width:10.5%"><col style="width:11.1%">
+      <col style="width:26%"><col style="width:26%"><col style="width:12%">
+      <col style="width:15%"><col style="width:10%"><col style="width:11%">
     </colgroup>
     <thead>
       <tr>
@@ -66,26 +61,24 @@
       </tr>
     </thead>
     <tbody>
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      [LOGSHEET_ROWS]
     </tbody>
   </table>
 
-  <div class="foot">
-    <span class="t" style="left:0.5%">Prepared by:</span>
-    <span class="t" style="left:34.1%">Reviewed by:</span>
-    <span class="t" style="left:63.6%">APPROVED:</span>
-
-    <div class="sig" style="left:0.5%; width:23.9%;"><div class="ln"></div>Process Owner/Department/Section Head</div>
-    <div class="sig" style="left:38.5%; width:21.1%; text-align:center;"><div class="ln"></div>Supervisor</div>
-    <div class="sig" style="left:76.6%; width:23.4%; text-align:center;"><div class="ln"></div>Campus Director</div>
+  <div class="footer-flex">
+    <div>
+      <p>Prepared by:</p>
+      <div class="sig-block"><div class="sig-line">[PREPARED_BY]</div><div class="sig-label">Process Owner/Department/Section Head</div></div>
+    </div>
+    <div>
+      <p>Reviewed by:</p>
+      <div class="sig-block"><div class="sig-line">[REVIEWED_BY]</div><div class="sig-label">Supervisor</div></div>
+    </div>
+    <div>
+      <p>APPROVED:</p>
+      <div class="sig-block"><div class="sig-line">[APPROVED_BY]</div><div class="sig-label">Campus Director</div></div>
+    </div>
   </div>
-
 </div>
 </body>
 </html>

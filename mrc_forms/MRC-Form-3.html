@@ -2,55 +2,57 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Short, Medium, and Long Term Plan - MRC Form 3</title>
 <style>
   @page { size: 11in 8.5in; margin: 0; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #e9e9e9; }
-  body { font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; color: #000; }
-
-  .page {
-    width: 11in; min-height: 8.5in; margin: 0.3in auto; background: #fff;
-    padding: 0.6in 0.75in 0.5in 0.75in; box-shadow: 0 0 6px rgba(0,0,0,.25);
-  }
-  @media print { html, body { background: #fff; } .page { margin: 0; box-shadow: none; } }
-  @media (max-width: 11.1in) { .page { width: 100%; min-width: 11in; margin: 0; } }
-
+  body { margin: 0; padding: 0; background: #e9e9e9; font-family: Arial, sans-serif; color: #000; }
+  .page { width: 11in; min-height: 8.5in; margin: 0.3in auto; background: #fff; padding: 0.5in 0.6in; box-shadow: 0 0 6px rgba(0,0,0,.25); position: relative; }
+  @media print { body { background: #fff; } .page { margin: 0; box-shadow: none; } }
+  
   .header { display: flex; justify-content: space-between; align-items: flex-start; }
-  .univ { font-weight: bold; font-size: 9pt; margin-top: 0.05in; }
-  .meta { font-size: 7.5pt; line-height: 1.25; margin-right: 0.02in; }
+  .univ { font-weight: bold; font-size: 10pt; }
+  .meta { font-size: 8pt; line-height: 1.3; text-align: left; }
+  
+  .title-wrapper { text-align: center; margin-top: 15px; margin-bottom: 15px; }
+  .title-wrapper h1 { margin: 0; font-size: 11pt; font-weight: bold; }
+  .blanks { font-size: 9pt; font-weight: bold; margin-top: 3px; }
+  .blanks span { display: inline-block; border-bottom: 1px solid #000; min-width: 50px; text-align: center; padding: 0 5px; margin: 0 3px; }
 
-  .title { text-align: center; margin-top: 0.36in; }
-  .title h1 { margin: 0; font-size: 9pt; font-weight: bold; }
-  .title .blanks { font-size: 9pt; margin-top: 1px; line-height: 1; }
-  .title .blanks span { display: inline-block; width: 0.5in; border-bottom: 1px solid #000; height: 0.09in; vertical-align: baseline; }
-
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 0.14in; }
-  th, td { border: 1px solid #000; }
-  th { font-size: 7.5pt; font-weight: bold; text-align: center; padding: 0.06in 0.03in; line-height: 1.3; height: 0.48in; vertical-align: middle; }
-  td { height: 1.15in; }
-
-  .foot { position: relative; margin-top: 0.1in; height: 1.1in; font-size: 7.5pt; font-weight: bold; }
-  .foot .t { position: absolute; top: 0; white-space: nowrap; }
-  .sig { position: absolute; text-align: center; }
-  .sig .ln { border-top: 1px solid #000; margin-bottom: 0.07in; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; margin-bottom: 30px; }
+  th, td { border: 1px solid #000; padding: 5px; }
+  th { font-weight: bold; text-align: center; vertical-align: middle; background: #fff; height: 40px; }
+  td { height: 25px; text-align: center; vertical-align: top; }
+  
+  .footer-grid { display: flex; justify-content: space-between; font-size: 8pt; font-weight: bold; }
+  .footer-grid p { margin: 0 0 15px 0; }
+  .sig-block { text-align: center; display: inline-block; margin-bottom: 10px; }
+  .sig-line { border-bottom: 1px solid #000; min-width: 160px; min-height: 16px; display: flex; align-items: flex-end; justify-content: center; padding: 0 5px; }
+  .sig-label { font-size: 8pt; margin-top: 3px; font-weight: bold; }
+  
+  .col-prep { width: 20%; }
+  .col-rec { width: 55%; }
+  .col-app { width: 20%; }
+  .rec-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 15px; }
 </style>
 </head>
 <body>
 <div class="page">
-
   <div class="header">
     <div class="univ">CEBU TECHNOLOGICAL UNIVERSITY</div>
     <div class="meta">MRC Form 3<br>October 2012<br>Revision: 0</div>
   </div>
 
-  <div class="title">
+  <div class="title-wrapper">
     <h1>SHORT, MEDIUM, AND LONG TERM PLAN</h1>
-    <div class="blanks">(<span></span>,<span></span>,<span></span>)</div>
+    <div class="blanks">(<span>[YEAR_1]</span>,<span>[YEAR_2]</span>,<span>[YEAR_3]</span>)</div>
   </div>
 
   <table>
+    <colgroup>
+      <col style="width:11%"><col style="width:14%"><col style="width:11%"><col style="width:16%">
+      <col style="width:11%"><col style="width:16%"><col style="width:11%"><col style="width:10%">
+    </colgroup>
     <thead>
       <tr>
         <th>FUNCTION<br>AREAS</th>
@@ -64,23 +66,29 @@
       </tr>
     </thead>
     <tbody>
-      <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      [LOGSHEET_ROWS]
     </tbody>
   </table>
 
-  <div class="foot">
-    <span class="t" style="left:0.02in">Prepared by:</span>
-    <span class="t" style="left:21.4%">Recommending Approval:</span>
-    <span class="t" style="left:75.6%">Approved by:</span>
-
-    <div class="sig" style="left:4.6%; width:19%; top:0.6in;"><div class="ln"></div>Campus Director</div>
-    <div class="sig" style="left:27.6%; width:21.7%; top:0.34in;"><div class="ln"></div>VP-Administration</div>
-    <div class="sig" style="left:51.9%; width:23.4%; top:0.34in;"><div class="ln"></div>VP-Research and Development</div>
-    <div class="sig" style="left:78.3%; width:21.7%; top:0.6in;"><div class="ln"></div>University President</div>
-    <div class="sig" style="left:27.6%; width:21.7%; top:0.86in;"><div class="ln"></div>VP-Academic Affairs</div>
-    <div class="sig" style="left:51.9%; width:23.4%; top:0.86in;"><div class="ln"></div>VP-Production, Extension &amp; Bus. Affairs</div>
+  <div class="footer-grid">
+    <div class="col-prep">
+      <p>Prepared by:</p>
+      <div class="sig-block"><div class="sig-line">[PREPARED_BY]</div><div class="sig-label">Campus Director</div></div>
+    </div>
+    <div class="col-rec">
+      <p>Recommending Approval:</p>
+      <div class="rec-inner">
+        <div class="sig-block"><div class="sig-line">[VP_ADMIN]</div><div class="sig-label">VP-Administration</div></div>
+        <div class="sig-block"><div class="sig-line">[VP_RD]</div><div class="sig-label">VP-Research and Development</div></div>
+        <div class="sig-block"><div class="sig-line">[VP_ACAD]</div><div class="sig-label">VP-Academic Affairs</div></div>
+        <div class="sig-block"><div class="sig-line">[VP_PEBA]</div><div class="sig-label">VP-Production, Extension & Bus. Affairs</div></div>
+      </div>
+    </div>
+    <div class="col-app">
+      <p>Approved by:</p>
+      <div class="sig-block"><div class="sig-line">[APPROVED_BY]</div><div class="sig-label">University President</div></div>
+    </div>
   </div>
-
 </div>
 </body>
 </html>

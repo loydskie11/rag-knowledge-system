@@ -1948,6 +1948,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
       (f) =>
         f.includes("11in 8.5in") ||
         f.includes("MRC Form 4") ||
+          f.includes("MRC Form 3") ||
         f.includes("MRC Form 5") ||
         f.includes("MRC Form 7") ||
         f.includes("MRC FORM 7") ||
@@ -2996,6 +2997,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
         (f) =>
           f.includes("11in 8.5in") ||
           f.includes("MRC Form 4") ||
+          f.includes("MRC Form 3") ||
           f.includes("MRC Form 5") ||
           f.includes("MRC Form 7") ||
           f.includes("MRC FORM 7") ||
@@ -3083,6 +3085,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
       (f) =>
         f.includes("11in 8.5in") ||
         f.includes("MRC Form 4") ||
+          f.includes("MRC Form 3") ||
         f.includes("MRC Form 5") ||
         f.includes("MRC Form 7") ||
         f.includes("MRC FORM 7") ||
@@ -3660,8 +3663,11 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                             headers = ['Issues', 'Risks', 'Impact', 'Likelihood', 'Risk Factor', 'Risk Control/Action', 'Target Date', 'Person Responsible', 'Assessment Date', 'Completion Date'];
                           } else if (formName.includes("Form 7")) {
                             headers = ['Interested Parties', 'Internal/External', 'Reasons for Inclusion', 'Issues of Concern', 'Processes Affected', 'Priority', 'Treatment Method', 'Records References/Notes'];
+                          } else if (formName.includes("Form 6")) {
+                            headers = ['Opportunity', 'Action Plan', 'Target Date', 'Person/s Responsible', 'Date of Assessment', 'Date of Actual Completion'];
+                          } else if (formName.includes("Form 3")) {
+                            headers = ['Function Areas', 'Objective', 'KRA (Short Term)', 'Timetable Short Term', 'KRA (Medium Term)', 'Timetable Medium Term', 'KRA (Long Term)', 'Timetable Long Term'];
                           }
-                          
                           const rows = wizardTableRows[group.norm] || [];
                           
                           return (

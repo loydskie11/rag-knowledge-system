@@ -1,3 +1,4 @@
+import { exportMrcForm6 } from "../utils/mrcFormsExporter";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, MessageSquare, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal , Printer} from "lucide-react";
@@ -833,6 +834,7 @@ export const IsoTabContent = ({
   setNewCarForm,
   handleExportCarForm,
   handleExportCarForm3,
+  handleExportMrcForm6,
   setShowMrcExportModal,
   setSelectedMrcFormType,
   handleExportMrcForm4,
@@ -937,16 +939,7 @@ export const IsoTabContent = ({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap shrink-0">
-                <button
-                  onClick={() => {
-                    setSelectedMrcFormType("form4");
-                    setShowMrcExportModal(true);
-                  }}
-                  className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                  title="Export Official MRC Forms (Form 4, Form 5, Form 7, Form 2)"
-                >
-                  <Printer className="h-3.5 w-3.5 text-[#DD7230]" /> Export MRC Forms
-                </button>
+                
                 {userRole === "ADMIN" && (
                   <>
                     <button
@@ -1014,34 +1007,34 @@ export const IsoTabContent = ({
                         <h3 className="text-lg font-bold text-gray-900">CAR / PAR Form 3 – Master Logsheet</h3>
                         <p className="text-xs text-gray-500 mt-1">Summary of all issued Corrective Action Requests for this audit cycle.</p>
                       </div>
-                      <div className="flex items-center gap-2 w-full md:w-auto flex-col sm:flex-row">
-                        <div className="relative w-full sm:w-64">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                          <input
-                            type="text"
-                            placeholder="Search CARs..."
-                            value={carSearchQuery}
-                            onChange={(e) => setCarSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#DD7230] focus:border-[#DD7230] transition-all shadow-2xs"
-                          />
-                        </div>
-                        <div className="flex gap-2 w-full sm:w-auto">
-                          <button
-                            onClick={() => {
-                              setSelectedMrcFormType("form4");
-                              setShowMrcExportModal(true);
-                            }}
-                            className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer w-full sm:w-auto justify-center"
-                            title="Export Official MRC Forms (Form 4, Form 5, Form 7, Form 2)"
-                          >
-                            <FileText className="h-3.5 w-3.5 text-[#DD7230]" /> MRC Forms
-                          </button>
+                      <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+                        <div className="flex flex-wrap gap-2 w-full xl:w-auto">
+                          
                           <button
                             onClick={handleExportCarForm3}
                             className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer w-full sm:w-auto justify-center"
                             title="Generate Official CAR Form 3 (Print / PDF)"
                           >
                             <Printer className="h-3.5 w-3.5" /> Export Logsheet
+                          </button>
+
+                          {/* MRC Forms Group */}
+                          <div className="flex items-center p-1 bg-gray-100/80 rounded-lg border border-gray-200">
+                            <button onClick={() => handleExportMrcForm4()} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Export MRC Form 4 (Annual Plan)">Form 4</button>
+                            <div className="w-px h-3 bg-gray-300 mx-0.5"></div>
+                            <button onClick={() => handleExportMrcForm5()} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Export MRC Form 5 (Risk ID)">Form 5</button>
+                            <div className="w-px h-3 bg-gray-300 mx-0.5"></div>
+                            <button onClick={() => handleExportMrcForm6()} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Export MRC Form 6 (Action Plan)">Form 6</button>
+                            <div className="w-px h-3 bg-gray-300 mx-0.5"></div>
+                            <button onClick={() => handleExportMrcForm7()} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Export MRC Form 7 (Issues Log)">Form 7</button>
+                          </div>
+
+                          <button
+                            onClick={() => setShowAddQmsModal(true)}
+                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer w-full sm:w-auto justify-center"
+                            title="Create New QMS Action Plan"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Create Action Plan
                           </button>
                           <button
                             onClick={() => { setNewCarForm((prev: any) => ({...prev, area: "", iso_clause_id: ""})); setShowAddCarModal(true); }}
@@ -1051,6 +1044,17 @@ export const IsoTabContent = ({
                           </button>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="relative w-full max-w-3xl">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search CARs by CAR No, Area, Auditee, or Status..."
+                        value={carSearchQuery}
+                        onChange={(e) => setCarSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:ring-1 focus:ring-[#DD7230] focus:border-[#DD7230] transition-all shadow-sm"
+                      />
                     </div>
 
                     {isLoadingCarForms ? (
@@ -2544,7 +2548,39 @@ export function AccreditationSupport() {
 
 
 
-  const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
+  
+  const handleExportMrcForm6 = async () => {
+    try {
+      if (!qmsActionPlans || qmsActionPlans.length === 0) {
+        throw new Error("No QMS Action Plans available to export for this cycle.");
+      }
+      
+      const rows = qmsActionPlans.map((plan: any) => ({
+        opportunity: plan.opportunity_type || "",
+        action_plan: plan.corrective_measure || plan.immediate_action || plan.findings || "",
+        target_date: plan.target_date || "",
+        persons_responsible: plan.personnel_responsible || plan.auditee_name || "",
+        date_of_assessment: plan.created_at ? new Date(plan.created_at).toLocaleDateString() : "",
+        date_of_completion: plan.status === 'Completed' && plan.updated_at ? new Date(plan.updated_at).toLocaleDateString() : ""
+      }));
+
+      await exportMrcForm6(
+        {
+          unit_name: "CTU Argao Campus - All Units", // Or pass specific unit if filtering
+          prepared_by: sessionStorage.getItem('userName') || "IQA Chair",
+          reviewed_by: "Campus Director",
+          approved_by: "Campus Director",
+          rows: rows
+        },
+        navigate,
+        showToast
+      );
+    } catch (err: any) {
+      console.error("handleExportMrcForm6 error:", err);
+      showToast(err.message || "Failed to export MRC Form 6.", "error");
+    }
+  };
+const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   const [newQmsPlan, setNewQmsPlan] = useState({
     auditee_office: "HRMO",
     process_area: "",
@@ -4354,6 +4390,7 @@ export function AccreditationSupport() {
             setNewCarForm={setNewCarForm}
             handleExportCarForm={handleExportCarForm}
             handleExportCarForm3={handleExportCarForm3}
+            handleExportMrcForm6={handleExportMrcForm6}
             setShowMrcExportModal={setShowMrcExportModal}
             setSelectedMrcFormType={setSelectedMrcFormType}
             handleExportMrcForm4={handleExportMrcForm4}

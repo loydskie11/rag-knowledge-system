@@ -225,11 +225,13 @@ export function LandingPage() {
                 <div className="absolute -top-8 -right-8 bg-white rounded-2xl shadow-xl p-6 border border-[#E5E7EB]">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
-                      <Sparkles className="h-6 w-6 text-[#10B981]" />
+                      <MessageSquare className="h-6 w-6 text-[#10B981]" />
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-[#1F2937]">95%</div>
-                      <div className="text-sm text-[#6B7280]">Accuracy</div>
+                      <div className="text-2xl font-bold text-[#1F2937]">
+                        {stats.isLoading ? "..." : stats.queries}
+                      </div>
+                      <div className="text-sm text-[#6B7280]">Queries Processed</div>
                     </div>
                   </div>
                 </div>

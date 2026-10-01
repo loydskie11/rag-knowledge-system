@@ -53,6 +53,24 @@ export interface MrcForm5Data {
   approved_by?: string;
 }
 
+// MRC Form 6: Opportunities Identification (6 columns)
+export interface MrcForm6Row {
+  opportunity?: string;
+  action_plan?: string;
+  target_date?: string;
+  persons_responsible?: string;
+  date_of_assessment?: string;
+  date_of_completion?: string;
+}
+
+export interface MrcForm6Data {
+  unit_name?: string;
+  rows?: (MrcForm6Row | string[])[];
+  prepared_by?: string;
+  reviewed_by?: string;
+  approved_by?: string;
+}
+
 // MRC Form 7: Relevant Issues Log (8 columns)
 export interface MrcForm7Row {
   interested_parties?: string;
@@ -238,6 +256,44 @@ export function buildForm5Rows(rows?: (MrcForm5Row | string[])[], minRows = 15):
 }
 
 /**
+ * Builds table rows matching Form 6's 6-column layout:
+ * 1. Opportunity
+ * 2. Action Plan
+ * 3. Target Date
+ * 4. Person/s Responsible
+ * 5. Date of Assessment
+ * 6. Date of Actual Completion
+ */
+export function buildForm6Rows(rows?: (MrcForm6Row | string[])[], minRows = 15): string {
+  const rowList = rows || [];
+  const count = Math.max(rowList.length, minRows);
+  let rowsHtml = "";
+
+  for (let i = 0; i < count; i++) {
+    const r = rowList[i];
+    if (r) {
+      if (Array.isArray(r)) {
+        rowsHtml += `      <tr>${Array.from({ length: 6 }, (_, c) => `<td>${r[c] || "&nbsp;"}</td>`).join("")}</tr>\n`;
+      } else {
+        rowsHtml += `      <tr>
+        <td>${r.opportunity || "&nbsp;"}</td>
+        <td>${r.action_plan || "&nbsp;"}</td>
+        <td>${r.target_date || "&nbsp;"}</td>
+        <td>${r.persons_responsible || "&nbsp;"}</td>
+        <td>${r.date_of_assessment || "&nbsp;"}</td>
+        <td>${r.date_of_completion || "&nbsp;"}</td>
+      </tr>\n`;
+      }
+    } else {
+      rowsHtml += `      <tr>${"<td>&nbsp;</td>".repeat(6)}</tr>\n`;
+    }
+  }
+
+  return rowsHtml.trimEnd();
+}
+
+
+/**
  * Builds table rows matching Form 7's 8-column layout:
  * 1. INTERESTED PARTIES
  * 2. INTERNAL/EXTERNAL
@@ -328,6 +384,28 @@ export function resolveMrcForm5Tokens(templateHtml: string, data: MrcForm5Data =
 
   return html;
 }
+
+/**
+ * Resolves template placeholders and tokens for MRC Form 6 (Opportunities Identification).
+ */
+export function resolveMrcForm6Tokens(templateHtml: string, data: MrcForm6Data = {}): string {
+  let html = scopeTemplateStyles(templateHtml);
+
+  // Unit Name
+  html = html.split("[UNIT_NAME]").join(data.unit_name || "");
+
+  // Signatories
+  html = html.split("[PREPARED_BY]").join(data.prepared_by || "");
+  html = html.split("[REVIEWED_BY]").join(data.reviewed_by || "");
+  html = html.split("[APPROVED_BY]").join(data.approved_by || "");
+
+  // Table rows (6 columns)
+  const rowsHtml = buildForm6Rows(data.rows);
+  html = html.split("[LOGSHEET_ROWS]").join(rowsHtml);
+
+  return html;
+}
+
 
 /**
  * Resolves template placeholders and tokens for MRC Form 7 (Relevant Issues Log).
@@ -465,6 +543,27 @@ export async function exportMrcForm2(
   } catch (err: any) {
     console.error("exportMrcForm2 error:", err);
     showToast?.(err.message || "Failed to export MRC Form 2.", "error");
+    throw err;
+  }
+}
+
+/**
+ * Exports MRC Form 6 (Opportunities Identification) to the Document Studio.
+ */
+export async function exportMrcForm6(
+  data: MrcForm6Data,
+  navigate: NavigateFunction,
+  showToast?: (msg: string, type: "info" | "success" | "error" | "warning") => void
+): Promise<void> {
+  try {
+    showToast?.("Fetching MRC Form 6 Template...", "info");
+    const rawHtml = await fetchMrcTemplate("MRC Form 6 Template");
+    const resolvedHtml = resolveMrcForm6Tokens(rawHtml, data);
+    showToast?.("Redirecting to Document Studio...", "success");
+    navigate("/app/document-generator", { state: { injectedHtml: resolvedHtml } });
+  } catch (err: any) {
+    console.error("exportMrcForm6 error:", err);
+    showToast?.(err.message || "Failed to export MRC Form 6.", "error");
     throw err;
   }
 }
