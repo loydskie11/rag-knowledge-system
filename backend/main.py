@@ -31,6 +31,8 @@ from sanitizer import sanitize_user_input, check_prompt_injection
 from rag_evaluation import evidence_support
 import traceback
 import asyncio
+import logging
+import contextvars
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from PIL import Image as PILImage
@@ -38,6 +40,9 @@ from PIL import Image as PILImage
 # Dedicated thread pool for CPU-bound OCR and embedding tasks
 # This prevents PaddleOCR from saturating the FastAPI event loop / default threadpool
 _bg_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="doc_worker")
+_request_id = contextvars.ContextVar("request_id", default="-")
+_processing_status = {}
+_log = logging.getLogger("rag_governance")
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".docx", ".html", ".htm"}
@@ -234,6 +239,9 @@ def process_document_background(
     Background worker: handles heavy OCR + vector embedding after the HTTP response
     has already been sent. Also logs audit events so the request cycle stays fast.
     """
+    job_id = metadata.get("job_id") or str(uuid.uuid4())
+    metadata["job_id"] = job_id
+    _processing_status[job_id] = {"job_id": job_id, "name": metadata.get("name", filename), "status": "extracting", "message": "Extracting document text.", "updated_at": datetime.utcnow().isoformat()}
     try:
         extracted_text = ""
         filename_lower = filename.lower()
@@ -296,6 +304,7 @@ def process_document_background(
             extracted_text = "\n".join(parts)
 
         if not extracted_text.strip():
+            _processing_status[job_id].update(status="failed", message="No readable text could be extracted from this file.", chunks=0, updated_at=datetime.utcnow().isoformat())
             print(f"[BG] No text extracted from '{filename}' — skipping embedding.")
             return
 
@@ -303,7 +312,12 @@ def process_document_background(
         extracted_text = clean_ocr_text_offline(extracted_text)
 
         # ── Vector embedding ─────────────────────────────────────────────────
+        _processing_status[job_id].update(status="embedding", message="Generating searchable document embeddings.", updated_at=datetime.utcnow().isoformat())
         chunks_count = vector_store.add_to_vector_db(extracted_text, metadata)
+        if not chunks_count:
+            _processing_status[job_id].update(status="failed", message="Text was extracted, but no searchable chunks were created.", chunks=0, updated_at=datetime.utcnow().isoformat())
+            return
+        _processing_status[job_id].update(status="completed", message="Document is searchable.", chunks=chunks_count, updated_at=datetime.utcnow().isoformat())
         print(f"[BG] '{filename}' embedded: {chunks_count} chunks.")
 
         # ── Audit log ────────────────────────────────────────────────────────
@@ -327,6 +341,8 @@ def process_document_background(
             print(f"[BG] Audit log warning: {audit_err}")
 
     except Exception as e:
+        _processing_status[job_id].update(status="failed", message="Background processing failed. Check the request ID in server logs.", error=str(e), updated_at=datetime.utcnow().isoformat())
+        _log.exception("background_document_processing_failed", extra={"request_id": _request_id.get(), "job_id": job_id, "filename": filename})
         print(f"[BG] process_document_background error for '{filename}': {e}")
         import traceback as _tb
         _tb.print_exc()
@@ -712,6 +728,8 @@ app.add_middleware(
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Applies Security Headers to defeat Clickjacking, MIME sniffing, and XSS attacks."""
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    _request_id.set(request_id)
     if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.cookies.get("access_token"):
         csrf_exempt_paths = {"/login", "/logout", "/auth/send-otp", "/auth/verify-otp", "/register", "/send-reset-email", "/update-password"}
         if request.url.path not in csrf_exempt_paths:
@@ -722,7 +740,12 @@ async def add_security_headers(request: Request, call_next):
             csrf_valid = bool(csrf_cookie and csrf_header and secrets.compare_digest(csrf_cookie, csrf_header))
             if not csrf_valid and not origin_allowed:
                 return Response(content='{"detail":"CSRF validation failed."}', status_code=403, media_type="application/json")
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        _log.exception("request_failed", extra={"request_id": request_id, "method": request.method, "path": request.url.path})
+        raise
+    response.headers["X-Request-ID"] = request_id
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -1218,6 +1241,30 @@ def get_all_users(
         return []
 
 
+@app.post("/users", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
+def create_user(
+    payload: UserCreateRequest,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    email = payload.email.strip().lower()
+    if db.query(models.User).filter(models.User.email == email).first():
+        raise HTTPException(status_code=409, detail="A user with this email already exists.")
+    if payload.role.upper() not in {"ADMIN", "FACULTY", "STUDENT", "IQA"}:
+        raise HTTPException(status_code=400, detail="Invalid user role.")
+    user = models.User(
+        full_name=payload.full_name.strip(), email=email,
+        hashed_password=utils.hash_password(payload.password),
+        role=payload.role.upper(), administrative_office=payload.administrative_office,
+        is_iqa_auditor=payload.is_iqa_auditor or False,
+        is_verified=True, created_by_admin=True, status="Active",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 @app.put("/users/{user_id}/verify")
 def verify_user(
     user_id: str,
@@ -1386,9 +1433,12 @@ async def upload_document(
             "effectivity_date": effectivity_date,
             "upload_date":      datetime.now().isoformat(),
             "file_url":         public_url,
-            "status":           "Pending Review",
+            "status":           "Active",
             "uploaded_by":      uploaded_by or "Unknown",
         }
+        job_id = str(uuid.uuid4())
+        metadata["job_id"] = job_id
+        _processing_status[job_id] = {"job_id": job_id, "name": name, "status": "queued", "message": "Upload queued for background processing.", "updated_at": datetime.utcnow().isoformat()}
 
         # ── 2. Defer OCR + vector embedding to dedicated worker pool ─────
         background_tasks.add_task(
@@ -1419,6 +1469,8 @@ async def upload_document(
 
         # ── 4. Return immediately — OCR/embedding runs in background ─────
         return {
+            "job_id": job_id,
+            "status": "queued",
             "message": f"'{name}' uploaded successfully! Text extraction and indexing are running in the background.",
             "details": f"File saved to Storage. Vector embedding is processing asynchronously."
         }
@@ -1426,9 +1478,23 @@ async def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in upload-document: {str(e)}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        _log.exception("document_upload_failed", extra={"request_id": _request_id.get(), "filename": file.filename, "name": name})
+        raise HTTPException(status_code=500, detail=f"Document upload failed. Request ID: {_request_id.get()}") from e
+
+
+@app.get("/documents/processing-status")
+def get_document_processing_status(admin: models.User = Depends(get_current_admin)):
+    """Return recent in-process upload states for administrators."""
+    cutoff = datetime.utcnow().timestamp() - 3600
+    recent = []
+    for item in _processing_status.values():
+        try:
+            if datetime.fromisoformat(item.get("updated_at", "").replace("Z", "+00:00")).timestamp() < cutoff:
+                continue
+        except Exception:
+            pass
+        recent.append(item)
+    return sorted(recent, key=lambda item: item.get("updated_at", ""), reverse=True)
 
 
 @app.post("/upload-new-version")
@@ -1462,7 +1528,7 @@ async def upload_new_version(
         if old_chunks_res.data:
             for chunk in old_chunks_res.data:
                 chunk_meta           = chunk['metadata']
-                chunk_meta['status'] = "Archived"
+                chunk_meta['status'] = "Superseded"
                 supabase.table("document_sections").update({"metadata": chunk_meta}).eq("id", chunk['id']).execute()
 
         # ── 4. Read & upload new file to Supabase Storage immediately ────
@@ -1486,7 +1552,7 @@ async def upload_new_version(
             "effectivity_date": new_effectivity_date,
             "upload_date":      datetime.now().isoformat(),
             "file_url":         public_url,
-            "status":           "Pending Review",
+            "status":           "Active",
             "uploaded_by":      uploaded_by or "Unknown",
         }
 
@@ -1575,6 +1641,9 @@ def get_documents(
                 "version":          meta.get("version",          "1.0"),
                 "effectivity_date": meta.get("effectivity_date", ""),
                 "status":           meta.get("status",           "Active"),
+                "approved_by":      meta.get("approved_by",      ""),
+                "approved_at":      meta.get("approved_at",      ""),
+                "admin_feedback":   meta.get("admin_feedback",   ""),
                 "file_url":         meta.get("file_url",         ""),
                 "upload_date":      meta.get("upload_date",      ""),
                 "uploaded_by":      meta.get("uploaded_by",      "Unknown"),
@@ -2316,6 +2385,36 @@ def broadcast_notification(
 # SYSTEM STATS
 # ─────────────────────────────────────────────────────────────────────────────
 
+@app.get("/public-stats")
+def get_public_stats():
+    """Safe aggregate counts for the unauthenticated landing page."""
+    try:
+        document_rows = supabase.table("document_sections").select("metadata").limit(10000).execute().data or []
+        document_names = set()
+        for row in document_rows:
+            metadata = row.get("metadata") or {}
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except Exception:
+                    metadata = {}
+            if metadata.get("name"):
+                document_names.add(metadata["name"])
+
+        query_rows = supabase.table("chat_history").select("id", count="exact").limit(1).execute()
+        user_rows = supabase.table("users").select("id", count="exact").limit(1).execute()
+        return {
+            "documents": len(document_names),
+            "queries": query_rows.count or 0,
+            "users": user_rows.count or 0,
+        }
+    except Exception as exc:
+        _log.exception("public_stats_failed", extra={"request_id": _request_id.get()})
+        # The landing page should remain usable when an optional metric service
+        # is unavailable; do not expose database details to anonymous clients.
+        return {"documents": 0, "queries": 0, "users": 0}
+
+
 @app.get("/system-stats")
 def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     import json
@@ -2814,6 +2913,19 @@ def get_aaccup_requirements(area_code: Optional[str] = None, db: Session = Depen
     return query.order_by(models.AaccupRequirement.area_code.asc(), models.AaccupRequirement.created_at.asc()).all()
 
 
+@app.post("/aaccup/requirements", response_model=schemas.AaccupRequirementResponse, status_code=status.HTTP_201_CREATED)
+def create_aaccup_requirement(
+    req: schemas.AaccupRequirementCreate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    item = models.AaccupRequirement(**req.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 @app.put("/aaccup/requirements/{req_id}", response_model=schemas.AaccupRequirementResponse)
 def update_aaccup_requirement(
     req_id: str,
@@ -2830,6 +2942,16 @@ def update_aaccup_requirement(
     db.commit()
     db.refresh(db_req)
     return db_req
+
+
+@app.delete("/aaccup/requirements/{req_id}")
+def delete_aaccup_requirement(req_id: str, db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
+    item = db.query(models.AaccupRequirement).filter(models.AaccupRequirement.id == req_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    db.delete(item)
+    db.commit()
+    return {"message": "Requirement deleted"}
 
 
 
@@ -3022,6 +3144,37 @@ def log_document_access(log: AccessLogRequest, current_user: models.User = Depen
         return {"message": "Silent failure - do not disrupt user experience"}
 
 
+@app.get("/audit/access")
+def get_document_access_logs(current_user: models.User = Depends(get_current_user)):
+    """Return recent document access events for the administrator audit view."""
+    try:
+        is_admin = str(getattr(current_user, "role", "")).upper() == "ADMIN"
+        query = supabase.table("document_access_logs").select("*")
+        if not is_admin:
+            query = query.eq("user_email", current_user.email)
+        response = supabase_query_with_retry(
+            lambda: query.limit(500).execute()
+        )
+        # The deployed table uses `accessed_at`; older installations may use
+        # `created_at`. Sort after retrieval so either schema remains readable.
+        rows = response.data or []
+        rows.sort(key=lambda item: item.get("accessed_at") or item.get("created_at") or "", reverse=True)
+        return [
+            {
+                "id": item.get("id", index),
+                "user": item.get("user_email", "Unknown User"),
+                "role": item.get("user_role", "Unknown"),
+                "document": item.get("document_name", "Unknown Document"),
+                "action": item.get("action_type", "View"),
+                "timestamp": format_ph_time(item.get("accessed_at") or item.get("created_at", "")),
+            }
+            for index, item in enumerate(rows)
+        ]
+    except Exception as e:
+        print(f"[get_document_access_logs] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch document access logs")
+
+
 
 
 @app.get("/audit/versions")
@@ -3130,16 +3283,21 @@ def parse_grade_slip_universal(content_bytes: bytes) -> List[dict]:
             has_tables = True
             for tab in tabs.tables:
                 for row in tab.extract():
-                    cleaned_row = [c.replace('\n', ' ').strip() for c in row if c and c.strip()]
-                    if cleaned_row:
+                    # Keep empty cells: the CTU template has distinct columns
+                    # for Midterm, Final Term, and Final Grade. Removing blanks
+                    # shifts later values into the wrong grade column.
+                    cleaned_row = [c.replace('\n', ' ').strip() if c else "" for c in row]
+                    if any(cleaned_row):
                         all_table_rows.append(cleaned_row)
 
     if has_tables and len(all_table_rows) > 3:
         for row in all_table_rows:
             joined_row = " ".join(row).strip()
 
-            # Check if row is a semester header (e.g. ['1st Semester SY 2023-2024'])
-            if len(row) <= 2 and sem_header_pattern.search(joined_row):
+            # Table extraction may place a semester header across several
+            # cells. Match the complete row text instead of requiring one or
+            # two cells, otherwise all academic years get merged together.
+            if sem_header_pattern.search(joined_row) and not unit_pattern.match(row[0] if row else ""):
                 if current_semester and current_semester["subjects_scratchpad"]:
                     semesters.append(current_semester)
                 current_semester = {
@@ -3189,11 +3347,25 @@ def parse_grade_slip_universal(content_bytes: bytes) -> List[dict]:
 
                 # Extract grades from the remaining columns after units
                 trailing_cols = row[unit_idx + 1:]
-                row_grades = []
-                for c in trailing_cols:
-                    for part in c.split():
+
+                def grade_from_cell(value):
+                    for part in value.split():
                         if grade_pattern.match(part):
-                            row_grades.append(part)
+                            return part
+                    return ""
+
+                # In the official template, the final four columns are
+                # Midterm, Final Term, Final Grade, and Completion. Preserve
+                # their positions so a blank midterm/final-term does not make
+                # the final grade appear to be a term grade.
+                positioned_grades = []
+                if len(row) >= 4:
+                    positioned_grades = [grade_from_cell(c) for c in row[-4:-1]]
+                if len(positioned_grades) != 3 or not any(positioned_grades):
+                    row_grades = [grade_from_cell(c) for c in trailing_cols]
+                    row_grades = [g for g in row_grades if g]
+                else:
+                    row_grades = positioned_grades
 
                 midterm_grade = None
                 final_term_grade = None
@@ -3203,11 +3375,13 @@ def parse_grade_slip_universal(content_bytes: bytes) -> List[dict]:
                 # - 3 grades: [Midterm Grade (1st Term), Final Term (2nd Term), FINAL GRADE]
                 # - 2 grades: [Midterm Grade, FINAL GRADE]
                 # - 1 grade: Teacher omitted periodic marks and entered only FINAL GRADE
-                if len(row_grades) >= 3:
-                    midterm_grade = row_grades[0]
-                    final_term_grade = row_grades[1]
-                    last_g = row_grades[-1].upper()
+                if len(row_grades) == 3:
+                    midterm_grade = row_grades[0] or None
+                    final_term_grade = row_grades[1] or None
+                    last_g = row_grades[2].upper()
                 elif len(row_grades) == 2:
+                    # Legacy/non-tabular fallback only. The official table
+                    # path above always supplies three positional cells.
                     midterm_grade = row_grades[0]
                     last_g = row_grades[1].upper()
                 elif len(row_grades) == 1:
@@ -3434,6 +3608,19 @@ def get_car_forms(
     return query.order_by(models.CARForm.created_at.desc()).all()
 
 
+@app.post("/car-forms", response_model=schemas.CARFormResponse, status_code=status.HTTP_201_CREATED)
+def create_car_form(
+    payload: schemas.CARFormCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    item = models.CARForm(**payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 
 
 @app.put("/car-forms/{car_id}", response_model=schemas.CARFormResponse)
@@ -3457,6 +3644,16 @@ def update_car_form(
     db.commit()
     db.refresh(car)
     return car
+
+
+@app.delete("/car-forms/{car_id}")
+def delete_car_form(car_id: str, db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
+    car = db.query(models.CARForm).filter(models.CARForm.id == car_id).first()
+    if not car:
+        raise HTTPException(status_code=404, detail="CAR Form not found")
+    db.delete(car)
+    db.commit()
+    return {"message": "CAR Form deleted"}
 
 
 # CAR FORM OCR EXTRACTION
@@ -4044,6 +4241,26 @@ def get_system_settings(db: Session = Depends(get_db), admin: models.User = Depe
     }
 
 
+@app.put("/settings", response_model=SettingsSchema)
+def update_system_settings(payload: SettingsSchema, db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
+    values = payload.model_dump()
+    if _DB_IS_AVAILABLE:
+        settings = db.query(models.SystemSettings).filter(models.SystemSettings.id == 1).first()
+        if not settings:
+            settings = models.SystemSettings(id=1)
+            db.add(settings)
+        for key, value in values.items():
+            setattr(settings, key, value)
+        db.commit()
+        db.refresh(settings)
+        return settings
+    try:
+        res = supabase.table("system_settings").upsert({"id": 1, **values}).execute()
+        return res.data[0] if res.data else values
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Unable to save system settings") from exc
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # CHED MONITORING MODULE
 # ─────────────────────────────────────────────────────────────────────────────
@@ -4430,6 +4647,35 @@ def create_top_down_document_request(
     return new_record
 
 
+@app.get("/paper-trail", response_model=List[schemas.PaperTrailRecordResponse])
+def get_paper_trail_records(
+    role: Optional[str] = None,
+    email: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    """List paper-trail records visible to the authenticated user."""
+    query = db.query(models.PaperTrailRecord)
+    if current_user.role.upper() != "ADMIN":
+        office = (
+            getattr(current_user, "administrative_office", None)
+            or getattr(current_user, "department", None)
+            or ""
+        ).lower()
+        user_email = current_user.email.lower()
+        records = query.order_by(models.PaperTrailRecord.created_at.desc()).all()
+        return [
+            record for record in records
+            if (
+                (record.sender_email or "").lower() == user_email
+                or (record.recipient_email or "").lower() == user_email
+                or (office and office in (record.office or "").lower())
+                or (office and office in (record.current_location or "").lower())
+            )
+        ]
+    return query.order_by(models.PaperTrailRecord.created_at.desc()).all()
+
+
 @app.put("/paper-trail/{record_id}/fulfill", response_model=schemas.PaperTrailRecordResponse)
 def fulfill_document_request(
     record_id: str,
@@ -4720,6 +4966,16 @@ def update_iso_requirement(
     db.commit()
     db.refresh(req)
     return req
+
+
+@app.delete("/iso/requirements/{req_id}")
+def delete_iso_requirement(req_id: str, db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
+    req = db.query(models.ISORequirement).filter(models.ISORequirement.id == req_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="ISO requirement not found.")
+    db.delete(req)
+    db.commit()
+    return {"message": "ISO requirement deleted"}
 
 
 
@@ -5088,6 +5344,19 @@ def get_qms_action_plans(
     return query.order_by(models.QMSActionPlan.created_at.desc()).all()
 
 
+@app.post("/qms/action-plans", response_model=schemas.QMSActionPlanResponse, status_code=status.HTTP_201_CREATED)
+def create_qms_action_plan(
+    payload: schemas.QMSActionPlanCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    item = models.QMSActionPlan(**payload.model_dump(), created_by=current_user.email)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 
 
 @app.put("/qms/action-plans/{plan_id}", response_model=schemas.QMSActionPlanResponse)
@@ -5123,6 +5392,16 @@ def update_qms_action_plan(
     db.commit()
     db.refresh(plan)
     return plan
+
+
+@app.delete("/qms/action-plans/{plan_id}")
+def delete_qms_action_plan(plan_id: str, db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
+    plan = db.query(models.QMSActionPlan).filter(models.QMSActionPlan.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="QMS Action Plan not found.")
+    db.delete(plan)
+    db.commit()
+    return {"message": "QMS Action Plan deleted"}
 
 
 
@@ -5226,6 +5505,43 @@ def get_program_accreditation(program_code: str, db: Session = Depends(get_db), 
         db.commit()
         db.refresh(accreditation)
         
+    return accreditation
+
+
+@app.put("/accreditation/program/{program_code}", response_model=schemas.ProgramAccreditationResponse)
+def update_program_accreditation(
+    program_code: str,
+    req: schemas.UpgradeAccreditationRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    """Updates configurable AACCUP evaluation areas for a program."""
+    if current_user.role.upper() != "ADMIN" and not getattr(current_user, "is_iqa_auditor", False):
+        raise HTTPException(status_code=403, detail="Only administrators or IQA auditors may update evaluation areas.")
+
+    accreditation = db.query(models.ProgramAccreditation).filter(
+        models.ProgramAccreditation.program_code == program_code
+    ).first()
+    if not accreditation:
+        accreditation = models.ProgramAccreditation(
+            program_code=program_code,
+            current_level="Candidate Status",
+            status="Active",
+        )
+        db.add(accreditation)
+
+    if req.active_areas is not None:
+        areas = [area.strip() for area in req.active_areas.split(",") if area.strip()]
+        if not areas:
+            raise HTTPException(status_code=400, detail="At least one active evaluation area is required.")
+        allowed_areas = {f"Area {roman}" for roman in ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X")}
+        invalid = [area for area in areas if area not in allowed_areas]
+        if invalid:
+            raise HTTPException(status_code=400, detail=f"Invalid evaluation area: {invalid[0]}")
+        accreditation.active_areas = ",".join(dict.fromkeys(areas))
+
+    db.commit()
+    db.refresh(accreditation)
     return accreditation
 
 

@@ -95,10 +95,17 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
       // ── Fire-and-forget async upload ──────────────────────────────────────
       ;(async () => {
         try {
+          const csrfCookie = document.cookie
+            .split("; ")
+            .find((cookie) => cookie.startsWith("csrf_token="))
+            ?.split("=")[1]
+
           await fetch(endpoint, {
             method: "POST",
             body: formData,
             signal: controller.signal,
+            credentials: "include",
+            headers: csrfCookie ? { "X-CSRF-Token": decodeURIComponent(csrfCookie) } : {},
           }).then(async res => {
             if (!res.ok) {
               const text = await res.text().catch(() => "Unknown error")
@@ -120,7 +127,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
           updateTask(id, {
             progress: 100,
             status: "completed",
-            statusText: "Document active & searchable!",
+            statusText: "Document uploaded and searchable.",
           })
 
           onComplete?.(docName, isVersionUpdate)

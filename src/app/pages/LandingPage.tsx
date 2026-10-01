@@ -30,7 +30,7 @@ export function LandingPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await apiClient.get("/system-stats");
+        const response = await apiClient.get("/public-stats");
         setStats({
           documents: response.data.documents || 0,
           queries: response.data.queries || 0,
@@ -289,7 +289,7 @@ export function LandingPage() {
                 Trusted by CTU Community
               </h2>
               <p className="text-lg text-white/80 max-w-2xl mx-auto">
-                Join hundreds of faculty, staff, and students using our platform
+                A shared workspace for faculty, staff, and students at CTU Argao Campus
               </p>
             </div>
             <div className="grid md:grid-cols-3 gap-12">
@@ -306,8 +306,10 @@ export function LandingPage() {
                 <div className="text-base text-white/80">AI Queries Processed</div>
               </div>
               <div className="text-center">
-                <div className="text-5xl md:text-6xl font-bold text-white mb-2">95%</div>
-                <div className="text-base text-white/80">System Availability</div>
+                <div className="text-5xl md:text-6xl font-bold text-white mb-2">
+                  {stats.isLoading ? "-" : stats.users}
+                </div>
+                <div className="text-base text-white/80">Registered Users</div>
               </div>
             </div>
           </div>

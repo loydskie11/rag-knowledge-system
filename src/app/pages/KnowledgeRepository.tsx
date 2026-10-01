@@ -29,6 +29,7 @@ export function KnowledgeRepository() {
   const canDelete = currentRole === "ADMIN"
 
   const [documents, setDocuments] = useState<any[]>([])
+  const [processingStatuses, setProcessingStatuses] = useState<any[]>([])
   
   // Upload queue is now global (survives navigation) — managed by UploadQueueContext
   const { enqueueUpload } = useUploadQueue()
@@ -88,6 +89,10 @@ export function KnowledgeRepository() {
     try {
       const res = await apiClient.get(`/documents?t=${Date.now()}`);
       setDocuments(res.data);
+      if (currentRole === "ADMIN") {
+        const statusRes = await apiClient.get(`/documents/processing-status?t=${Date.now()}`);
+        setProcessingStatuses(statusRes.data || []);
+      }
     } catch (error) {
       console.error("Failed to fetch documents", error);
     }
@@ -95,7 +100,7 @@ export function KnowledgeRepository() {
 
   useEffect(() => {
     loadDocs();
-  }, []);
+  }, [currentRole]);
 
   const getAccessBadge = () => {
     if (canUpload && canEdit) {
@@ -548,6 +553,22 @@ export function KnowledgeRepository() {
         </div>
       </div>
 
+      {currentRole === "ADMIN" && processingStatuses.length > 0 && (
+        <div className="space-y-2">
+          {processingStatuses.slice(0, 5).map((item) => (
+            <div key={item.job_id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-gray-800">{item.name}</p>
+                <p className="truncate text-[11px] text-gray-500">{item.message}</p>
+              </div>
+              <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${item.status === "failed" ? "border-rose-200 bg-rose-50 text-rose-700" : item.status === "completed" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+                {item.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex-1 h-auto bg-white rounded-xl border border-gray-200 shadow-2xs flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 h-auto overflow-auto">
           <table className="w-full whitespace-nowrap relative table-fixed">
@@ -574,7 +595,9 @@ export function KnowledgeRepository() {
                   <tr key={doc.id || `${doc.name}-${doc.version || '1.0'}-${idx}`} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-4 py-3 overflow-hidden">
                       <div className="text-xs font-semibold text-gray-900 truncate" title={doc.name}>{doc.name}</div>
-                      <div className="text-[10px] text-gray-400 mt-0.5 truncate">{doc.status === "Archived" ? "Historical Record" : "Active File"}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5 truncate">
+                        {doc.status === "Archived" ? "Historical Record" : doc.status === "Superseded" ? "Replaced by newer version" : "Repository File"}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600 truncate flex flex-col items-start gap-1" title={doc.category}>
                       <span>{doc.category}</span>
@@ -599,12 +622,26 @@ export function KnowledgeRepository() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 inline-flex text-[10px] font-medium rounded-full border ${
-                        doc.status === "Archived" 
-                          ? "bg-gray-100 text-gray-600 border-gray-200" 
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200/60"
+                        doc.status === "Archived" || doc.status === "Superseded"
+                          ? "bg-gray-100 text-gray-600 border-gray-200"
+                          : doc.status === "Approved"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
+                            : doc.status === "Needs Revision"
+                              ? "bg-rose-50 text-rose-700 border-rose-200/60"
+                              : "bg-amber-50 text-amber-700 border-amber-200/60"
                       }`}>
                         {doc.status || "Active"}
                       </span>
+                      {doc.status === "Approved" && doc.approved_by && (
+                        <div className="mt-1 text-[10px] text-gray-400 truncate" title={doc.approved_at || undefined}>
+                          Approved by {doc.approved_by}
+                        </div>
+                      )}
+                      {doc.status === "Needs Revision" && doc.admin_feedback && (
+                        <div className="mt-1 text-[10px] text-rose-600 truncate" title={doc.admin_feedback}>
+                          {doc.admin_feedback}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">

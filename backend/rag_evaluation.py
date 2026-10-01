@@ -25,12 +25,17 @@ def text_quality(text: str) -> dict[str, float | bool]:
     characters = len(value)
     alphanumeric = sum(char.isalnum() for char in value)
     ratio = alphanumeric / max(characters, 1)
-    repeated_noise = bool(re.search(r"(.)\1{7,}", value))
-    acceptable = characters >= 80 and ratio >= 0.35 and not repeated_noise
+    # Do not reject legitimate form/document separators such as underscores,
+    # table rules, or repeated punctuation. Only treat a large control-character
+    # payload as extraction noise.
+    control_characters = sum(1 for char in value if ord(char) < 32 and char not in "\n\r\t")
+    control_ratio = control_characters / max(characters, 1)
+    acceptable = characters >= 80 and ratio >= 0.35 and control_ratio < 0.02
     return {
         "acceptable": acceptable,
         "characters": characters,
         "alphanumeric_ratio": round(ratio, 4),
+        "control_ratio": round(control_ratio, 4),
     }
 
 

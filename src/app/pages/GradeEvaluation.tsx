@@ -254,16 +254,33 @@ export function GradeEvaluation() {
                 </div>
 
                 {Array.isArray(result.semesters) && (
-                  <div className="mb-6 space-y-3">
+                    <div className="mb-6 space-y-4">
                     <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">
                       Semester Breakdown
                     </h3>
                     
                     {result.semesters.map((sem, idx) => {
                       const math = getAccurateMath(sem); 
+                      const yearMatch = (sem.semester_name || "").match(/(?:SY|AY)\s*(\d{4}-\d{4})/i);
+                      const academicYear = yearMatch ? yearMatch[1] : "Academic Record";
+                      const previousYearMatch = idx > 0
+                        ? (result.semesters[idx - 1].semester_name || "").match(/(?:SY|AY)\s*(\d{4}-\d{4})/i)
+                        : null;
+                      const isNewAcademicYear = idx === 0 || academicYear !== (previousYearMatch ? previousYearMatch[1] : "Academic Record");
                       
                       return (
-                        <div key={idx} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-2xs transition-all">
+                        <div key={idx} className="space-y-2">
+                          {isNewAcademicYear && (
+                            <div className="flex items-center gap-3 pt-2 pb-1">
+                              <div className="h-px flex-1 bg-gray-200" />
+                              <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">
+                                <Calendar className="h-3 w-3" />
+                                {academicYear}
+                              </span>
+                              <div className="h-px flex-1 bg-gray-200" />
+                            </div>
+                          )}
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-2xs transition-all">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4">
                             
                             <div className="flex items-center gap-3 mb-3 sm:mb-0">
@@ -357,6 +374,7 @@ export function GradeEvaluation() {
                               </p>
                             </div>
                           )}
+                          </div>
                         </div>
                       );
                     })}
