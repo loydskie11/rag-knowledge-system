@@ -14,12 +14,20 @@ export const apiClient = axios.create({
   },
 });
 
-// Request Interceptor: Attach bearer token automatically if present
+function readCookie(name: string): string | null {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+// HttpOnly cookie is the primary credential. Add the double-submit CSRF token
+// to state-changing requests authenticated by that cookie.
 apiClient.interceptors.request.use(
   (config) => {
-    const token = sessionStorage.getItem("userToken");
-    if (token && token !== "null" && token !== "undefined") {
-      config.headers.Authorization = `Bearer ${token}`;
+    const method = (config.method || "get").toLowerCase();
+    if (["post", "put", "patch", "delete"].includes(method)) {
+      const csrf = readCookie("csrf_token");
+      if (csrf) config.headers["X-CSRF-Token"] = csrf;
     }
     return config;
   },

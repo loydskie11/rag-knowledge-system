@@ -28,6 +28,7 @@ import time
 import re
 from rate_limiter import limiter
 from sanitizer import sanitize_user_input, check_prompt_injection
+from rag_evaluation import evidence_support
 import traceback
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -49,6 +50,14 @@ STUDENT_HIDDEN_CATEGORIES = {
 
 def is_student_hidden_category(category: str | None) -> bool:
     return (category or "").strip().lower() in STUDENT_HIDDEN_CATEGORIES
+
+
+def create_private_file_url(path: str, expires_in: int = 900) -> str:
+    """Return a short-lived URL for the private documents bucket."""
+    if not supabase:
+        return ""
+    result = supabase.storage.from_("documents").create_signed_url(path, expires_in)
+    return result.get("signedURL") or result.get("signedUrl") or ""
 
 async def read_upload_limited(file: UploadFile) -> bytes:
     """Read an upload with a hard size limit and basic content-signature validation."""
@@ -696,13 +705,23 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Accept", "Content-Type", "Authorization", "X-Requested-With"],
 )
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Applies Security Headers to defeat Clickjacking, MIME sniffing, and XSS attacks."""
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.cookies.get("access_token"):
+        csrf_exempt_paths = {"/login", "/logout", "/auth/send-otp", "/auth/verify-otp", "/register", "/send-reset-email", "/update-password"}
+        if request.url.path not in csrf_exempt_paths:
+            csrf_cookie = request.cookies.get("csrf_token")
+            csrf_header = request.headers.get("X-CSRF-Token")
+            origin = request.headers.get("Origin")
+            origin_allowed = bool(origin and origin in allowed_origins)
+            csrf_valid = bool(csrf_cookie and csrf_header and secrets.compare_digest(csrf_cookie, csrf_header))
+            if not csrf_valid and not origin_allowed:
+                return Response(content='{"detail":"CSRF validation failed."}', status_code=403, media_type="application/json")
     response = await call_next(request)
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -1053,6 +1072,14 @@ def login_user(
         samesite="lax",
         secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
     )
+    response.set_cookie(
+        key="csrf_token",
+        value=secrets.token_urlsafe(32),
+        httponly=False,
+        max_age=60 * 60 * 8,
+        samesite="lax",
+        secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
+    )
 
     # Audit log
     try:
@@ -1072,7 +1099,6 @@ def login_user(
         user_dept = "ADMIN" if getattr(user, "role", "") == "ADMIN" else "Unassigned"
 
     return {
-        "access_token": access_token,
         "token_type":   "bearer",
         "full_name":    getattr(user, "full_name", None) or "CTU User",
         "email":        getattr(user, "email", form_data.username),
@@ -1089,6 +1115,7 @@ def login_user(
 def logout_user(response: Response):
     """Clears HttpOnly auth cookie on logout."""
     response.delete_cookie(key="access_token", samesite="lax")
+    response.delete_cookie(key="csrf_token", samesite="lax")
     return {"message": "Successfully logged out."}
 
 
@@ -1349,7 +1376,7 @@ async def upload_document(
             path=unique_filename,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = supabase.storage.from_("documents").get_public_url(unique_filename)
+        public_url = create_private_file_url(unique_filename)
 
         metadata = {
             "name":             name,
@@ -1359,7 +1386,7 @@ async def upload_document(
             "effectivity_date": effectivity_date,
             "upload_date":      datetime.now().isoformat(),
             "file_url":         public_url,
-            "status":           "Active",
+            "status":           "Pending Review",
             "uploaded_by":      uploaded_by or "Unknown",
         }
 
@@ -1449,7 +1476,7 @@ async def upload_new_version(
             path=unique_filename,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = supabase.storage.from_("documents").get_public_url(unique_filename)
+        public_url = create_private_file_url(unique_filename)
 
         new_metadata = {
             "name":             old_document_name,
@@ -1459,7 +1486,7 @@ async def upload_new_version(
             "effectivity_date": new_effectivity_date,
             "upload_date":      datetime.now().isoformat(),
             "file_url":         public_url,
-            "status":           "Active",
+            "status":           "Pending Review",
             "uploaded_by":      uploaded_by or "Unknown",
         }
 
@@ -1532,6 +1559,8 @@ def get_documents(
                 continue
 
             if current_user.role.upper() == "STUDENT" and is_student_hidden_category(meta.get("category")):
+                continue
+            if current_user.role.upper() == "STUDENT" and str(meta.get("status") or "Active").lower() not in {"active", "approved", "published"}:
                 continue
 
             if category and meta.get("category") != category: continue
@@ -1617,6 +1646,30 @@ def update_document(
 # ─────────────────────────────────────────────────────────────────────────────
 # DOCUMENTS — ARCHIVE / DELETE
 # ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/documents/{doc_name}/approve")
+def approve_document(
+    doc_name: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Publish all chunks for a document after administrator review."""
+    try:
+        chunks = supabase.table("document_sections").select("id, metadata").eq("metadata->>name", doc_name).execute()
+        if not chunks.data:
+            raise HTTPException(status_code=404, detail="Document not found in the knowledge repository.")
+        for chunk in chunks.data:
+            metadata = chunk.get("metadata") or {}
+            metadata["status"] = "Approved"
+            metadata["approved_by"] = admin.email
+            metadata["approved_at"] = datetime.now().isoformat()
+            supabase.table("document_sections").update({"metadata": metadata}).eq("id", chunk["id"]).execute()
+        return {"message": f"Document '{doc_name}' approved and published to the RAG index."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Document approval error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to approve document.")
 
 @app.delete("/documents/{doc_name}")
 def archive_document(
@@ -1914,6 +1967,20 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
         optimized_query, excluded_categories=excluded_categories
     )
 
+    # Do not spend an LLM call, or risk a guess, when retrieval evidence is
+    # weak. The score is the hybrid semantic/lexical score from vector_store.
+    best_score = max(
+        (float(chunk.get('confidence_score') or 0.0) for chunk in relevant_chunks),
+        default=0.0,
+    )
+    if relevant_chunks and best_score < 0.38:
+        return {
+            "answer": "I do not have enough verified evidence in the knowledge repository to answer that confidently. Please rephrase the question or ask the responsible office.",
+            "sources": [],
+            "follow_ups": [],
+            "retrieval": {"best_score": round(best_score, 4), "answerable": False},
+        }
+
     # Early exit: student is asking about a restricted topic.
     # Check this BEFORE the generic 'not found' so they get a clear reason.
     if user_role == "STUDENT" and excluded_categories:
@@ -2097,6 +2164,13 @@ SOURCE DOCUMENTS:
                     follow_ups.append(clean_q)
                 if len(follow_ups) == 3: break
 
+        # A deterministic post-generation grounding check catches responses
+        # that sound fluent but are not materially supported by retrieved text.
+        support_score = evidence_support(answer, [chunk.get("content", "") for chunk in relevant_chunks])
+        if support_score < 0.20:
+            answer = "I do not have enough verified evidence in the retrieved policy text to answer that confidently. Please rephrase the question or consult the responsible office."
+            follow_ups = []
+
     except Exception as e:
         print(f"Cloud API Error: {e}")
         return {"answer": "I'm having a bit of trouble connecting to the network. Please try again in a moment!", "sources": [], "follow_ups": []}
@@ -2130,7 +2204,8 @@ SOURCE DOCUMENTS:
         {key: value for key, value in source.items() if key != "_score"}
         for source in unique_sources.values()
     ]
-    final_sources = sources if "I am sorry" not in answer and "I'm sorry" not in answer and len(context_text) > 10 else []
+    uncertainty_response = "I do not have enough verified evidence" in answer
+    final_sources = sources if not uncertainty_response and "I am sorry" not in answer and "I'm sorry" not in answer and len(context_text) > 10 else []
 
     # ==========================================
     # 8. ORIGINAL CHAT HISTORY SAVING
@@ -2144,7 +2219,13 @@ SOURCE DOCUMENTS:
     return {
         "answer": answer,
         "sources": final_sources,
-        "follow_ups": follow_ups
+        "follow_ups": follow_ups,
+        "retrieval": {
+            "best_score": round(best_score, 4),
+            "answerable": bool(final_sources),
+            "source_count": len(final_sources),
+            "evidence_support": round(evidence_support(answer, [chunk.get("content", "") for chunk in relevant_chunks]), 4),
+        },
     }
 
 
@@ -2236,7 +2317,7 @@ def broadcast_notification(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/system-stats")
-def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db)):
+def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     import json
 
     total_docs     = 0
@@ -2414,7 +2495,9 @@ def submit_feedback(request: FeedbackRequest):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/chat-history")
-def get_chat_history(email: str):
+def get_chat_history(email: str, current_user: models.User = Depends(get_current_user)):
+    if email.lower() != current_user.email.lower() and current_user.role.upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="You may only access your own chat history.")
     seven_days_ago = (datetime.now() - timedelta(days=7)).isoformat()
 
     try:
@@ -2443,6 +2526,7 @@ async def upload_accreditation_evidence(
     area_code:           str = Form(...),
     requirement_target:  str = Form(...),
     uploaded_by:         str = Form(None),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
 ):
     import time, io, PyPDF2
     from datetime import datetime
@@ -2487,7 +2571,7 @@ async def upload_accreditation_evidence(
         supabase.storage.from_("documents").upload(
             file=contents, path=unique_filename, file_options={"content-type": file.content_type}
         )
-        public_url = supabase.storage.from_("documents").get_public_url(unique_filename)
+        public_url = create_private_file_url(unique_filename)
 
         metadata = {
             "name": document_name,
@@ -2526,7 +2610,7 @@ async def upload_accreditation_evidence(
 
 # --- NEW: ADMIN REVIEW QUEUE ROUTE ---
 @app.get("/admin/accreditation-pending")
-def get_pending_accreditation():
+def get_pending_accreditation(admin: models.User = Depends(get_current_admin)):
     from vector_store import supabase
     try:
         res = supabase.table("document_sections").select("metadata").eq("metadata->>category", "Accreditation Evidence").eq("metadata->>status", "Pending").execute()
@@ -2593,7 +2677,7 @@ def review_accreditation(
 
 # 2. THE UPDATED STATUS ROUTE (Database-driven AACCUP requirements)
 @app.get("/accreditation-status/{program}")
-def get_accreditation_status(program: str, db: Session = Depends(get_db)):
+def get_accreditation_status(program: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     try:
         # Fetch active areas configuration for the program if exists
         active_areas_set = None
@@ -2667,7 +2751,7 @@ def get_accreditation_status(program: str, db: Session = Depends(get_db)):
 
 
 @app.get("/accreditation-details/{program}/{area_code}")
-def get_accreditation_details(program: str, area_code: str, db: Session = Depends(get_db)):
+def get_accreditation_details(program: str, area_code: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     try:
         response = supabase.table("document_sections")\
             .select("metadata")\
@@ -2754,7 +2838,7 @@ def update_aaccup_requirement(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/analytics/recent")
-def get_recent_questions():
+def get_recent_questions(current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Return recent user queries, aggressively filtering out greetings and small talk."""
     try:
         from vector_store import supabase
@@ -2821,7 +2905,7 @@ def get_recent_questions():
 
 
 @app.get("/analytics/popular")
-def get_popular_topics():
+def get_popular_topics(current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Return the top recurring topics from chat history to power the Popular Topics panel."""
     try:
         response = supabase_query_with_retry(lambda: supabase.table("chat_history").select("content").eq("role", "user").execute())
@@ -2901,7 +2985,7 @@ def format_ph_time(raw_date: str) -> str:
 
 
 @app.get("/audit/queries")
-def get_query_logs():
+def get_query_logs(admin: models.User = Depends(get_current_admin)):
     try:
         response = supabase_query_with_retry(lambda: supabase.table("chat_history").select("*").eq("role", "user").order("created_at", desc=True).limit(100).execute())
 
@@ -2924,7 +3008,7 @@ def get_query_logs():
 
 
 @app.post("/audit/access")
-def log_document_access(log: AccessLogRequest):
+def log_document_access(log: AccessLogRequest, current_user: models.User = Depends(get_current_user)):
     try:
         supabase.table("document_access_logs").insert({
             "document_name": log.document_name,
@@ -2941,7 +3025,7 @@ def log_document_access(log: AccessLogRequest):
 
 
 @app.get("/audit/versions")
-def get_version_history():
+def get_version_history(admin: models.User = Depends(get_current_admin)):
     try:
         response  = supabase_query_with_retry(lambda: supabase.table("document_sections").select("metadata").execute())
         raw_logs  = []
@@ -2982,7 +3066,7 @@ def get_version_history():
 
 
 @app.get("/audit/system")
-def get_system_events():
+def get_system_events(admin: models.User = Depends(get_current_admin)):
     try:
         response = supabase_query_with_retry(lambda: supabase.table("system_events_logs").select("*").order("event_date", desc=True).limit(100).execute())
 
@@ -3231,7 +3315,7 @@ def build_ctu_evaluation_result(semesters: List[dict]) -> dict:
 
 
 @app.post("/evaluate-grades")
-async def evaluate_grades(file: UploadFile = File(...)):
+async def evaluate_grades(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
     """
     Evaluates CTU grade slip PDFs.
     Uses universal PyMuPDF table geometry analysis (find_tables) for structured PDFs across all programs,
@@ -3478,7 +3562,9 @@ Return a pure JSON object exactly like this, replacing the values with the actua
 # ================================================================================================================
 
 @app.get("/notifications", response_model=List[NotificationOut])
-def get_notifications(email: str, filter: str = "all", db: Session = Depends(get_db)):
+def get_notifications(email: str, filter: str = "all", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if email.lower() != current_user.email.lower() and current_user.role.upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="You may only access your own notifications.")
     if not email:
         raise HTTPException(status_code=400, detail="email query param is required")
 
@@ -3517,7 +3603,9 @@ def get_notifications(email: str, filter: str = "all", db: Session = Depends(get
 
 
 @app.get("/notifications/count")
-def get_notification_count(email: str, db: Session = Depends(get_db)):
+def get_notification_count(email: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if email.lower() != current_user.email.lower() and current_user.role.upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="You may only access your own notifications.")
     if not email:
         raise HTTPException(status_code=400, detail="email query param is required")
 
@@ -3556,8 +3644,10 @@ def get_notification_count(email: str, db: Session = Depends(get_db)):
 
 
 @app.patch("/notifications/mark-all-read")
-def mark_all_notifications_read(payload: dict = Body(...), db: Session = Depends(get_db)):
+def mark_all_notifications_read(payload: dict = Body(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     email = payload.get("email")
+    if email and email.lower() != current_user.email.lower() and current_user.role.upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="You may only modify your own notifications.")
     if not email:
         raise HTTPException(status_code=400, detail="email is required in request body")
 
@@ -3590,7 +3680,7 @@ def mark_all_notifications_read(payload: dict = Body(...), db: Session = Depends
 
 
 @app.patch("/notifications/{notification_id}/read")
-def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
+def mark_notification_read(notification_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     try:
         response = (
             supabase.table("notifications")
@@ -3621,8 +3711,10 @@ def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
 
 
 @app.delete("/notifications/delete-read")
-def delete_read_notifications(payload: dict = Body(...)):
+def delete_read_notifications(payload: dict = Body(...), current_user: models.User = Depends(get_current_user)):
     email = payload.get("email")
+    if email and email.lower() != current_user.email.lower() and current_user.role.upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="You may only delete your own notifications.")
     if not email:
         raise HTTPException(status_code=400, detail="email is required in request body")
 
@@ -3925,7 +4017,7 @@ def mark_announcement_read(announcement_id: str, db: Session = Depends(get_db)):
 
 # --- SETTINGS ROUTES ---
 @app.get("/settings", response_model=SettingsSchema)
-def get_system_settings(db: Session = Depends(get_db)):
+def get_system_settings(db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
     if _DB_IS_AVAILABLE:
         try:
             settings = db.query(models.SystemSettings).filter(models.SystemSettings.id == 1).first()
@@ -4005,7 +4097,7 @@ def update_ched_requirement(
 
 
 @app.get("/ched/requirements/{program}", response_model=List[schemas.ChedRequirementResponse])
-def get_ched_requirements(program: str, db: Session = Depends(get_db)):
+def get_ched_requirements(program: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Fetches all requirements for a specific program (e.g., BSIT), including nested attached files."""
     reqs = db.query(models.ChedRequirement).filter(models.ChedRequirement.program == program).all()
     return reqs
@@ -4037,7 +4129,7 @@ async def upload_ched_evidence(
         supabase.storage.from_("documents").upload(
             file=contents, path=unique_filename, file_options={"content-type": file.content_type}
         )
-        public_url = supabase.storage.from_("documents").get_public_url(unique_filename)
+        public_url = create_private_file_url(unique_filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to upload file to storage.")
 
@@ -4505,7 +4597,7 @@ def update_paper_trail_status(
 
 
 @app.post("/paper-trail/upload")
-async def upload_paper_trail_attachment(file: UploadFile = File(...)):
+async def upload_paper_trail_attachment(file: UploadFile = File(...), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Uploads an optional file attachment for a paper trail record."""
     try:
         contents = await read_upload_limited(file)
@@ -4517,7 +4609,7 @@ async def upload_paper_trail_attachment(file: UploadFile = File(...)):
             path=unique_filename,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = supabase.storage.from_("documents").get_public_url(unique_filename)
+        public_url = create_private_file_url(unique_filename)
         return {"file_url": public_url, "filename": file.filename}
     except Exception as exc:
         print(f"[upload_paper_trail_attachment] error: {exc}")
@@ -4529,7 +4621,7 @@ async def upload_paper_trail_attachment(file: UploadFile = File(...)):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/iso/cycles", response_model=List[str])
-def get_iso_cycles(db: Session = Depends(get_db)):
+def get_iso_cycles(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Retrieves all distinct audit cycle years present in the system, sorted."""
     cycles = db.query(models.ISORequirement.cycle_year).distinct().all()
     cycle_list = [c[0] for c in cycles if c[0]]
@@ -4561,7 +4653,7 @@ def initialize_iso_cycle(
 
 
 @app.get("/iso/requirements/{program}", response_model=List[schemas.ISORequirementResponse])
-def get_iso_requirements(program: str, cycle_year: Optional[str] = "2026 Recertification", db: Session = Depends(get_db)):
+def get_iso_requirements(program: str, cycle_year: Optional[str] = "2026 Recertification", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Retrieves ISO 9001:2015 clause checklists for the campus (Institutional QMS) per cycle year."""
     target_prog = "GLOBAL"
     target_cycle = cycle_year or "2026 Recertification"
@@ -4640,7 +4732,8 @@ async def upload_iso_evidence(
     document_name: str = Form(...),
     uploaded_by: str = Form(...),
     program: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin)
 ):
     """Uploads an evidence file linked to an ISO clause requirement."""
     req = db.query(models.ISORequirement).filter(models.ISORequirement.id == requirement_id).first()
@@ -4658,7 +4751,7 @@ async def upload_iso_evidence(
             path=unique_path,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = supabase.storage.from_("documents").get_public_url(unique_path)
+        public_url = create_private_file_url(unique_path)
 
         # ── 2. Write SQL record synchronously (so UI updates instantly) ───
         new_evidence = models.ISOEvidence(
@@ -4705,7 +4798,7 @@ async def upload_iso_evidence(
 
 
 @app.get("/iso/evidences/pending")
-def get_pending_iso_evidences(db: Session = Depends(get_db)):
+def get_pending_iso_evidences(db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
     """Retrieves all pending ISO evidences for the Admin Review Queue."""
     result = []
     if _DB_IS_AVAILABLE:
@@ -4811,7 +4904,8 @@ def update_iso_evidence_status(
 @app.delete("/iso/evidence/{evidence_id}")
 def delete_iso_evidence(
     evidence_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin)
 ):
     """Deletes an ISO evidence file."""
     ev = db.query(models.ISOEvidence).filter(models.ISOEvidence.id == evidence_id).first()
@@ -4882,7 +4976,7 @@ def update_iso_status(
 
 
 @app.get("/iso/schedule/{program}", response_model=schemas.IQAScheduleResponse)
-def get_iqa_schedule(program: str, db: Session = Depends(get_db)):
+def get_iqa_schedule(program: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Retrieves or seeds the dynamic 3-Day IQA Audit Program Schedule for the campus (Institutional QMS)."""
     target_prog = "GLOBAL"
     sched = db.query(models.IQASchedule).filter(models.IQASchedule.program == target_prog).first()
@@ -4931,7 +5025,7 @@ DEFAULT_IQA_DAYS = [
 
 
 @app.get("/iso/schedule-days", response_model=List[schemas.IQADayScheduleResponse])
-def get_iqa_schedule_days(cycle_year: str = Query("2026 Recertification"), db: Session = Depends(get_db)):
+def get_iqa_schedule_days(cycle_year: str = Query("2026 Recertification"), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Retrieves dynamic IQA Audit Days for the campus QMS filtered by cycle year."""
     if _DB_IS_AVAILABLE:
         try:
@@ -4984,7 +5078,8 @@ def update_iqa_schedule_day(
 def get_qms_action_plans(
     cycle_year: str = Query("2025 Surveillance"),
     office: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin)
 ):
     """Retrieves QMS Action Plans filtered by cycle year and optional auditee office."""
     query = db.query(models.QMSActionPlan).filter(models.QMSActionPlan.cycle_year == cycle_year)
@@ -5073,7 +5168,7 @@ async def upload_qms_action_plan_evidence(
                 file=contents,
                 file_options={"content-type": file.content_type}
             )
-            file_url = supabase.storage.from_("documents").get_public_url(file_path)
+            file_url = create_private_file_url(file_path)
     except Exception as e:
         print(f"Supabase upload notice: {e}")
 
@@ -5095,7 +5190,7 @@ async def upload_qms_action_plan_evidence(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/accreditation/program/{program_code}", response_model=schemas.ProgramAccreditationResponse)
-def get_program_accreditation(program_code: str, db: Session = Depends(get_db)):
+def get_program_accreditation(program_code: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Fetches the current level and history for a program. Initializes default if none exists."""
     accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
     
@@ -5265,7 +5360,7 @@ async def upload_historical_certificate(
             path=unique_path,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = supabase.storage.from_("documents").get_public_url(unique_path)
+        public_url = create_private_file_url(unique_path)
         
         history_log.certificate_url = public_url
         db.commit()
@@ -6158,7 +6253,7 @@ def _upload_asset_to_storage(asset_bytes: bytes, prefix: str) -> str | None:
         supabase.storage.from_("documents").upload(
             file=asset_bytes, path=path, file_options={"content-type": "image/png"}
         )
-        return supabase.storage.from_("documents").get_public_url(path)
+        return create_private_file_url(path)
     except Exception as e:
         print(f"[_upload_asset_to_storage] warning: {e}")
         return None

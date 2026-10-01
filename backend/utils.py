@@ -12,10 +12,7 @@ load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
-    # Strong random key for runtime security if missing in .env
-    import secrets
-    SECRET_KEY = secrets.token_hex(32)
-    print("[WARNING] SECRET_KEY not found in .env! A temporary random key has been generated for this process runtime.")
+    raise RuntimeError("SECRET_KEY must be configured before starting the backend.")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8  # 8 hours session

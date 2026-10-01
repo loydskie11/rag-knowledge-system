@@ -72,14 +72,14 @@ export function LoginPage() {
       sessionStorage.setItem('userName', response.data.full_name);
       sessionStorage.setItem('userEmail', response.data.email);
       sessionStorage.setItem('userRole', response.data.role);
+      // Authentication is now carried by the HttpOnly cookie; remove legacy
+      // browser-accessible JWTs left by older sessions.
+      sessionStorage.removeItem('userToken');
       sessionStorage.setItem('userDepartment', response.data.department || '');
       sessionStorage.setItem('userAdministrativeOffice', response.data.administrative_office || '');
       sessionStorage.setItem('isIqaAuditor', String(response.data.is_iqa_auditor || false));
       sessionStorage.setItem('createdByAdmin', String(response.data.created_by_admin || false));
       sessionStorage.setItem('emailChanged', String(response.data.email_changed || false));
-      if (response.data.access_token) {
-        sessionStorage.setItem('userToken', response.data.access_token);
-      }
       
       setUserRole(response.data.role);
       navigate("/app");

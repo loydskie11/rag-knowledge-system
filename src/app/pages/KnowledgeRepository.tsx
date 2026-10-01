@@ -277,6 +277,16 @@ export function KnowledgeRepository() {
     }
   }
 
+  const approveDocument = async (doc: any) => {
+    try {
+      await apiClient.post(`/documents/${encodeURIComponent(doc.name)}/approve`)
+      await loadDocs()
+      showToast(`"${doc.name}" is now approved and searchable.`, "success")
+    } catch (error) {
+      showToast("Failed to approve document.", "error")
+    }
+  }
+
   const handleUpdateVersionClick = (doc: any) => {
     setDocToUpdate(doc)
     setUpdateFormData({ version: "", effectivityDate: "" })
@@ -616,6 +626,11 @@ export function KnowledgeRepository() {
                               <Archive className="h-3.5 w-3.5" />
                             </button>
                           </>
+                        )}
+                        {currentRole === "ADMIN" && doc.status === "Pending Review" && (
+                          <button onClick={() => approveDocument(doc)} className="text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer p-1" title="Approve and publish document">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                          </button>
                         )}
                       </div>
                     </td>

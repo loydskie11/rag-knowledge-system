@@ -5,6 +5,7 @@ from supabase import create_client, Client
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 from rag_policy import NON_RAG_CATEGORIES, is_non_rag_category
+from rag_evaluation import text_quality
 
 # Path logic to find .env even if run from different folders
 load_dotenv()
@@ -99,6 +100,11 @@ def add_to_vector_db(text: str, metadata: dict) -> int:
     """
     if is_non_rag_category((metadata or {}).get("category")):
         print("[INFO] Skipping non-RAG document category during vector indexing.")
+        return 0
+
+    quality = text_quality(text)
+    if not quality["acceptable"]:
+        print(f"[WARNING] Skipping low-quality extraction: {quality}")
         return 0
 
     if supabase is None:
@@ -237,12 +243,47 @@ def search_knowledge(
         meta = r.get('metadata') or {}
         if meta.get('status') == 'Archived':
             continue
+        # New uploads are reviewable but must not answer users until approved.
+        if str(meta.get('status') or 'Active').strip().lower() not in {
+            'active', 'approved', 'published'
+        }:
+            continue
         if str(meta.get('category') or '').strip().lower() in excluded:
             continue
+        content = str(r.get('content') or '').lower()
+        query_terms = set(meaningful_words)
+        lexical_coverage = (
+            sum(1 for word in query_terms if word.lower() in content) / len(query_terms)
+            if query_terms else 0.0
+        )
+        semantic_score = float(r.get('confidence_score') or 0.0)
+        # Semantic similarity handles paraphrases; lexical coverage protects
+        # exact policy terms and improves ranking for names, codes, and dates.
+        r['semantic_score'] = semantic_score
+        r['lexical_score'] = lexical_coverage
+        r['confidence_score'] = round((semantic_score * 0.75) + (lexical_coverage * 0.25), 6)
         filtered_results.append(r)
 
     # Sort by confidence score descending so best semantic matches come first
     filtered_results.sort(key=lambda x: x.get('confidence_score', 0), reverse=True)
 
-    # Return only the top matches
-    return filtered_results[:match_count]
+    # Prefer the newest active version when legacy data contains duplicates.
+    def version_key(value: Any) -> tuple:
+        numbers = re.findall(r'\d+', str(value or '0'))
+        return tuple(int(number) for number in numbers) or (0,)
+
+    newest_version_by_name: Dict[str, tuple] = {}
+    for item in filtered_results:
+        meta = item.get('metadata') or {}
+        name = str(meta.get('name') or item.get('id') or '')
+        item_version = version_key(meta.get('version'))
+        if item_version > newest_version_by_name.get(name, (0,)):
+            newest_version_by_name[name] = item_version
+
+    deduped = [
+        item for item in filtered_results
+        if version_key((item.get('metadata') or {}).get('version'))
+        == newest_version_by_name.get(str((item.get('metadata') or {}).get('name') or item.get('id') or ''))
+    ]
+    deduped.sort(key=lambda x: x.get('confidence_score', 0), reverse=True)
+    return deduped[:match_count]

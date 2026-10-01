@@ -35,7 +35,7 @@ class UserResponse(BaseModel):
 
 # What we send back when the user successfully logs in
 class Token(BaseModel):
-    access_token: str
+    access_token: Optional[str] = None
     token_type: str
     full_name: str  # NEW
     email: str      # NEW
