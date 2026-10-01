@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from supabase import create_client, Client
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
+from rag_policy import NON_RAG_CATEGORIES, is_non_rag_category
 
 # Path logic to find .env even if run from different folders
 load_dotenv()
@@ -96,6 +97,10 @@ def add_to_vector_db(text: str, metadata: dict) -> int:
     """
     Encodes text using intelligent chunking and inserts chunks + embeddings into Supabase.
     """
+    if is_non_rag_category((metadata or {}).get("category")):
+        print("[INFO] Skipping non-RAG document category during vector indexing.")
+        return 0
+
     if supabase is None:
         print("[WARNING] add_to_vector_db called but supabase client is not initialized!")
         return 0
@@ -144,6 +149,12 @@ def search_knowledge(
         return []
 
     combined_results: List[Dict[str, Any]] = []
+    excluded = {
+        str(category).strip().lower()
+        for category in (excluded_categories or [])
+        if category
+    }
+    excluded.update(NON_RAG_CATEGORIES)
     seen_ids = set()
 
     # ---------------------------------------------------------
@@ -200,6 +211,8 @@ def search_knowledge(
                     .execute()
 
                 for item in (kw_res.data or []):
+                    if is_non_rag_category((item.get('metadata') or {}).get('category')):
+                        continue
                     item_id = item.get('id') or item.get('content', '')[:50]
                     if item_id and item_id not in seen_ids:
                         seen_ids.add(item_id)
@@ -224,7 +237,7 @@ def search_knowledge(
         meta = r.get('metadata') or {}
         if meta.get('status') == 'Archived':
             continue
-        if excluded_categories and meta.get('category') in excluded_categories:
+        if str(meta.get('category') or '').strip().lower() in excluded:
             continue
         filtered_results.append(r)
 

@@ -1,6 +1,6 @@
 import smtplib
 import os
-import random # NEW
+import secrets
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -45,7 +45,7 @@ def decode_access_token(token: str) -> dict:
         raise e
 
 
-def send_forgot_password_email(target_email: str):
+def send_forgot_password_email(target_email: str, otp_code: str):
     sender_email = os.getenv("EMAIL_ADDRESS")
     sender_password = os.getenv("EMAIL_APP_PASSWORD")
 
@@ -57,15 +57,14 @@ def send_forgot_password_email(target_email: str):
     message["From"] = f"CTU Argao Support <{sender_email}>"
     message["To"] = target_email
 
-    reset_link = f"http://localhost:5173/login?showReset=true&email={target_email}"
-
     html = f"""
     <html>
         <body style="font-family: Arial, sans-serif;">
             <div style="padding: 20px; border: 1px solid #ddd;">
                 <h2>Password Reset</h2>
-                <p>Click the link below to reset your password:</p>
-                <a href="{reset_link}" style="background: #1D6FA3; color: white; padding: 10px; text-decoration: none;">Reset Password</a>
+                <p>Use this one-time verification code to reset your password:</p>
+                <p style="font-size: 24px; font-weight: bold; letter-spacing: 4px;">{otp_code}</p>
+                <p>This code expires in 10 minutes.</p>
             </div>
         </body>
     </html>
@@ -78,11 +77,14 @@ def send_forgot_password_email(target_email: str):
 
 # --- NEW: OTP LOGIC ---
 def generate_otp():
-    return str(random.randint(100000, 999999))
+    return f"{secrets.randbelow(900000) + 100000:06d}"
 
 def send_otp_email(target_email: str, otp_code: str):
-    sender_email = os.getenv("EMAIL_ADDRESS", "ragadmin123@gmail.com")
-    sender_password = os.getenv("EMAIL_APP_PASSWORD", "ragsample123")
+    sender_email = os.getenv("EMAIL_ADDRESS")
+    sender_password = os.getenv("EMAIL_APP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        raise ValueError("Email credentials missing in .env file")
 
     message = MIMEMultipart("alternative")
     message["Subject"] = f"Your CTU Knowledge System Verification Code: {otp_code}"
@@ -112,6 +114,7 @@ def send_otp_email(target_email: str, otp_code: str):
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, target_email, message.as_string())
-        print(f"[OTP] Sent verification email to {target_email} (Code: {otp_code})")
+        print(f"[OTP] Sent verification email to {target_email}")
     except Exception as e:
-        print(f"[OTP] SMTP send failed: {e}. Active OTP code is: {otp_code}")
+        print(f"[OTP] SMTP send failed: {e}")
+        raise

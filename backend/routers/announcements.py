@@ -6,12 +6,16 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from database import get_db
-from dependencies import get_current_user, supabase
+from dependencies import get_current_admin, get_current_user, supabase
 
 router = APIRouter(tags=["Broadcast Announcements"])
 
 @router.post("/announcements", response_model=schemas.AnnouncementResponse)
-def create_announcement(announcement: schemas.AnnouncementCreate, db: Session = Depends(get_db)):
+def create_announcement(
+    announcement: schemas.AnnouncementCreate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
     """Creates a new broadcast announcement."""
     sent_dt = datetime.utcnow()
     
@@ -49,7 +53,10 @@ def create_announcement(announcement: schemas.AnnouncementCreate, db: Session = 
     return db_announcement
 
 @router.get("/announcements", response_model=List[schemas.AnnouncementResponse])
-def get_announcements(db: Session = Depends(get_db)):
+def get_announcements(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """Fetches all broadcast announcements, newest first."""
     try:
         return db.query(models.Announcement).order_by(models.Announcement.sent_date.desc()).all()
@@ -63,7 +70,10 @@ def get_announcements(db: Session = Depends(get_db)):
         return []
 
 @router.get("/users/counts")
-def get_user_counts(db: Session = Depends(get_db)):
+def get_user_counts(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
     """Fetches real-time counts of active accounts for broadcast distribution."""
     try:
         students = db.query(models.User).filter(models.User.role == "STUDENT", models.User.status == "Active").count()
@@ -91,7 +101,12 @@ def get_user_counts(db: Session = Depends(get_db)):
     }
 
 @router.put("/announcements/{announcement_id}", response_model=schemas.AnnouncementResponse)
-def update_announcement(announcement_id: str, req: schemas.AnnouncementUpdate, db: Session = Depends(get_db)):
+def update_announcement(
+    announcement_id: str,
+    req: schemas.AnnouncementUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
     """Updates an existing broadcast announcement."""
     announcement = db.query(models.Announcement).filter(models.Announcement.id == announcement_id).first()
     if not announcement:
@@ -116,7 +131,11 @@ def update_announcement(announcement_id: str, req: schemas.AnnouncementUpdate, d
     return announcement
 
 @router.delete("/announcements/{announcement_id}")
-def delete_announcement(announcement_id: str, db: Session = Depends(get_db)):
+def delete_announcement(
+    announcement_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
     """Deletes a draft or pending announcement."""
     announcement = db.query(models.Announcement).filter(models.Announcement.id == announcement_id).first()
     if not announcement:
@@ -130,7 +149,11 @@ def delete_announcement(announcement_id: str, db: Session = Depends(get_db)):
     return {"message": "Announcement deleted successfully."}
 
 @router.post("/announcements/{announcement_id}/read")
-def mark_announcement_read(announcement_id: str, db: Session = Depends(get_db)):
+def mark_announcement_read(
+    announcement_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     """Increments the read count on a received announcement."""
     announcement = db.query(models.Announcement).filter(models.Announcement.id == announcement_id).first()
     if not announcement:

@@ -98,6 +98,9 @@ export function LoginPage() {
     try {
       const response = await apiClient.post("/send-reset-email", { email: resetEmail });
       setResetStatus({ type: 'success', msg: response.data.message });
+      setUpdateEmail(resetEmail);
+      setIsModalOpen(false);
+      setIsUpdateModalOpen(true);
     } catch (error: any) {
       setResetStatus({ type: 'error', msg: error.response?.data?.detail || "Failed to send reset email." });
     } finally {
@@ -278,7 +281,7 @@ export function LoginPage() {
             </div>
             
             <form onSubmit={handleForgotPassword} className="p-6 space-y-4">
-              <p className="text-sm text-gray-500 leading-relaxed">Enter your registered email address and we'll send you instructions to reset your password.</p>
+              <p className="text-sm text-gray-500 leading-relaxed">Enter your registered email address and we'll send a one-time verification code.</p>
               
               {resetStatus && (
                 <div className={`p-3.5 rounded-xl flex items-start gap-2.5 ${resetStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
@@ -314,7 +317,7 @@ export function LoginPage() {
                       Sending...
                     </>
                   ) : (
-                    "Send Reset Link"
+                    "Send Verification Code"
                   )}
                 </button>
               </div>

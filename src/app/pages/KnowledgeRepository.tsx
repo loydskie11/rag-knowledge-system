@@ -110,9 +110,20 @@ export function KnowledgeRepository() {
   const accessBadge = getAccessBadge()
 
   const filteredDocuments = documents.filter((doc) => {
-    // 1. STUDENTS: Accreditation Evidence is completely hidden for security/confidentiality
-    if (currentRole === "STUDENT" && doc.category === "Accreditation Evidence") {
-      return false; 
+    // Students must not see template or branding assets in any category spelling.
+    const normalizedCategory = String(doc.category || "").trim().toLowerCase();
+    if (currentRole === "STUDENT" && [
+      "form / template",
+      "forms / templates",
+      "branding asset",
+      "branding assets",
+    ].includes(normalizedCategory)) {
+      return false;
+    }
+
+    // Accreditation evidence is also restricted for students.
+    if (currentRole === "STUDENT" && normalizedCategory === "accreditation evidence") {
+      return false;
     }
 
     // 2. FACULTY: Program-Restricted filtering for Accreditation Evidence
@@ -298,7 +309,7 @@ export function KnowledgeRepository() {
       office: docToUpdate.office || "",
       version: updateFormData.version,
       fileName: updateFile.name,
-      endpoint: "http://localhost:8000/upload-new-version",
+      endpoint: "/api/upload-new-version",
       formData: submitData,
       isVersionUpdate: true,
       onComplete: (name, isVersionUpdate) => {
@@ -359,7 +370,7 @@ export function KnowledgeRepository() {
       office: formData.office,
       version: formData.version,
       fileName: selectedFile.name,
-      endpoint: "http://localhost:8000/upload-document",
+      endpoint: "/api/upload-document",
       formData: submitData,
       isVersionUpdate: false,
       onComplete: (name) => {
@@ -474,8 +485,10 @@ export function KnowledgeRepository() {
                 <option value="Memorandum">Memorandum</option>
                 <option value="Resolution">Resolution</option>
                 <option value="Accreditation Evidence">Accreditation Evidence</option>
-                <option value="Forms / Templates">Forms / Templates</option>
+                {currentRole !== "STUDENT" && <>
+                  <option value="Forms / Templates">Forms / Templates</option>
                   <option value="Branding Asset">Branding Asset</option>
+                </>}
                 <option value="Other">Other</option>
               </select>
               

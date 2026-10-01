@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "/api";
 const POLL_INTERVAL_MS = 20_000; // poll every 20 seconds
 
 export type NotificationType = "info" | "success" | "warning" | "error";

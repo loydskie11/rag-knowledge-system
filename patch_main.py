@@ -1,21 +1,44 @@
-﻿import sys
+import sys
 
-with open(r"c:\Projects\rag-governance\backend\main.py", "r", encoding="utf-8") as f:
+with open('backend/main.py', 'r', encoding='utf-8') as f:
     content = f.read()
 
-# Replace inside extract_pdf_text
-content = content.replace(
-    'page_ocr = run_ocr(ocr_instance, img_array)\n            ocr_text += (page_ocr if page_ocr.strip() else page_text) + "\\n"',
-    'page_ocr = run_ocr(ocr_instance, img_array)\n            if is_complex_ocr_garbage(page_ocr):\n                print(f"[OCR] Page {page_num} detected as complex/garbage. Falling back to llama3.2-vision...")\n                vision_text = extract_with_vision(img_array)\n                if vision_text.strip():\n                    page_ocr = vision_text\n            ocr_text += (page_ocr if page_ocr.strip() else page_text) + "\\n"'
-)
+old_str = """    # Final safety net: strip any restricted chunks that slipped through
+    safe_chunks = [
+        chunk for chunk in relevant_chunks
+        if chunk.get('metadata', {}).get('status') != 'Archived'
+        and not is_non_rag_category(chunk.get('metadata', {}).get('category'))
+        and chunk.get('metadata', {}).get('category') not in excluded_categories
+    ]
+    relevant_chunks = safe_chunks"""
 
-# Replace inside process_document_background
-content = content.replace(
-    'extracted_text = run_ocr(ocr, img_array)\n        elif filename_lower.endswith',
-    'extracted_text = run_ocr(ocr, img_array)\n            if is_complex_ocr_garbage(extracted_text):\n                print(f"[OCR] Image {filename} detected as complex/garbage. Falling back to llama3.2-vision...")\n                vision_text = extract_with_vision(img_array)\n                if vision_text.strip():\n                    extracted_text = vision_text\n        elif filename_lower.endswith'
-)
+new_str = """    # Final safety net: strip any restricted chunks that slipped through
+    safe_chunks = []
+    for chunk in relevant_chunks:
+        meta = chunk.get('metadata') or {}
+        if isinstance(meta, str):
+            import json
+            try: meta = json.loads(meta)
+            except: meta = {}
+            
+        status = str(meta.get('status', '')).strip().lower()
+        cat = str(meta.get('category', '')).strip()
+        
+        if status == 'archived':
+            continue
+        if is_non_rag_category(cat):
+            continue
+        if cat in excluded_categories:
+            continue
+            
+        safe_chunks.append(chunk)
 
-with open(r"c:\Projects\rag-governance\backend\main.py", "w", encoding="utf-8") as f:
-    f.write(content)
+    relevant_chunks = safe_chunks"""
 
-print("Replaced text")
+if old_str in content:
+    content = content.replace(old_str, new_str)
+    with open('backend/main.py', 'w', encoding='utf-8') as f:
+        f.write(content)
+    print("Successfully replaced.")
+else:
+    print("Old string not found!")

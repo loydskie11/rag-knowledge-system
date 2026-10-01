@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Lock, CheckCircle2, AlertCircle } from "lucide-react";
+import { X, Lock, KeyRound, CheckCircle2, AlertCircle } from "lucide-react";
 import { apiClient } from "../api/client";
 
 interface ResetPasswordModalProps {
@@ -11,6 +11,7 @@ interface ResetPasswordModalProps {
 export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPasswordModalProps) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
@@ -24,8 +25,13 @@ export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPass
       return;
     }
 
-    if (newPassword.length < 6) {
-      setStatus({ type: 'error', msg: "Password must be at least 6 characters." });
+    if (newPassword.length < 8) {
+      setStatus({ type: 'error', msg: "Password must be at least 8 characters." });
+      return;
+    }
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setStatus({ type: 'error', msg: "Enter the 6-digit verification code sent to your email." });
       return;
     }
 
@@ -35,6 +41,7 @@ export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPass
     try {
       const response = await apiClient.post("/update-password", {
         email: email,
+        otp_code: verificationCode,
         new_password: newPassword
       });
       
@@ -77,6 +84,23 @@ export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPass
           )}
 
           <div>
+            <label className="block text-xs font-semibold mb-1.5 text-gray-700">Verification Code</label>
+            <div className="relative">
+              <KeyRound className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                inputMode="numeric"
+                required
+                maxLength={6}
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs font-semibold tracking-[0.3em] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
+                placeholder="000000"
+              />
+            </div>
+          </div>
+
+          <div>
             <label className="block text-xs font-semibold mb-1.5 text-gray-700">New Password</label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -86,7 +110,7 @@ export default function ResetPasswordModal({ isOpen, email, onClose }: ResetPass
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-gray-50/60 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all"
-                placeholder="Enter new password (min. 6 characters)"
+                placeholder="Enter new password (min. 8 characters)"
               />
             </div>
           </div>

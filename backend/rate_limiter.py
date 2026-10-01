@@ -1,4 +1,5 @@
 import time
+import os
 from collections import defaultdict
 from typing import Dict, List, Tuple
 from fastapi import Request, HTTPException, status
@@ -34,9 +35,11 @@ class RateLimiter:
         now = time.time()
         self._cleanup_old_entries(now, max_age=window_seconds * 2)
 
-        # Extract client IP address (respecting X-Forwarded-For if behind a proxy)
+        # Only trust proxy-provided client addresses when the deployment explicitly
+        # opts in. Direct clients can forge X-Forwarded-For.
         client_ip = request.client.host if request.client else "127.0.0.1"
-        forwarded_for = request.headers.get("X-Forwarded-For")
+        trust_proxy_headers = os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true"
+        forwarded_for = request.headers.get("X-Forwarded-For") if trust_proxy_headers else None
         if forwarded_for:
             client_ip = forwarded_for.split(",")[0].strip()
 
