@@ -206,6 +206,18 @@ def search_knowledge(
         if w.lower() not in stop_words
     ]
 
+    # Institutional acronyms often do not appear verbatim in the source PDF.
+    # Expand known governance terms for lexical retrieval while keeping the
+    # original semantic query unchanged.
+    query_aliases = {
+        "vmgo": ["vision", "mission", "goals", "outcomes"],
+        "vmg": ["vision", "mission", "goals"],
+    }
+    expanded_words = []
+    for word in meaningful_words:
+        expanded_words.extend(query_aliases.get(word.lower(), [word]))
+    meaningful_words = list(dict.fromkeys(expanded_words))
+
     if len(combined_results) < match_count and meaningful_words:
         try:
             # Search each meaningful keyword and collect unique matching chunks
@@ -286,4 +298,41 @@ def search_knowledge(
         == newest_version_by_name.get(str((item.get('metadata') or {}).get('name') or item.get('id') or ''))
     ]
     deduped.sort(key=lambda x: x.get('confidence_score', 0), reverse=True)
+
+    # Document-level questions such as VMGO request several sections from one
+    # uploaded document. Top-k similarity alone can return Vision/Mission while
+    # dropping a lower-scoring Outcomes chunk from that same document. Once a
+    # relevant source is identified, bring in the remaining chunks from that
+    # source so the answer model sees the complete requested bundle.
+    bundle_terms = {"vmgo", "vision", "mission", "goals", "outcomes"}
+    if bundle_terms.intersection({word.lower() for word in meaningful_words}) and deduped:
+        source_names = {
+            str((item.get('metadata') or {}).get('name') or '')
+            for item in deduped[:2]
+            if (item.get('metadata') or {}).get('name')
+        }
+        for source_name in source_names:
+            try:
+                source_rows = supabase.table("document_sections").select("id, content, metadata").eq("metadata->>name", source_name).limit(50).execute()
+                existing_ids = {item.get('id') for item in deduped}
+                for item in (source_rows.data or []):
+                    meta = item.get('metadata') or {}
+                    if item.get('id') in existing_ids:
+                        continue
+                    if str(meta.get('status') or 'Active').strip().lower() not in {'active', 'approved', 'published'}:
+                        continue
+                    if str(meta.get('category') or '').strip().lower() in excluded:
+                        continue
+                    item['score_source'] = 'document_context'
+                    item['semantic_score'] = 0.40
+                    item['lexical_score'] = 0.0
+                    item['confidence_score'] = 0.40
+                    deduped.append(item)
+            except Exception as bundle_err:
+                print(f"[Document Context Warning]: {bundle_err}")
+    # Keep the complete matched document for bundle questions. The normal
+    # top-k limit is useful for focused questions, but it can silently drop
+    # sections such as Outcomes from a VMGO request.
+    if bundle_terms.intersection({word.lower() for word in meaningful_words}) and deduped:
+        return deduped[:50]
     return deduped[:match_count]

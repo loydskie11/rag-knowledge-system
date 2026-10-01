@@ -2123,14 +2123,16 @@ Fix all typos. Do not answer the question, ONLY output the optimized search stri
             return best[:max_chars] + ("..." if len(best) > max_chars else "")
         return sentences[0][:max_chars] + ("..." if len(sentences[0]) > max_chars else "")
 
-    # Do not expose source metadata to the generation model. Attribution is
-    # rendered separately by the UI; putting titles/versions in the prompt
-    # makes smaller models copy them into the answer verbatim.
+    # Keep source metadata available for disambiguation (for example, a year
+    # present in a filename but absent from the extracted body), while making
+    # it explicit that metadata must never be echoed as answer prose.
     formatted_snippets = []
     for idx, chunk in enumerate(relevant_chunks, 1):
         cleaned_body = _clean_chunk_text(chunk['content'])
+        chunk_meta = chunk.get('metadata') or {}
+        source_hint = str(chunk_meta.get('name') or 'Institutional document')
         formatted_snippets.append(
-            f"--- EVIDENCE {idx} ---\n{cleaned_body}\n"
+            f"--- EVIDENCE {idx} (internal source hint: {source_hint}) ---\n{cleaned_body}\n"
         )
     context_text = "\n\n".join(formatted_snippets)
 
@@ -2162,7 +2164,7 @@ CRITICAL RULES — NO EXCEPTIONS:
 ═══════════════════════════════════════════════════════════
 
 RULE 1 — ZERO HALLUCINATION (STRICT GROUNDING).
-Your answer must be derived EXCLUSIVELY from the SOURCE DOCUMENTS provided below. You must NEVER invent, assume, or pull from general outside knowledge. If the documents do not explicitly contain the answer, you must gracefully reply: "I apologize, but I don't have the specific updated policy document to answer that right now. Please consult your department head or the relevant office." 
+Your answer must be derived EXCLUSIVELY from the SOURCE DOCUMENTS provided below. You must NEVER invent, assume, or pull from general outside knowledge. If only part of a multi-part question is supported, answer the supported parts and identify only the unsupported part. Do not refuse the entire question just because one requested detail is missing.
 
 RULE 2 — THE ERRATUM RULE (RESOLVE CONFLICTS BY EFFECTIVITY & CONTEXT).
 If the SOURCE DOCUMENTS contain conflicting information about the same topic (e.g., an older 2024 Student Handbook vs. a 2026 VMGO Memo), you MUST evaluate the timeline logically. 
@@ -2171,9 +2173,14 @@ Use only the policy text in the evidence. If the evidence conflicts, explain the
 RULE 3 — EXACT METRICS & QUOTES.
 When stating dates, percentages, grades, requirements, or deadlines, output them exactly as written in the latest source.
 
+RULE 3A — CONTEXT AND FILENAME DISAMBIGUATION.
+Internal source hints may contain a document name or year that helps identify which uploaded document the evidence came from. You may use that metadata to resolve the user's reference, such as treating "VMGO 2026" as the uploaded 2026 VMGO document even when the body text does not repeat the year. Do not present the filename, source hint, version, office, or effectivity date in the answer unless the user explicitly asks for source details. Never use metadata to invent facts that are absent from the evidence.
+
 RULE 4 — FORMATTING.
 - Start with the direct answer. Do not start with "According to", a document header, or a long evidence summary.
 - Use short paragraphs or bullets for steps and lists.
+- For requests containing several items, answer each supported item in a clear bullet list.
+- If evidence supports Vision, Mission, Goals, or Outcomes separately, provide each available section instead of returning a blanket "not enough evidence" response.
 - Do not repeat title, office, version, effectivity date, or other document metadata unless the user asks for it or it is necessary to resolve a conflict.
 - Do not add a references section. The interface supplies source cards from the exact evidence chunks used.
 - If the evidence does not answer the question, say so clearly and do not guess.
