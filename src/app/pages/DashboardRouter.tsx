@@ -13,6 +13,8 @@ export function DashboardRouter() {
       return <AdminDashboard />;
     case "FACULTY":
       return <FacultyDashboard />;
+    case "DOCUMENT_CONTROLLER":
+      return <FacultyDashboard />;
     case "STUDENT":
       return <StudentDashboard />;
     default:

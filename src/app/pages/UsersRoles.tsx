@@ -175,7 +175,14 @@ export function UsersRoles() {
   };
 
   const handleAddUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setAddUserData({ ...addUserData, [e.target.name]: e.target.value });
+    const value = e.target.value;
+    setAddUserData({
+      ...addUserData,
+      [e.target.name]: value,
+      ...(e.target.name === "role" && value === "DOCUMENT_CONTROLLER"
+        ? { administrative_office: "Document Control Office", is_iqa_auditor: false }
+        : {}),
+    });
   };
 
   const handleAddUserSubmit = async (e: React.FormEvent) => {
@@ -218,6 +225,7 @@ export function UsersRoles() {
       if (editingUser.id) {
         await apiClient.put(`/users/${editingUser.id}/details`, {
           administrative_office: editingUser.administrative_office || null,
+          role: editingUser.role,
           is_iqa_auditor: Boolean(editingUser.is_iqa_auditor),
           designation: editingUser.designation || "Faculty Member",
           designation_entity: assignedEntity,
@@ -274,6 +282,7 @@ export function UsersRoles() {
 
   const roleStats = [
     { role: "Administrator", userCount: users.filter(u => u.role === "ADMIN").length, color: "#DD7230" },
+    { role: "Document Controller", userCount: users.filter(u => u.role === "DOCUMENT_CONTROLLER").length, color: "#1D4ED8" },
     { role: "Faculty", userCount: users.filter(u => u.role === "FACULTY").length, color: "#FDB913" },
     { role: "Student", userCount: users.filter(u => u.role === "STUDENT").length, color: "#006837" }
   ];
@@ -317,7 +326,7 @@ export function UsersRoles() {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {roleStats.map((stat) => (
           <div key={stat.role} className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs flex items-center justify-between">
             <div>
@@ -402,6 +411,7 @@ export function UsersRoles() {
               >
                 <option value="all">All Roles</option>
                 <option value="ADMIN">Admin</option>
+                <option value="DOCUMENT_CONTROLLER">Document Controller</option>
                 <option value="FACULTY">Faculty</option>
                 <option value="STUDENT">Student</option>
               </select>
@@ -582,6 +592,7 @@ export function UsersRoles() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">System Role <span className="text-rose-500">*</span></label>
                 <select name="role" value={addUserData.role} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
                   <option value="ADMIN">Administrator</option>
+                  <option value="DOCUMENT_CONTROLLER" disabled={users.some((u) => u.role === "DOCUMENT_CONTROLLER")}>Document Controller (one campus account)</option>
                   <option value="FACULTY">Faculty</option>
                   <option value="STUDENT">Student</option>
                 </select>
@@ -638,7 +649,7 @@ export function UsersRoles() {
                 </>
               )}
 
-              {addUserData.role !== "STUDENT" && (
+              {addUserData.role !== "STUDENT" && addUserData.role !== "DOCUMENT_CONTROLLER" && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Administrative Office (ISO Matrix)</label>
                   <select 
@@ -652,6 +663,12 @@ export function UsersRoles() {
                       <option key={off} value={off}>{off}</option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {addUserData.role === "DOCUMENT_CONTROLLER" && (
+                <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 text-xs text-blue-800">
+                  This sole campus role is assigned to the Document Control Office and has exclusive authority to modify Paper Trail records.
                 </div>
               )}
 
@@ -723,6 +740,24 @@ export function UsersRoles() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">System Role</label>
+                <select
+                  value={editingUser.role || "FACULTY"}
+                  onChange={(e) => setEditingUser({
+                    ...editingUser,
+                    role: e.target.value,
+                    ...(e.target.value === "DOCUMENT_CONTROLLER" ? { administrative_office: "Document Control Office", is_iqa_auditor: false } : {}),
+                  })}
+                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
+                >
+                  <option value="ADMIN">Administrator</option>
+                  <option value="DOCUMENT_CONTROLLER" disabled={users.some((u) => u.role === "DOCUMENT_CONTROLLER" && u.id !== editingUser.id)}>Document Controller (one campus account)</option>
+                  <option value="FACULTY">Faculty</option>
+                  <option value="STUDENT">Student</option>
+                </select>
+              </div>
+
               {editingUser.role === "FACULTY" && (
                 <>
                   <div>
@@ -774,7 +809,7 @@ export function UsersRoles() {
                 </>
               )}
 
-              {editingUser.role !== "STUDENT" && (
+              {editingUser.role !== "STUDENT" && editingUser.role !== "DOCUMENT_CONTROLLER" && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Administrative Office (ISO Matrix)</label>
                   <select 
@@ -788,6 +823,12 @@ export function UsersRoles() {
                     ))}
                   </select>
                   <p className="text-[10px] text-gray-400 mt-1">Assigning an office scopes ISO audit dashboards to that unit.</p>
+                </div>
+              )}
+
+              {editingUser.role === "DOCUMENT_CONTROLLER" && (
+                <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 text-xs text-blue-800">
+                  Assigned to Document Control Office. This user alone can register, attach, route, return, and close Paper Trail records.
                 </div>
               )}
 

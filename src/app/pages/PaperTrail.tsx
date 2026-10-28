@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import {
   Search, Plus, FileCheck, CheckCircle2, AlertCircle,
   FileText, Send, Printer, X, Loader2,
-  ChevronRight, History, QrCode, ExternalLink
+  ChevronRight, History, QrCode, ExternalLink, ShieldCheck
 } from "lucide-react";
-import axios from "axios";
 import { useRole } from "../contexts/RoleContext";
 import { ISO_OFFICES_16, CAMPUS_COLLEGES, CAMPUS_PROGRAMS } from "./UsersRoles";
 import { apiClient } from "../api/client";
@@ -36,6 +35,7 @@ interface PaperTrailRecord {
   origin_person?: string;
   current_location?: string;
   transaction_type?: string;
+  is_controlled_document: boolean;
   status: string;
   remarks?: string;
   file_url?: string;
@@ -47,9 +47,12 @@ interface PaperTrailRecord {
 export function PaperTrail() {
   const { userRole } = useRole();
   const currentRole = userRole || "FACULTY";
+  const isDocumentController = currentRole === "DOCUMENT_CONTROLLER";
+  const documentControlOffice = "Document Control Office";
 
   const userEmail = sessionStorage.getItem("userEmail") || "faculty@ctu.edu.ph";
   const userName = sessionStorage.getItem("userName") || "Faculty Member";
+  const userOffice = sessionStorage.getItem("userAdministrativeOffice") || sessionStorage.getItem("userDepartment") || "";
 
   const [records, setRecords] = useState<PaperTrailRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,8 +68,8 @@ export function PaperTrail() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Action Board View Tabs (Inbox vs Outbox vs All)
-  const [actionBoardTab, setActionBoardTab] = useState<"inbox" | "outbox" | "all">("inbox");
+  // Action Board View Tabs (All vs Inbox vs Outbox)
+  const [actionBoardTab, setActionBoardTab] = useState<"inbox" | "outbox" | "all">("all");
 
   // Top-Down "Request Document" States (Phase 3)
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -94,7 +97,7 @@ export function PaperTrail() {
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedRecordForStatus, setSelectedRecordForStatus] = useState<PaperTrailRecord | null>(null);
-  const [actionType, setActionType] = useState<"Acknowledge" | "Forward" | "Return" | "Approve">("Acknowledge");
+  const [actionType, setActionType] = useState<"Acknowledge" | "Forward" | "Return" | "Release" | "Approve">("Acknowledge");
   const [targetOffice, setTargetOffice] = useState("");
   const [statusNotes, setStatusNotes] = useState("");
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -105,14 +108,24 @@ export function PaperTrail() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedRecordForReceipt, setSelectedRecordForReceipt] = useState<PaperTrailRecord | null>(null);
 
+  const [showMetadataModal, setShowMetadataModal] = useState(false);
+  const [selectedRecordForMetadata, setSelectedRecordForMetadata] = useState<PaperTrailRecord | null>(null);
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const [metadataForm, setMetadataForm] = useState({
+    title: "", document_type: "", office: "", origin_office: "", origin_person: "",
+    recipient_name: "", recipient_email: "", remarks: "",
+  });
+
   // New Record Form Data
   const [formData, setFormData] = useState({
     title: "",
     document_type: "Syllabus",
     office: "Academic Affairs",
+    origin_person: "",
     recipient_name: "",
     recipient_email: "",
     transaction_type: "Submission",
+    is_controlled_document: false,
     remarks: "",
   });
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -141,11 +154,11 @@ export function PaperTrail() {
     fetchPaperTrails();
   }, [currentRole, userEmail]);
 
-  // Submit Top-Down Document Request (Director -> Faculty)
+  // Submit a controlled request on behalf of a campus office.
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requestFormData.title || !requestFormData.target_person_email) {
-      showToast("Please enter document title and target recipient email.", "error");
+    if (!requestFormData.title || !requestFormData.office) {
+      showToast("Please enter the document title and target office.", "error");
       return;
     }
 
@@ -160,7 +173,7 @@ export function PaperTrail() {
         instructions: requestFormData.instructions || undefined,
       });
 
-      showToast(`Document Request issued & assigned to ${requestFormData.target_person_name}!`, "success");
+      showToast(`Document request issued to ${requestFormData.office}.`, "success");
       setShowRequestModal(false);
       setRequestFormData({
         title: "",
@@ -179,7 +192,7 @@ export function PaperTrail() {
     }
   };
 
-  // Submit Fulfill Request (Faculty -> Director)
+  // Attach a fulfilled document while retaining Document Controller custody.
   const handleFulfillSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRecordForFulfill || !fulfillFile) {
@@ -218,8 +231,8 @@ export function PaperTrail() {
   // Create & Release Document
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.office) {
-      showToast("Please complete the document title and target office.", "error");
+    if (!formData.title || !formData.office || !formData.recipient_name) {
+      showToast("Please complete the title, originating office, and destination office.", "error");
       return;
     }
 
@@ -239,17 +252,18 @@ export function PaperTrail() {
       await apiClient.post(`/paper-trail`, {
         title: formData.title,
         document_type: formData.document_type,
-        office: formData.office,
+        office: formData.recipient_name || formData.office,
         sender_name: userName,
         sender_email: userEmail,
         sender_role: currentRole,
         recipient_name: formData.recipient_name || undefined,
         recipient_email: formData.recipient_email || undefined,
         recipient_role: "ADMIN",
-        origin_office: sessionStorage.getItem('userAdministrativeOffice') || sessionStorage.getItem('userDepartment') || formData.office,
-        origin_person: userName,
-        current_location: formData.office,
+        origin_office: formData.office,
+        origin_person: formData.origin_person || formData.office,
+        current_location: formData.recipient_name || formData.office,
         transaction_type: formData.transaction_type,
+        is_controlled_document: formData.is_controlled_document,
         remarks: formData.remarks || undefined,
         file_url: uploadedUrl,
       });
@@ -260,9 +274,11 @@ export function PaperTrail() {
         title: "",
         document_type: "Syllabus",
         office: "Academic Affairs",
+        origin_person: "",
         recipient_name: "",
         recipient_email: "",
         transaction_type: "Submission",
+        is_controlled_document: false,
         remarks: "",
       });
       setAttachedFile(null);
@@ -283,6 +299,7 @@ export function PaperTrail() {
     let computedStatus = "Received";
     if (actionType === "Forward") computedStatus = "Forwarded";
     else if (actionType === "Return") computedStatus = "Needs Revision";
+    else if (actionType === "Release") computedStatus = "Pending Receiving";
     else if (actionType === "Approve") computedStatus = "Approved";
 
     setIsUpdatingStatus(true);
@@ -311,6 +328,23 @@ export function PaperTrail() {
     }
   };
 
+  const handleMetadataSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRecordForMetadata || !metadataForm.title || !metadataForm.office) return;
+    setIsSavingMetadata(true);
+    try {
+      await apiClient.put(`/paper-trail/${selectedRecordForMetadata.id}/metadata`, metadataForm);
+      showToast("Document registry details corrected successfully.", "success");
+      setShowMetadataModal(false);
+      setSelectedRecordForMetadata(null);
+      fetchPaperTrails();
+    } catch (err: any) {
+      showToast(err.response?.data?.detail || "Failed to correct document details.", "error");
+    } finally {
+      setIsSavingMetadata(false);
+    }
+  };
+
   // Filters & Search
   const filteredRecords = records.filter((rec) => {
     const matchesSearch =
@@ -329,6 +363,7 @@ export function PaperTrail() {
 
   // Action Board Filtering (Inbox vs Outbox vs Campus All)
   const actionBoardRecords = filteredRecords.filter((rec) => {
+    if (isDocumentController) return true;
     const myOffice = sessionStorage.getItem("userAdministrativeOffice") || sessionStorage.getItem("userDepartment") || "";
     if (actionBoardTab === "inbox") {
       return (
@@ -367,6 +402,8 @@ export function PaperTrail() {
         return { label: "Under Review", bg: "bg-amber-50 text-amber-700 border-amber-200/60" };
       case "Released":
         return { label: "Released", bg: "bg-slate-100 text-slate-700 border-slate-200" };
+      case "Pending Document Control":
+        return { label: "Pending Document Control", bg: "bg-violet-50 text-violet-700 border-violet-200/60" };
       default:
         return { label: "Pending", bg: "bg-amber-50/70 text-amber-800 border-amber-200/50" };
     }
@@ -419,6 +456,20 @@ export function PaperTrail() {
           </div>
         </div>
 
+        <div className={`flex items-start gap-3 rounded-xl border p-3.5 ${isDocumentController ? "border-orange-200 bg-orange-50/60" : "border-slate-200 bg-slate-50"}`}>
+          <ShieldCheck className={`h-5 w-5 mt-0.5 shrink-0 ${isDocumentController ? "text-[#DD7230]" : "text-slate-500"}`} />
+          <div>
+            <p className="text-xs font-semibold text-gray-900">
+              {isDocumentController ? "Document Controller governance enabled" : "Office custody workflow"}
+            </p>
+            <p className="text-[11px] text-gray-600 mt-0.5">
+              {isDocumentController
+                ? "You can oversee every trail, authorize controlled-document releases, correct routing, and formally close records."
+                : "Your office may initiate requests and update records only while it is the current custodian or assigned recipient."}
+            </p>
+          </div>
+        </div>
+
         {/* Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Total Tracked */}
@@ -461,6 +512,17 @@ export function PaperTrail() {
         {/* Action Board Tab Switcher */}
         <div className="flex border-b border-gray-200 gap-1 pt-1 overflow-x-auto no-scrollbar whitespace-nowrap">
           <button
+            onClick={() => setActionBoardTab("all")}
+            className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
+              actionBoardTab === "all"
+                ? "border-[#DD7230] text-[#DD7230] bg-white rounded-t-lg"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50"
+            }`}
+          >
+            All Campus Documents
+          </button>
+
+          <button
             onClick={() => setActionBoardTab("inbox")}
             className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
               actionBoardTab === "inbox"
@@ -489,16 +551,6 @@ export function PaperTrail() {
             Action Board Outbox
           </button>
 
-          <button
-            onClick={() => setActionBoardTab("all")}
-            className={`px-4 py-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
-              actionBoardTab === "all"
-                ? "border-[#DD7230] text-[#DD7230] bg-white rounded-t-lg"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50"
-            }`}
-          >
-            All Campus Documents
-          </button>
         </div>
 
         {/* Filter and Search Bar */}
@@ -523,6 +575,7 @@ export function PaperTrail() {
               >
                 <option value="all">All Statuses</option>
                 <option value="Pending Receiving">Pending Receiving</option>
+                <option value="Pending Document Control">Pending Document Control</option>
                 <option value="Received">Received</option>
                 <option value="Under Review">Under Review</option>
                 <option value="Approved">Approved (Paper OK)</option>
@@ -542,6 +595,7 @@ export function PaperTrail() {
                   ))}
                 </optgroup>
                 <optgroup label="Administrative & ISO Offices">
+                  <option value={documentControlOffice}>Document Control Office (Document Controller)</option>
                   {ISO_OFFICES_16.map((off) => (
                     <option key={off} value={off}>{off}</option>
                   ))}
@@ -606,24 +660,15 @@ export function PaperTrail() {
                 {actionBoardRecords.map((rec) => {
                   const badge = getStatusBadge(rec.status);
 
-                  const myAdminOffice = (sessionStorage.getItem("userAdministrativeOffice") || "").toLowerCase();
-                  const myDept = (sessionStorage.getItem("userDepartment") || "").toLowerCase();
-
-                  const isPendingMyFulfillment = rec.status === "Pending Request" && (
-                    (rec.recipient_email && rec.recipient_email.toLowerCase() === userEmail.toLowerCase()) ||
-                    (myDept.length > 0 && rec.office.toLowerCase().includes(myDept)) ||
-                    (myAdminOffice.length > 0 && rec.office.toLowerCase().includes(myAdminOffice))
-                  );
-
-                  const isRecipient = !!rec.recipient_email && rec.recipient_email.toLowerCase() === userEmail.toLowerCase();
-                  const currentLocationLower = (rec.current_location || rec.office || "").toLowerCase();
-                  const isAtMyOffice = (
-                    (myAdminOffice.length > 0 && currentLocationLower.includes(myAdminOffice)) ||
-                    (myDept.length > 0 && currentLocationLower.includes(myDept))
-                  );
-
-                  // Strict RBAC Governance Lock: Admin (God view) OR explicitly assigned recipient OR sitting at user's office/dept
-                  const canTakeAction = currentRole === "ADMIN" || isRecipient || isAtMyOffice;
+                  const currentLocation = (rec.current_location || rec.office || "").toLowerCase();
+                  const normalizedOffice = userOffice.toLowerCase();
+                  const isAssignedRecipient = Boolean(rec.recipient_email && rec.recipient_email.toLowerCase() === userEmail.toLowerCase());
+                  const isCurrentOffice = Boolean(normalizedOffice && (
+                    currentLocation === normalizedOffice || currentLocation.includes(normalizedOffice) || normalizedOffice.includes(currentLocation)
+                  ));
+                  const awaitingController = rec.is_controlled_document && rec.status === "Pending Document Control";
+                  const canTakeAction = isDocumentController || (!awaitingController && (isAssignedRecipient || isCurrentOffice));
+                  const isPendingMyFulfillment = rec.status === "Pending Request" && canTakeAction;
 
                   return (
                     <tr key={rec.id} className="hover:bg-gray-50/60 transition-colors">
@@ -697,6 +742,29 @@ export function PaperTrail() {
                             <Printer className="h-3.5 w-3.5" />
                           </button>
 
+                          {isDocumentController && (
+                            <button
+                              onClick={() => {
+                                setSelectedRecordForMetadata(rec);
+                                setMetadataForm({
+                                  title: rec.title,
+                                  document_type: rec.document_type,
+                                  office: rec.office,
+                                  origin_office: rec.origin_office || "",
+                                  origin_person: rec.origin_person || "",
+                                  recipient_name: rec.recipient_name || "",
+                                  recipient_email: rec.recipient_email || "",
+                                  remarks: rec.remarks || "",
+                                });
+                                setShowMetadataModal(true);
+                              }}
+                              className="px-2.5 py-1 text-xs font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-md transition-all cursor-pointer"
+                              title="Correct registry details"
+                            >
+                              Correct
+                            </button>
+                          )}
+
                           {/* Fulfill Request Button */}
                           {isPendingMyFulfillment ? (
                             <button
@@ -716,8 +784,8 @@ export function PaperTrail() {
                             <button
                               onClick={() => {
                                 setSelectedRecordForStatus(rec);
-                                setActionType("Acknowledge");
-                                setTargetOffice("");
+                                setActionType(awaitingController && isDocumentController ? "Release" : "Acknowledge");
+                                setTargetOffice(awaitingController ? rec.office : "");
                                 setStatusNotes("");
                                 setShowStatusModal(true);
                               }}
@@ -747,6 +815,67 @@ export function PaperTrail() {
           </div>
         )}
       </div>
+
+      {/* DOCUMENT CONTROLLER METADATA CORRECTION MODAL */}
+      {showMetadataModal && selectedRecordForMetadata && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-xl w-full shadow-xl border border-gray-200 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Correct Document Registry Details</h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">Movement history remains unchanged and this correction is logged.</p>
+              </div>
+              <button onClick={() => setShowMetadataModal(false)} className="p-1.5 text-gray-500 hover:bg-gray-200 rounded-md cursor-pointer"><X className="h-4 w-4" /></button>
+            </div>
+            <form onSubmit={handleMetadataSubmit} className="p-5 space-y-3 overflow-y-auto">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Document Title</label>
+                <input required value={metadataForm.title} onChange={(e) => setMetadataForm({ ...metadataForm, title: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Document Type</label>
+                  <input required value={metadataForm.document_type} onChange={(e) => setMetadataForm({ ...metadataForm, document_type: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Registered Destination</label>
+                  <select required value={metadataForm.office} onChange={(e) => setMetadataForm({ ...metadataForm, office: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]">
+                    <option value={documentControlOffice}>{documentControlOffice}</option>
+                    {ISO_OFFICES_16.map((off) => <option key={off} value={off}>{off}</option>)}
+                    {CAMPUS_COLLEGES.map((col) => <option key={col} value={col}>{col}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Originating Office</label>
+                  <input value={metadataForm.origin_office} onChange={(e) => setMetadataForm({ ...metadataForm, origin_office: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Originating Person</label>
+                  <input value={metadataForm.origin_person} onChange={(e) => setMetadataForm({ ...metadataForm, origin_person: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Recipient / Office Label</label>
+                  <input value={metadataForm.recipient_name} onChange={(e) => setMetadataForm({ ...metadataForm, recipient_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Recipient Email</label>
+                  <input type="email" value={metadataForm.recipient_email} onChange={(e) => setMetadataForm({ ...metadataForm, recipient_email: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Remarks</label>
+                <textarea rows={2} value={metadataForm.remarks} onChange={(e) => setMetadataForm({ ...metadataForm, remarks: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#DD7230]" />
+              </div>
+              <div className="pt-2 flex justify-end gap-2 border-t border-gray-100">
+                <button type="button" onClick={() => setShowMetadataModal(false)} className="px-4 py-2 text-xs font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 cursor-pointer">Cancel</button>
+                <button type="submit" disabled={isSavingMetadata} className="px-4 py-2 text-xs font-semibold bg-[#DD7230] text-white rounded-lg disabled:opacity-50 cursor-pointer">
+                  {isSavingMetadata ? "Saving..." : "Save Correction"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CREATE & RELEASE DOCUMENT MODAL */}
       {showCreateModal && (
@@ -805,7 +934,7 @@ export function PaperTrail() {
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Originating Office / College <span className="text-red-500">*</span>
                   </label>
-                  <select
+                  {isDocumentController ? <select
                     className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer text-gray-800"
                     value={formData.office}
                     onChange={(e) => setFormData({ ...formData, office: e.target.value })}
@@ -816,12 +945,29 @@ export function PaperTrail() {
                       ))}
                     </optgroup>
                     <optgroup label="Administrative & ISO Offices">
+                      <option value={documentControlOffice}>Document Control Office (Document Controller)</option>
                       {ISO_OFFICES_16.map((off) => (
                         <option key={off} value={off}>{off}</option>
                       ))}
                     </optgroup>
-                  </select>
+                  </select> : <input
+                    type="text"
+                    readOnly
+                    value={userOffice || "Unassigned Office"}
+                    className="w-full px-3.5 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-600"
+                  />}
                 </div>
+
+                {isDocumentController && <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Originating Person / Record Owner</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Dr. Juan Dela Cruz"
+                    className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                    value={formData.origin_person}
+                    onChange={(e) => setFormData({ ...formData, origin_person: e.target.value })}
+                  />
+                </div>}
               </div>
 
               <div>
@@ -840,6 +986,7 @@ export function PaperTrail() {
                     ))}
                   </optgroup>
                   <optgroup label="Administrative & ISO Offices">
+                    <option value={documentControlOffice}>Document Control Office (Document Controller)</option>
                     {ISO_OFFICES_16.map((off) => (
                       <option key={off} value={off}>{off}</option>
                     ))}
@@ -870,6 +1017,19 @@ export function PaperTrail() {
                   onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                 />
               </div>
+
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-violet-200 bg-violet-50/60 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.is_controlled_document}
+                  onChange={(e) => setFormData({ ...formData, is_controlled_document: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 rounded border-violet-300 text-violet-600 focus:ring-violet-500"
+                />
+                <span>
+                  <span className="block text-xs font-semibold text-violet-900">Controlled institutional document</span>
+                  <span className="block text-[11px] text-violet-700 mt-0.5">Use for policies, manuals, procedures, and official controlled forms. Release will require Document Controller authorization.</span>
+                </span>
+              </label>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Attach Digital Copy (Optional)</label>
@@ -954,7 +1114,7 @@ export function PaperTrail() {
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Select Action</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <button
+                  {selectedRecordForStatus.status !== "Pending Document Control" && <button
                     type="button"
                     onClick={() => setActionType("Acknowledge")}
                     className={`p-2.5 text-left border rounded-lg transition-all cursor-pointer ${
@@ -965,9 +1125,9 @@ export function PaperTrail() {
                   >
                     <div className="text-xs font-semibold">Receive</div>
                     <div className={`text-[10px] mt-0.5 ${actionType === "Acknowledge" ? "text-orange-100" : "text-gray-500"}`}>Acknowledge on desk</div>
-                  </button>
+                  </button>}
 
-                  <button
+                  {selectedRecordForStatus.status !== "Pending Document Control" && <button
                     type="button"
                     onClick={() => setActionType("Forward")}
                     className={`p-2.5 text-left border rounded-lg transition-all cursor-pointer ${
@@ -978,7 +1138,7 @@ export function PaperTrail() {
                   >
                     <div className="text-xs font-semibold">Forward</div>
                     <div className={`text-[10px] mt-0.5 ${actionType === "Forward" ? "text-orange-100" : "text-gray-500"}`}>Route to next office</div>
-                  </button>
+                  </button>}
 
                   <button
                     type="button"
@@ -993,7 +1153,20 @@ export function PaperTrail() {
                     <div className={`text-[10px] mt-0.5 ${actionType === "Return" ? "text-orange-100" : "text-gray-500"}`}>Send back for revision</div>
                   </button>
 
-                  <button
+                  {isDocumentController && selectedRecordForStatus.is_controlled_document && selectedRecordForStatus.status === "Pending Document Control" && <button
+                    type="button"
+                    onClick={() => setActionType("Release")}
+                    className={`p-2.5 text-left border rounded-lg transition-all cursor-pointer ${
+                      actionType === "Release"
+                        ? "bg-violet-600 text-white border-violet-600 shadow-2xs"
+                        : "bg-white border-violet-200 text-violet-700 hover:bg-violet-50"
+                    }`}
+                  >
+                    <div className="text-xs font-semibold">Authorize Release</div>
+                    <div className={`text-[10px] mt-0.5 ${actionType === "Release" ? "text-violet-100" : "text-violet-600"}`}>Release controlled copy</div>
+                  </button>}
+
+                  {isDocumentController && selectedRecordForStatus.status !== "Pending Document Control" && <button
                     type="button"
                     onClick={() => setActionType("Approve")}
                     className={`p-2.5 text-left border rounded-lg transition-all cursor-pointer ${
@@ -1002,23 +1175,28 @@ export function PaperTrail() {
                         : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                     }`}
                   >
-                    <div className="text-xs font-semibold">Approve</div>
-                    <div className={`text-[10px] mt-0.5 ${actionType === "Approve" ? "text-orange-100" : "text-gray-500"}`}>Approve & close trail</div>
-                  </button>
+                    <div className="text-xs font-semibold">Close / Archive</div>
+                    <div className={`text-[10px] mt-0.5 ${actionType === "Approve" ? "text-orange-100" : "text-gray-500"}`}>Formally close trail</div>
+                  </button>}
                 </div>
               </div>
 
-              {actionType === "Forward" && (
+              {(actionType === "Forward" || actionType === "Release") && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Forward / Route to Office or Desk <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    {actionType === "Release" ? "Release to Destination" : "Forward / Route to Office or Desk"} <span className="text-red-500">*</span>
+                  </label>
+                  <select
                     required
-                    placeholder="e.g. Registrar & MIS, Campus Director, Finance"
                     className="w-full px-3.5 py-2 bg-gray-50/50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
                     value={targetOffice}
                     onChange={(e) => setTargetOffice(e.target.value)}
-                  />
+                  >
+                    <option value="" disabled>Select the next checkpoint</option>
+                    <option value={documentControlOffice}>Document Control Office (Document Controller)</option>
+                    {ISO_OFFICES_16.map((off) => <option key={off} value={off}>{off}</option>)}
+                    {CAMPUS_COLLEGES.map((col) => <option key={col} value={col}>{col}</option>)}
+                  </select>
                 </div>
               )}
 
@@ -1123,6 +1301,7 @@ export function PaperTrail() {
                       ))}
                     </optgroup>
                     <optgroup label="Administrative & ISO Offices">
+                      <option value={documentControlOffice}>Document Control Office (Document Controller)</option>
                       {ISO_OFFICES_16.map((off) => (
                         <option key={off} value={off}>{off}</option>
                       ))}

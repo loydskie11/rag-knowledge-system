@@ -118,6 +118,7 @@ class PaperTrailRecord(Base):
     origin_person = Column(String(255), nullable=True)
     current_location = Column(String(255), nullable=True)
     transaction_type = Column(String(50), default="Submission") # Submission (bottom-up) or Request (top-down)
+    is_controlled_document = Column(Boolean, default=False) # Policies/manuals/procedures/forms requiring controller release
     remarks = Column(Text, nullable=True)
     file_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -582,6 +582,7 @@ class UserCreateRequest(BaseModel):
     is_iqa_auditor: Optional[bool] = False
 
 class UserUpdateRequest(BaseModel):
+    role: Optional[str] = None
     administrative_office: Optional[str] = None
     is_iqa_auditor: Optional[bool] = False
     designation: Optional[str] = None
@@ -676,10 +677,12 @@ try:
         conn.execute(text("ALTER TABLE iqa_day_schedules ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS administrative_office VARCHAR(255);"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_iqa_auditor BOOLEAN DEFAULT FALSE;"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_single_document_controller ON users (role) WHERE role = 'DOCUMENT_CONTROLLER';"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS origin_office VARCHAR(255);"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS origin_person VARCHAR(255);"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS current_location VARCHAR(255);"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(50) DEFAULT 'Submission';"))
+        conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS is_controlled_document BOOLEAN DEFAULT FALSE;"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_date VARCHAR(50);"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_notes TEXT;"))
         conn.execute(text("ALTER TABLE iso_evidences ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Approved';"))
@@ -926,6 +929,24 @@ def get_current_faculty_or_admin(current_user: models.User = Depends(get_current
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access restricted to Faculty and Administrator roles."
+        )
+    return current_user
+
+def get_current_paper_trail_reader(current_user: models.User = Depends(get_current_user)) -> models.User:
+    """Allows campus personnel to view Paper Trail while reserving mutations for its custodian."""
+    if current_user.role.upper() not in ["FACULTY", "ADMIN", "DOCUMENT_CONTROLLER"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access restricted to authorized campus personnel."
+        )
+    return current_user
+
+def get_current_document_controller(current_user: models.User = Depends(get_current_user)) -> models.User:
+    """Enforces sole operational custody of campus document-tracking records."""
+    if current_user.role.upper() != "DOCUMENT_CONTROLLER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the designated Document Controller may modify Paper Trail records."
         )
     return current_user
 
@@ -1296,13 +1317,17 @@ def create_user(
     email = payload.email.strip().lower()
     if db.query(models.User).filter(models.User.email == email).first():
         raise HTTPException(status_code=409, detail="A user with this email already exists.")
-    if payload.role.upper() not in {"ADMIN", "FACULTY", "STUDENT", "IQA"}:
+    requested_role = payload.role.upper()
+    if requested_role not in {"ADMIN", "FACULTY", "STUDENT", "IQA", "DOCUMENT_CONTROLLER"}:
         raise HTTPException(status_code=400, detail="Invalid user role.")
+    if requested_role == "DOCUMENT_CONTROLLER" and db.query(models.User).filter(models.User.role == "DOCUMENT_CONTROLLER").first():
+        raise HTTPException(status_code=409, detail="A Document Controller is already assigned. Only one account may hold this role.")
     user = models.User(
         full_name=payload.full_name.strip(), email=email,
         hashed_password=utils.hash_password(payload.password),
-        role=payload.role.upper(), administrative_office=payload.administrative_office,
-        is_iqa_auditor=payload.is_iqa_auditor or False,
+        role=requested_role,
+        administrative_office="Document Control Office" if requested_role == "DOCUMENT_CONTROLLER" else payload.administrative_office,
+        is_iqa_auditor=False if requested_role == "DOCUMENT_CONTROLLER" else (payload.is_iqa_auditor or False),
         is_verified=True, created_by_admin=True, status="Active",
     )
     db.add(user)
@@ -1418,9 +1443,28 @@ def update_user_details(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.role:
+        requested_role = payload.role.upper()
+        if requested_role not in {"ADMIN", "FACULTY", "STUDENT", "IQA", "DOCUMENT_CONTROLLER"}:
+            raise HTTPException(status_code=400, detail="Invalid user role.")
+        if requested_role == "DOCUMENT_CONTROLLER":
+            assigned_controller = db.query(models.User).filter(
+                models.User.role == "DOCUMENT_CONTROLLER",
+                models.User.id != user_id,
+            ).first()
+            if assigned_controller:
+                raise HTTPException(status_code=409, detail="A Document Controller is already assigned. Reassign or remove that role first.")
+            user.administrative_office = "Document Control Office"
+            user.is_iqa_auditor = False
+        user.role = requested_role
     
-    user.administrative_office = payload.administrative_office
-    user.is_iqa_auditor = bool(payload.is_iqa_auditor)
+    if user.role == "DOCUMENT_CONTROLLER":
+        user.administrative_office = "Document Control Office"
+        user.is_iqa_auditor = False
+    else:
+        user.administrative_office = payload.administrative_office
+        user.is_iqa_auditor = bool(payload.is_iqa_auditor)
     if payload.designation_entity:
         user.department = payload.designation_entity
     if payload.email:
@@ -4632,11 +4676,43 @@ def _generate_tracking_number(db: Session) -> str:
             return tracking_no
 
 
+def _paper_trail_user_offices(user: models.User) -> list[str]:
+    """Returns normalized office identities that may hold custody for this user."""
+    return [
+        value.strip().lower()
+        for value in (
+            getattr(user, "administrative_office", None),
+            getattr(user, "department", None),
+        )
+        if value and value.strip()
+    ]
+
+
+def _paper_trail_is_current_custodian(record: models.PaperTrailRecord, user: models.User) -> bool:
+    """Checks whether the authenticated user personally or organizationally holds the current checkpoint."""
+    if user.role.upper() == "DOCUMENT_CONTROLLER":
+        return True
+    if record.is_controlled_document and record.status == "Pending Document Control":
+        return False
+    if record.recipient_email and record.recipient_email.lower() == user.email.lower():
+        return True
+    current_location = (record.current_location or record.office or "").strip().lower()
+    return any(office == current_location or office in current_location or current_location in office for office in _paper_trail_user_offices(user))
+
+
+def _require_paper_trail_custody(record: models.PaperTrailRecord, user: models.User) -> None:
+    if not _paper_trail_is_current_custodian(record, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the current destination office, assigned recipient, or Document Controller may update this checkpoint."
+        )
+
+
 @app.post("/paper-trail", response_model=schemas.PaperTrailRecordResponse, status_code=status.HTTP_201_CREATED)
 def create_paper_trail_record(
     payload: schemas.PaperTrailCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_faculty_or_admin)
+    current_user: models.User = Depends(get_current_paper_trail_reader)
 ):
     """Creates a new document paper trail record and logs initial release."""
     tracking_no = _generate_tracking_number(db)
@@ -4644,6 +4720,13 @@ def create_paper_trail_record(
     sender_name = current_user.full_name or payload.sender_name
     sender_email = current_user.email
     sender_role = current_user.role.upper()
+    actor_office = getattr(current_user, 'administrative_office', None) or getattr(current_user, 'department', None) or "Unassigned Office"
+    origin_office = payload.origin_office if sender_role == "DOCUMENT_CONTROLLER" else actor_office
+    origin_person = payload.origin_person if sender_role == "DOCUMENT_CONTROLLER" else sender_name
+
+    requires_control_release = bool(payload.is_controlled_document)
+    initial_status = "Pending Document Control" if requires_control_release else "Pending Receiving"
+    initial_location = "Document Control Office" if requires_control_release else (payload.current_location or payload.office)
 
     new_record = models.PaperTrailRecord(
         tracking_number=tracking_no,
@@ -4656,11 +4739,12 @@ def create_paper_trail_record(
         recipient_name=payload.recipient_name,
         recipient_email=payload.recipient_email,
         recipient_role=payload.recipient_role.upper() if payload.recipient_role else None,
-        origin_office=payload.origin_office or getattr(current_user, 'administrative_office', None) or getattr(current_user, 'department', None) or payload.office,
-        origin_person=payload.origin_person or sender_name,
-        current_location=payload.current_location or payload.office,
+        origin_office=origin_office or payload.office,
+        origin_person=origin_person or sender_name,
+        current_location=initial_location,
         transaction_type=payload.transaction_type or "Submission",
-        status="Pending Receiving",
+        is_controlled_document=requires_control_release,
+        status=initial_status,
         remarks=payload.remarks,
         file_url=payload.file_url
     )
@@ -4671,12 +4755,15 @@ def create_paper_trail_record(
     # Initial Log Entry
     initial_log = models.PaperTrailLog(
         record_id=new_record.id,
-        action="Document Released / Submitted",
-        status="Pending Receiving",
+        action="Submitted for Document Control" if requires_control_release else "Document Released / Submitted",
+        status=initial_status,
         actor_name=sender_name,
         actor_email=sender_email,
         actor_role=sender_role,
-        notes=payload.remarks or f"Document '{payload.title}' released to {payload.office}."
+        notes=payload.remarks or (
+            f"Controlled document '{payload.title}' submitted for release authorization."
+            if requires_control_release else f"Document '{payload.title}' released to {payload.office}."
+        )
     )
     db.add(initial_log)
     db.commit()
@@ -4687,12 +4774,15 @@ def create_paper_trail_record(
         # Office Broadcasting to target office
         _notify_office(
             db=db,
-            office_name=payload.office,
+            office_name=initial_location,
             n_type="info",
-            title=f"New Document Received: {tracking_no}",
-            message=f"{sender_name} released document '{payload.title}' to your office ({payload.office})."
+            title=(f"Controlled Document Awaiting Release: {tracking_no}" if requires_control_release else f"New Document Received: {tracking_no}"),
+            message=(
+                f"{sender_name} submitted controlled document '{payload.title}' for release authorization."
+                if requires_control_release else f"{sender_name} released document '{payload.title}' to your office ({payload.office})."
+            )
         )
-        if payload.recipient_email and payload.recipient_email != sender_email:
+        if not requires_control_release and payload.recipient_email and payload.recipient_email != sender_email:
             _send_notification(
                 user_email=payload.recipient_email,
                 n_type="info",
@@ -4715,14 +4805,14 @@ def create_paper_trail_record(
 def create_top_down_document_request(
     payload: schemas.PaperTrailRequestCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_faculty_or_admin)
+    current_user: models.User = Depends(get_current_paper_trail_reader)
 ):
-    """Faculty or Admin/Director creates a document request assigned to an office or person (e.g. Memo, Resolution)."""
+    """The Document Controller registers a request assigned to an office or person."""
     tracking_no = _generate_tracking_number(db)
-    requester_name = current_user.full_name or "Faculty / User"
+    requester_name = current_user.full_name or "Campus User"
     requester_email = current_user.email
     requester_role = current_user.role.upper()
-    requester_office = getattr(current_user, 'administrative_office', None) or getattr(current_user, 'department', None) or payload.office
+    requester_office = getattr(current_user, 'administrative_office', None) or getattr(current_user, 'department', None) or "Unassigned Office"
 
     new_record = models.PaperTrailRecord(
         tracking_number=tracking_no,
@@ -4732,12 +4822,12 @@ def create_top_down_document_request(
         sender_name=requester_name,
         sender_email=requester_email,
         sender_role=requester_role,
-        recipient_name=payload.target_person_name,
+        recipient_name=payload.target_person_name or payload.office,
         recipient_email=payload.target_person_email,
-        recipient_role="FACULTY" if requester_role == "ADMIN" else "ADMIN",
+        recipient_role="FACULTY",
         origin_office=requester_office,
         origin_person=requester_name,
-        current_location=payload.office or f"Desk of {payload.target_person_name}",
+        current_location=payload.office,
         transaction_type="Request",
         status="Pending Request",
         remarks=payload.instructions or f"Request for {payload.document_type}: {payload.title}"
@@ -4786,11 +4876,11 @@ def get_paper_trail_records(
     role: Optional[str] = None,
     email: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_faculty_or_admin),
+    current_user: models.User = Depends(get_current_paper_trail_reader),
 ):
     """List paper-trail records visible to the authenticated user."""
     query = db.query(models.PaperTrailRecord)
-    if current_user.role.upper() != "ADMIN":
+    if current_user.role.upper() not in {"ADMIN", "DOCUMENT_CONTROLLER"}:
         office = (
             getattr(current_user, "administrative_office", None)
             or getattr(current_user, "department", None)
@@ -4815,12 +4905,13 @@ def fulfill_document_request(
     record_id: str,
     payload: schemas.PaperTrailFulfillRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_faculty_or_admin)
+    current_user: models.User = Depends(get_current_paper_trail_reader)
 ):
-    """Faculty fulfills a top-down document request, attaching the file and routing it back to origin Director/Admin."""
+    """The Document Controller attaches a fulfilled file and records its return to the origin."""
     record = db.query(models.PaperTrailRecord).filter(models.PaperTrailRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Document record not found.")
+    _require_paper_trail_custody(record, current_user)
 
     user_name = current_user.full_name or "Faculty Member"
     user_email = current_user.email
@@ -4828,6 +4919,7 @@ def fulfill_document_request(
     record.file_url = payload.file_url
     record.status = "Submitted / Fulfilled"
     record.current_location = record.origin_office or record.sender_name or "Director / Admin Desk"
+    record.recipient_email = None
     record.updated_at = datetime.utcnow()
 
     new_log = models.PaperTrailLog(
@@ -4873,7 +4965,7 @@ def fulfill_document_request(
 def get_paper_trail_detail(
     record_id: str,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_faculty_or_admin)
+    current_user: models.User = Depends(get_current_paper_trail_reader)
 ):
     """Fetches single paper trail record with full movement history."""
     record = db.query(models.PaperTrailRecord).filter(models.PaperTrailRecord.id == record_id).first()
@@ -4882,12 +4974,51 @@ def get_paper_trail_detail(
     return record
 
 
+@app.put("/paper-trail/{record_id}/metadata", response_model=schemas.PaperTrailRecordResponse)
+def correct_paper_trail_metadata(
+    record_id: str,
+    payload: schemas.PaperTrailMetadataUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_document_controller),
+):
+    """Allows the Document Controller to correct registry metadata without rewriting movement history."""
+    record = db.query(models.PaperTrailRecord).filter(models.PaperTrailRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Paper trail record not found.")
+
+    previous_office = record.office
+    record.title = payload.title.strip()
+    record.document_type = payload.document_type.strip()
+    record.office = payload.office.strip()
+    record.origin_office = payload.origin_office.strip() if payload.origin_office else None
+    record.origin_person = payload.origin_person.strip() if payload.origin_person else None
+    record.recipient_name = payload.recipient_name.strip() if payload.recipient_name else None
+    record.recipient_email = payload.recipient_email.strip().lower() if payload.recipient_email else None
+    record.remarks = payload.remarks
+    if (record.current_location or "").strip().lower() == (previous_office or "").strip().lower():
+        record.current_location = record.office
+    record.updated_at = datetime.utcnow()
+
+    db.add(models.PaperTrailLog(
+        record_id=record.id,
+        action="Registry Metadata Corrected",
+        status=record.status,
+        actor_name=current_user.full_name or "Document Controller",
+        actor_email=current_user.email,
+        actor_role="DOCUMENT_CONTROLLER",
+        notes="Document registry details were corrected; prior movement history was preserved.",
+    ))
+    db.commit()
+    db.refresh(record)
+    return record
+
+
 @app.put("/paper-trail/{record_id}/status", response_model=schemas.PaperTrailRecordResponse)
 def update_paper_trail_status(
     record_id: str,
     payload: schemas.PaperTrailStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_faculty_or_admin)
+    current_user: models.User = Depends(get_current_paper_trail_reader)
 ):
     """Updates document routing action & location (Receive, Forward/Route, Return for Revision, Approve & Close)."""
     record = db.query(models.PaperTrailRecord).filter(models.PaperTrailRecord.id == record_id).first()
@@ -4898,18 +5029,37 @@ def update_paper_trail_status(
     action_type = payload.action_type or "Acknowledge"
     new_status = payload.status
 
-    if action_type == "Acknowledge" or new_status == "Received":
+    is_document_controller = current_user.role.upper() == "DOCUMENT_CONTROLLER"
+    if action_type in {"Approve", "Release"} and not is_document_controller:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the Document Controller may authorize controlled-document release or formally close a trail."
+        )
+    _require_paper_trail_custody(record, current_user)
+
+    if action_type == "Release":
+        if not record.is_controlled_document or old_status != "Pending Document Control":
+            raise HTTPException(status_code=400, detail="Only a controlled document awaiting Document Control may be released.")
+        new_status = "Pending Receiving"
+        target_loc = payload.target_office or record.office
+        record.current_location = target_loc
+        action_text = f"Controlled Copy Authorized & Released to {target_loc}"
+    elif action_type == "Acknowledge" or new_status == "Received":
         new_status = "Received"
         action_text = f"Document Received & Acknowledged at {record.current_location or record.office}"
     elif action_type == "Forward":
         new_status = "Forwarded"
         target_loc = payload.target_office or payload.target_person or "Target Office"
         record.current_location = target_loc
+        record.recipient_name = payload.target_person or target_loc
+        record.recipient_email = None
         action_text = f"Forwarded / Routed to {target_loc}"
     elif action_type == "Return" or new_status == "Needs Revision":
         new_status = "Needs Revision"
         target_loc = record.origin_office or record.sender_name or "Origin Office"
         record.current_location = target_loc
+        record.recipient_name = record.origin_person or record.sender_name
+        record.recipient_email = None
         action_text = f"Returned for Revision to {target_loc}"
     elif action_type == "Approve" or new_status == "Approved":
         new_status = "Approved"
@@ -4925,10 +5075,10 @@ def update_paper_trail_status(
         record_id=record.id,
         action=action_text,
         status=new_status,
-        actor_name=payload.actor_name,
-        actor_email=payload.actor_email,
-        actor_role=payload.actor_role.upper(),
-        notes=payload.notes or f"Action: {action_text} by {payload.actor_name}."
+        actor_name=current_user.full_name or "Document Controller",
+        actor_email=current_user.email,
+        actor_role=current_user.role.upper(),
+        notes=payload.notes or f"Action: {action_text} by {current_user.full_name or 'Document Controller'}."
     )
     db.add(new_log)
     db.commit()
@@ -4942,17 +5092,17 @@ def update_paper_trail_status(
                 user_email=record.sender_email,
                 n_type="info" if new_status != "Needs Revision" else "warning",
                 title=f"DTS Movement [{record.tracking_number}]",
-                message=f"Document '{record.title}' action: {action_text} by {payload.actor_name}."
+                message=f"Document '{record.title}' action: {action_text} by {current_user.full_name or 'Document Controller'}."
             )
 
         # 2. Office Broadcasting to target/current office
-        if action_type == "Forward" and payload.target_office:
+        if action_type in {"Forward", "Release"} and payload.target_office:
             _notify_office(
                 db=db,
                 office_name=payload.target_office,
                 n_type="info",
                 title=f"Document Forwarded to Office [{record.tracking_number}]",
-                message=f"Document '{record.title}' has been forwarded to {payload.target_office} by {payload.actor_name}."
+                message=f"Document '{record.title}' has been forwarded to {payload.target_office} by {current_user.full_name or 'Document Controller'}."
             )
         elif action_type == "Return" and record.origin_office:
             _notify_office(
@@ -4960,7 +5110,7 @@ def update_paper_trail_status(
                 office_name=record.origin_office,
                 n_type="warning",
                 title=f"Document Returned for Revision [{record.tracking_number}]",
-                message=f"Document '{record.title}' was returned to {record.origin_office} by {payload.actor_name}."
+                message=f"Document '{record.title}' was returned to {record.origin_office} by {current_user.full_name or 'Document Controller'}."
             )
         elif action_type == "Approve":
             _notify_office(
@@ -4968,7 +5118,7 @@ def update_paper_trail_status(
                 office_name=record.current_location or record.office,
                 n_type="success",
                 title=f"Document Approved & Closed [{record.tracking_number}]",
-                message=f"Document '{record.title}' was verified, approved, and closed by {payload.actor_name}."
+                message=f"Document '{record.title}' was verified, approved, and closed by {current_user.full_name or 'Document Controller'}."
             )
     except Exception as exc:
         print(f"[update_paper_trail_status] notification error: {exc}")
@@ -4977,7 +5127,7 @@ def update_paper_trail_status(
 
 
 @app.post("/paper-trail/upload")
-async def upload_paper_trail_attachment(file: UploadFile = File(...), current_user: models.User = Depends(get_current_faculty_or_admin)):
+async def upload_paper_trail_attachment(file: UploadFile = File(...), current_user: models.User = Depends(get_current_paper_trail_reader)):
     """Uploads an optional file attachment for a paper trail record."""
     try:
         contents = await read_upload_limited(file)
