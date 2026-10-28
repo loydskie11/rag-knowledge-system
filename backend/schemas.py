@@ -85,8 +85,11 @@ class ChedRequirementCreate(BaseModel):
 class ChedEvidenceResponse(BaseModel):
     id: uuid.UUID
     document_name: str
+    file_name: Optional[str] = None
     file_url: str
     uploaded_by: str
+    uploader_name: Optional[str] = None
+    status: str = "Pending Verification"
     upload_date: datetime
 
     class Config:

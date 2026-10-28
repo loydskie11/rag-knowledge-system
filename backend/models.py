@@ -89,8 +89,11 @@ class ChedEvidence(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     requirement_id = Column(UUID(as_uuid=True), ForeignKey("ched_requirements.id", ondelete="CASCADE"))
     document_name = Column(String(255), nullable=False)
+    file_name = Column(String(255), nullable=True)
+    storage_path = Column(String, nullable=True)
     file_url = Column(String, nullable=False)
     uploaded_by = Column(String(255), nullable=False)
+    status = Column(String(50), default="Pending Verification")
     upload_date = Column(DateTime, default=datetime.utcnow)
 
     requirement = relationship("ChedRequirement", back_populates="evidences")

@@ -1,5 +1,6 @@
 import base64
 import urllib.request
+from urllib.parse import unquote, urlparse
 
 import os
 import io
@@ -63,6 +64,44 @@ def create_private_file_url(path: str, expires_in: int = 900) -> str:
         return ""
     result = supabase.storage.from_("documents").create_signed_url(path, expires_in)
     return result.get("signedURL") or result.get("signedUrl") or ""
+
+def get_private_storage_path(value: str | None) -> str:
+    """Extract a documents-bucket object path from a stored path or Supabase URL."""
+    if not value:
+        return ""
+
+    parsed = urlparse(value)
+    if not parsed.scheme:
+        return unquote(value).lstrip("/")
+
+    decoded_path = unquote(parsed.path)
+    for marker in (
+        "/storage/v1/object/sign/documents/",
+        "/storage/v1/object/public/documents/",
+        "/storage/v1/object/authenticated/documents/",
+    ):
+        if marker in decoded_path:
+            return decoded_path.split(marker, 1)[1].lstrip("/")
+    return ""
+
+def get_original_ched_file_name(evidence) -> str:
+    """Return the original upload name, including for records created before file_name existed."""
+    if getattr(evidence, "file_name", None):
+        return os.path.basename(evidence.file_name)
+
+    storage_path = getattr(evidence, "storage_path", None) or get_private_storage_path(evidence.file_url)
+    stored_name = os.path.basename(storage_path)
+    return re.sub(r"^ched_\d+_", "", stored_name) or evidence.document_name
+
+def get_fresh_ched_file_url(evidence) -> str:
+    """Refresh a CHED evidence URL without making the requirement list fail on legacy data."""
+    storage_path = getattr(evidence, "storage_path", None) or get_private_storage_path(evidence.file_url)
+    if not storage_path:
+        return evidence.file_url
+    try:
+        return create_private_file_url(storage_path) or evidence.file_url
+    except Exception:
+        return evidence.file_url
 
 async def read_upload_limited(file: UploadFile) -> bytes:
     """Read an upload with a hard size limit and basic content-signature validation."""
@@ -645,6 +684,9 @@ try:
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_notes TEXT;"))
         conn.execute(text("ALTER TABLE iso_evidences ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Approved';"))
         conn.execute(text("ALTER TABLE iso_evidences ADD COLUMN IF NOT EXISTS admin_feedback TEXT;"))
+        conn.execute(text("ALTER TABLE ched_evidences ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);"))
+        conn.execute(text("ALTER TABLE ched_evidences ADD COLUMN IF NOT EXISTS storage_path TEXT;"))
+        conn.execute(text("ALTER TABLE ched_evidences ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending Verification';"))
         conn.execute(text("ALTER TABLE program_accreditations ADD COLUMN IF NOT EXISTS active_areas TEXT DEFAULT 'Area I,Area II,Area III,Area IV,Area V,Area VI,Area VII,Area VIII,Area IX,Area X';"))
         
         # Check if aaccup_requirements is empty, then seed
@@ -4328,7 +4370,68 @@ def update_ched_requirement(
 def get_ched_requirements(program: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Fetches all requirements for a specific program (e.g., BSIT), including nested attached files."""
     reqs = db.query(models.ChedRequirement).filter(models.ChedRequirement.program == program).all()
-    return reqs
+    uploader_emails = {
+        evidence.uploaded_by
+        for requirement in reqs
+        for evidence in requirement.evidences
+        if evidence.uploaded_by
+    }
+    uploader_names = {
+        email.casefold(): (full_name or "Unknown user")
+        for email, full_name in (
+            db.query(models.User.email, models.User.full_name)
+            .filter(models.User.email.in_(uploader_emails))
+            .all()
+            if uploader_emails else []
+        )
+    }
+    return [
+        {
+            "id": requirement.id,
+            "program": requirement.program,
+            "cmo_name": requirement.cmo_name,
+            "description": requirement.description,
+            "status": requirement.status,
+            "evidences": [
+                {
+                    "id": evidence.id,
+                    "document_name": evidence.document_name,
+                    "file_name": get_original_ched_file_name(evidence),
+                    "file_url": get_fresh_ched_file_url(evidence),
+                    "uploaded_by": evidence.uploaded_by,
+                    "uploader_name": uploader_names.get(
+                        (evidence.uploaded_by or "").casefold(),
+                        "Unknown user",
+                    ),
+                    "status": evidence.status or "Pending Verification",
+                    "upload_date": evidence.upload_date,
+                }
+                for evidence in requirement.evidences
+            ],
+        }
+        for requirement in reqs
+    ]
+
+@app.get("/ched/evidence/{evidence_id}/access-url")
+def get_ched_evidence_access_url(
+    evidence_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    """Generate a fresh private URL when an authorized user opens CHED evidence."""
+    evidence = db.query(models.ChedEvidence).filter(models.ChedEvidence.id == evidence_id).first()
+    if not evidence:
+        raise HTTPException(status_code=404, detail="CHED evidence not found")
+
+    storage_path = evidence.storage_path or get_private_storage_path(evidence.file_url)
+    if not storage_path:
+        raise HTTPException(status_code=404, detail="Stored CHED evidence file could not be located")
+
+    fresh_url = create_private_file_url(storage_path)
+    if not fresh_url:
+        raise HTTPException(status_code=500, detail="Unable to create a secure evidence link")
+
+    return {"file_url": fresh_url}
 
 @app.post("/ched/upload-evidence")
 async def upload_ched_evidence(
@@ -4348,10 +4451,25 @@ async def upload_ched_evidence(
     if not requirement:
         raise HTTPException(status_code=404, detail="CHED Requirement not found")
 
+    original_file_name = os.path.basename(file.filename or "").strip()
+    if not original_file_name:
+        raise HTTPException(status_code=400, detail="Uploaded file must have a file name")
+
+    # Reject duplicate file names within the same requirement before uploading bytes.
+    normalized_file_name = original_file_name.casefold()
+    existing_evidences = db.query(models.ChedEvidence).filter(
+        models.ChedEvidence.requirement_id == requirement.id
+    ).all()
+    if any(get_original_ched_file_name(item).casefold() == normalized_file_name for item in existing_evidences):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A file named '{original_file_name}' already exists in this CHED requirement.",
+        )
+
     # 2. Read file & upload to Supabase Storage (synchronous — UI gets URL immediately)
     contents = await read_upload_limited(file)
-    safe_filename = file.filename.replace(" ", "_")
-    unique_filename = f"ched_{int(time.time())}_{safe_filename}"
+    safe_filename = re.sub(r"[^A-Za-z0-9._-]", "_", original_file_name)
+    unique_filename = f"ched_evidence/{requirement.id}/{uuid.uuid4().hex}_{safe_filename}"
 
     try:
         supabase.storage.from_("documents").upload(
@@ -4365,8 +4483,11 @@ async def upload_ched_evidence(
     new_evidence = models.ChedEvidence(
         requirement_id=requirement.id,
         document_name=document_name,
+        file_name=original_file_name,
+        storage_path=unique_filename,
         file_url=public_url,
-        uploaded_by=current_user.email
+        uploaded_by=current_user.email,
+        status="Pending Verification",
     )
     db.add(new_evidence)
 
@@ -4386,6 +4507,8 @@ async def upload_ched_evidence(
         "uploaded_by": current_user.email,
         "upload_date": datetime.now().isoformat(),
         "file_url": public_url,
+        "storage_path": unique_filename,
+        "file_name": original_file_name,
         "is_ched": True,
         "req_id": str(requirement.id)
     }

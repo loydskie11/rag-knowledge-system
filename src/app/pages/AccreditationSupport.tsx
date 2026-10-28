@@ -1,7 +1,8 @@
 import { exportMrcForm6 } from "../utils/mrcFormsExporter";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, MessageSquare, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal , Printer} from "lucide-react";
+import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, MessageSquare, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal, Printer, Info } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
 import { ISO_OFFICES_16 } from "./UsersRoles";
@@ -31,6 +32,8 @@ const isoRequirementsCache = new Map<string, any[]>();
 const iqaDaysCache = new Map<string, any[]>();
 const qmsPlansCache = new Map<string, any[]>();
 let isoCyclesCache: string[] | null = null;
+
+const normalizeEvidenceFileName = (value: string = "") => value.trim().toLocaleLowerCase();
 
 export const getIsoProcessCategory = (req: any): string => {
   if (req?.process_category) return req.process_category;
@@ -579,6 +582,223 @@ export const AaccupTabContent = ({
   );
 };
 
+const ChedEvidenceInfo = ({ evidence }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [popoverPosition, setPopoverPosition] = useState<{
+    top: number;
+    left: number;
+    placement: "top" | "bottom";
+  } | null>(null);
+
+  const cancelScheduledClose = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const scheduleClose = () => {
+    cancelScheduledClose();
+    closeTimerRef.current = setTimeout(() => setIsOpen(false), 160);
+  };
+
+  const updatePopoverPosition = () => {
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const popoverWidth = 256;
+    const popoverHeight = popoverRef.current?.offsetHeight || 170;
+    const viewportPadding = 8;
+    const gap = 8;
+    const availableBelow = window.innerHeight - rect.bottom;
+    const placement = availableBelow < popoverHeight + gap && rect.top > availableBelow
+      ? "top"
+      : "bottom";
+
+    setPopoverPosition({
+      top: placement === "top" ? rect.top - gap : rect.bottom + gap,
+      left: Math.min(
+        Math.max(viewportPadding, rect.left),
+        window.innerWidth - popoverWidth - viewportPadding,
+      ),
+      placement,
+    });
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updatePopoverPosition();
+    const animationFrame = requestAnimationFrame(updatePopoverPosition);
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        !containerRef.current?.contains(target)
+        && !popoverRef.current?.contains(target)
+      ) setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
+    };
+  }, [isOpen]);
+
+  useEffect(() => () => cancelScheduledClose(), []);
+
+  const parsedUploadDate = evidence.upload_date ? new Date(evidence.upload_date) : null;
+  const uploadedDate = parsedUploadDate && !Number.isNaN(parsedUploadDate.getTime())
+    ? parsedUploadDate.toLocaleDateString()
+    : "Not available";
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative shrink-0"
+      onMouseEnter={() => { cancelScheduledClose(); setIsOpen(true); }}
+      onMouseLeave={scheduleClose}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => { cancelScheduledClose(); setIsOpen(true); }}
+        onFocus={() => setIsOpen(true)}
+        aria-label={`Show details for ${evidence.document_name}`}
+        aria-expanded={isOpen}
+        className="p-0.5 text-gray-400 hover:text-[#DD7230] focus:text-[#DD7230] focus:outline-none focus:ring-2 focus:ring-[#DD7230]/30 rounded-full cursor-pointer"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      {isOpen && popoverPosition && createPortal(
+        <div
+          ref={popoverRef}
+          role="tooltip"
+          onMouseEnter={cancelScheduledClose}
+          onMouseLeave={scheduleClose}
+          className="fixed z-[100] w-64 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-xl"
+          style={{
+            top: popoverPosition.top,
+            left: popoverPosition.left,
+            transform: popoverPosition.placement === "top" ? "translateY(-100%)" : undefined,
+          }}
+        >
+          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Evidence details</div>
+          <dl className="mt-2 space-y-2 text-[11px]">
+            <div>
+              <dt className="text-gray-400">Uploaded by</dt>
+              <dd className="font-semibold text-gray-800 break-words">{evidence.uploader_name || "Unknown user"}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-400">Original filename</dt>
+              <dd className="font-medium text-gray-700 break-all">{evidence.file_name || "Not available"}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-400">Uploaded on</dt>
+              <dd className="font-medium text-gray-700">{uploadedDate}</dd>
+            </div>
+          </dl>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+};
+
+const ChedEvidenceList = ({
+  evidences,
+  userRole,
+  userIsIqaAuditor,
+  isReviewing,
+  handleOpenChedEvidence,
+  handleReviewChedEvidence,
+  setChedEvidenceToDelete,
+  setShowDeleteChedEvidenceModal,
+}: any) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const collapsedLimit = 3;
+  const hasMore = evidences.length > collapsedLimit;
+  const visibleEvidences = hasMore && !isExpanded
+    ? evidences.slice(0, collapsedLimit)
+    : evidences;
+
+  return (
+    <div className="space-y-1.5">
+      {visibleEvidences.map((ev: any) => (
+        <div key={ev.id} className="flex items-center justify-between gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="h-3.5 w-3.5 text-[#DD7230] shrink-0" />
+            <span className="font-semibold text-gray-800 truncate max-w-[220px]" title={ev.document_name}>
+              {ev.document_name}
+            </span>
+            <ChedEvidenceInfo evidence={ev} />
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className={`px-2 py-0.5 text-[9px] font-medium rounded-md uppercase border ${
+              ev.status === "Approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" :
+              ev.status === "Needs Revision" ? "bg-rose-50 text-rose-700 border-rose-200/60" : "bg-amber-50 text-amber-800 border-amber-200/60"
+            }`}>
+              {ev.status || "Pending Verification"}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleOpenChedEvidence(ev)}
+              className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded cursor-pointer"
+              title="View Evidence Document"
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </button>
+            {(userRole === "ADMIN" || userIsIqaAuditor) && ev.status === "Pending Verification" && (
+              <button
+                onClick={() => handleReviewChedEvidence(ev.id, "Approved")}
+                disabled={isReviewing}
+                className="p-1 bg-[#DD7230] hover:bg-[#C96328] text-white rounded cursor-pointer transition-colors shadow-2xs"
+                title="Approve Evidence"
+              >
+                <Check className="h-3 w-3" />
+              </button>
+            )}
+            {userRole === "ADMIN" && (
+              <button
+                onClick={() => { setChedEvidenceToDelete(ev); setShowDeleteChedEvidenceModal(true); }}
+                className="p-1 text-gray-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
+                title="Remove Evidence"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded(value => !value)}
+          className="w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors cursor-pointer"
+        >
+          {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {isExpanded ? "Show fewer files" : `Show ${evidences.length - collapsedLimit} more file${evidences.length - collapsedLimit === 1 ? "" : "s"}`}
+        </button>
+      )}
+    </div>
+  );
+};
+
 export const ChedTabContent = ({
   chedRequirements,
   isLoadingChed,
@@ -591,10 +811,10 @@ export const ChedTabContent = ({
   setEditingChedReq,
   setChedReqToDelete,
   setShowDeleteChedReqModal,
-  setSelectedChedReq,
-  setShowChedUploadModal,
+  openChedUploadModal,
   setChedEvidenceToDelete,
   setShowDeleteChedEvidenceModal,
+  handleOpenChedEvidence,
   handleReviewChedEvidence,
   isReviewing
 }: any) => {
@@ -647,54 +867,16 @@ export const ChedTabContent = ({
                     </td>
                     <td className="p-3.5">
                       {req.evidences && req.evidences.length > 0 ? (
-                        <div className="space-y-1.5">
-                          {req.evidences.map((ev: any, evIdx: number) => (
-                            <div key={evIdx} className="flex items-center justify-between gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <FileText className="h-3.5 w-3.5 text-[#DD7230] shrink-0" />
-                                <span className="font-semibold text-gray-800 truncate max-w-[200px]">{ev.document_name}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className={`px-2 py-0.5 text-[9px] font-medium rounded-md uppercase border ${
-                                  ev.status === "Approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" :
-                                  ev.status === "Needs Revision" ? "bg-rose-50 text-rose-700 border-rose-200/60" : "bg-amber-50 text-amber-800 border-amber-200/60"
-                                }`}>
-                                  {ev.status}
-                                </span>
-                                {(ev.file_url || ev.url) && (
-                                  <a
-                                    href={ev.file_url || ev.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded cursor-pointer"
-                                    title="View Evidence Document"
-                                  >
-                                    <Eye className="h-3.5 w-3.5" />
-                                  </a>
-                                )}
-                                {(userRole === "ADMIN" || userIsIqaAuditor) && ev.status === "Pending Verification" && (
-                                  <button
-                                    onClick={() => handleReviewChedEvidence(ev.id, "Approved")}
-                                    disabled={isReviewing}
-                                    className="p-1 bg-gray-900 hover:bg-black text-white rounded cursor-pointer transition-colors shadow-2xs"
-                                    title="Approve Evidence"
-                                  >
-                                    <Check className="h-3 w-3" />
-                                  </button>
-                                )}
-                                {userRole === "ADMIN" && (
-                                  <button
-                                    onClick={() => { setChedEvidenceToDelete(ev); setShowDeleteChedEvidenceModal(true); }}
-                                    className="p-1 text-gray-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
-                                    title="Remove Evidence"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        <ChedEvidenceList
+                          evidences={req.evidences}
+                          userRole={userRole}
+                          userIsIqaAuditor={userIsIqaAuditor}
+                          isReviewing={isReviewing}
+                          handleOpenChedEvidence={handleOpenChedEvidence}
+                          handleReviewChedEvidence={handleReviewChedEvidence}
+                          setChedEvidenceToDelete={setChedEvidenceToDelete}
+                          setShowDeleteChedEvidenceModal={setShowDeleteChedEvidenceModal}
+                        />
                       ) : (
                         <span className="text-gray-400 italic">No evidence uploaded yet</span>
                       )}
@@ -708,7 +890,7 @@ export const ChedTabContent = ({
                     </td>
                     <td className="p-3.5 text-right space-x-1">
                       <button
-                        onClick={() => { setSelectedChedReq(req); setShowChedUploadModal(true); }}
+                        onClick={() => openChedUploadModal(req)}
                         className="px-2.5 py-1.5 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 font-medium rounded-lg text-xs transition-colors cursor-pointer shadow-2xs"
                       >
                         Upload Proof
@@ -2068,6 +2250,12 @@ export function AccreditationSupport() {
   const [isLoadingChed, setIsLoadingChed] = useState(false);
   const [showChedUploadModal, setShowChedUploadModal] = useState(false);
   const [selectedChedReq, setSelectedChedReq] = useState<any>(null);
+  const selectedChedFileIsDuplicate = Boolean(
+    selectedFile && selectedChedReq?.evidences?.some((evidence: any) => (
+      normalizeEvidenceFileName(evidence.file_name || evidence.document_name)
+        === normalizeEvidenceFileName(selectedFile.name)
+    ))
+  );
   
   // Admin specific CHED states
   const [showAddChedReqModal, setShowAddChedReqModal] = useState(false);
@@ -3260,6 +3448,37 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     setShowUploadModal(true);
   };
 
+  const openChedUploadModal = (requirement: any) => {
+    setSelectedChedReq(requirement);
+    setUploadForm({ fileName: "", requirementTarget: "" });
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setShowChedUploadModal(true);
+  };
+
+  const closeChedUploadModal = () => {
+    setShowChedUploadModal(false);
+    setSelectedChedReq(null);
+    setSelectedFile(null);
+    setUploadForm({ fileName: "", requirementTarget: "" });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleOpenChedEvidence = async (evidence: any) => {
+    const previewWindow = window.open("", "_blank");
+    try {
+      const response = await apiClient.get(`/ched/evidence/${evidence.id}/access-url`);
+      const freshUrl = response.data?.file_url;
+      if (!freshUrl) throw new Error("No evidence URL returned");
+
+      if (previewWindow) previewWindow.location.href = freshUrl;
+      else window.open(freshUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      previewWindow?.close();
+      showToast("Unable to open this CHED evidence file. Please try again.", "error");
+    }
+  };
+
   const openDeleteModal = (docName: string) => {
     setDocToDelete(docName);
     setShowDeleteModal(true);
@@ -3356,6 +3575,10 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     if (!uploadForm.fileName || !selectedFile || !selectedChedReq) {
       showToast("Please provide all required fields.", "error"); return;
     }
+    if (selectedChedFileIsDuplicate) {
+      showToast(`A file named "${selectedFile.name}" is already attached to this requirement.`, "error");
+      return;
+    }
     
     setIsUploading(true);
     const submitData = new FormData();
@@ -3370,12 +3593,11 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
         headers: { "Content-Type": "multipart/form-data" }
       });
       await fetchChedData();
-      setUploadForm({ fileName: "", requirementTarget: "" });
-      setSelectedFile(null); 
-      setShowChedUploadModal(false);
+      closeChedUploadModal();
       showToast("CHED Evidence uploaded! Pending Admin Review.", "success");
-    } catch (error) {
-      showToast("Failed to upload CHED evidence.", "error");
+    } catch (error: any) {
+      const detail = error.response?.data?.detail;
+      showToast(detail || "Failed to upload CHED evidence.", "error");
     } finally {
       setIsUploading(false);
     }
@@ -4287,10 +4509,10 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             setEditingChedReq={setEditingChedReq}
             setChedReqToDelete={setChedReqToDelete}
             setShowDeleteChedReqModal={setShowDeleteChedReqModal}
-            setSelectedChedReq={setSelectedChedReq}
-            setShowChedUploadModal={setShowChedUploadModal}
+            openChedUploadModal={openChedUploadModal}
             setChedEvidenceToDelete={setChedEvidenceToDelete}
             setShowDeleteChedEvidenceModal={setShowDeleteChedEvidenceModal}
+            handleOpenChedEvidence={handleOpenChedEvidence}
             handleReviewChedEvidence={handleReviewChedEvidence}
             isReviewing={isReviewing}
           />
@@ -4636,7 +4858,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                 <h2 className="text-xl font-bold text-[#1F2937]">Upload CHED Evidence</h2>
                 <p className="text-xs font-semibold text-[#DD7230] mt-1 uppercase tracking-wider">Tagging for {selectedProgram}</p>
               </div>
-              <button onClick={() => setShowChedUploadModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
+              <button onClick={closeChedUploadModal} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
@@ -4679,13 +4901,19 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   )}
                   <input type="file" accept=".pdf,.docx,.txt" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
                 </div>
+                {selectedChedFileIsDuplicate && selectedFile && (
+                  <div className="mt-2 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-medium text-rose-700">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    A file named "{selectedFile.name}" is already attached to this requirement. Select a different file before submitting.
+                  </div>
+                )}
               </div>
 
               <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setShowChedUploadModal(false)} className="flex-1 px-5 py-3 text-sm font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer uppercase tracking-wider">
+                <button type="button" onClick={closeChedUploadModal} className="flex-1 px-5 py-3 text-sm font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer uppercase tracking-wider">
                   Cancel
                 </button>
-                <button type="submit" disabled={!uploadForm.fileName || !selectedFile || isUploading} className="flex-1 px-5 py-3 text-sm font-bold bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] disabled:opacity-50 transition-all flex justify-center items-center gap-2 cursor-pointer active:scale-95 shadow-md uppercase tracking-wider">
+                <button type="submit" disabled={!uploadForm.fileName || !selectedFile || selectedChedFileIsDuplicate || isUploading} className="flex-1 px-5 py-3 text-sm font-bold bg-[#DD7230] text-white rounded-xl hover:bg-[#DD7230] disabled:opacity-50 transition-all flex justify-center items-center gap-2 cursor-pointer active:scale-95 shadow-md uppercase tracking-wider">
                   {isUploading ? <><Loader2 className="h-4 w-4 animate-spin"/> Processing...</> : "Submit Evidence"}
                 </button>
               </div>
