@@ -35,6 +35,28 @@ const isExcludedFromGwa = (subject: string) => {
     || /\bNSTP\b/.test(normalizedSubject);
 };
 
+const hasPostedFinalGrade = (semester: SemesterData) => (
+  semester.subjects_scratchpad?.some(sub => {
+    const grade = Number(sub.grade);
+    return Number.isFinite(grade) && grade > 0 && grade <= 5.0;
+  }) ?? false
+);
+
+const hasUnpostedFinalGrade = (semester: SemesterData) => (
+  semester.subjects_scratchpad?.some(sub => {
+    const grade = Number(sub.grade);
+    return !Number.isFinite(grade) || grade <= 0;
+  }) ?? false
+);
+
+const getLatinHonor = (gwa: number, hasDisqualifyingGrade: boolean, hasMissingGrades: boolean) => {
+  if (hasDisqualifyingGrade || hasMissingGrades) return null;
+  if (gwa >= 1.0 && gwa <= 1.2) return "Summa Cum Laude";
+  if (gwa > 1.2 && gwa <= 1.45) return "Magna Cum Laude";
+  if (gwa > 1.45 && gwa <= 1.75) return "Cum Laude";
+  return null;
+};
+
 export function GradeEvaluation() {
   const [isDragging, setIsDragging] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -51,7 +73,7 @@ export function GradeEvaluation() {
   // --- DETERMINISTIC REACT MATH ENGINE ---
   const getAccurateMath = (semester: SemesterData) => {
     if (!semester.subjects_scratchpad || semester.subjects_scratchpad.length === 0) {
-      return { gwa: "N/A", totalUnits: "0", status: "Unknown" };
+      return { gwa: "N/A", totalUnits: "0", status: "Unknown", isDeansLister: false };
     }
 
     let totalUnits = 0;
@@ -72,29 +94,43 @@ export function GradeEvaluation() {
       }
     });
 
-    if (totalUnits === 0) return { gwa: "N/A", totalUnits: "0", status: "Pending" };
+    if (totalUnits === 0) return { gwa: "N/A", totalUnits: "0", status: "Pending", isDeansLister: false };
 
     const calcGwa = (totalWeighted / totalUnits).toFixed(2);
+    const hasIncompleteGrades = semester.has_missing_grades || hasUnpostedFinalGrade(semester);
     let status = "Pass";
     if (hasFailed) status = "Fail";
-    else if (Number(calcGwa) <= 1.75) status = "Dean's Lister";
-    else if (semester.has_missing_grades) status = "Conditional";
+    else if (hasIncompleteGrades) status = "Conditional";
 
-    return { gwa: calcGwa, totalUnits: totalUnits.toFixed(1), status };
+    const isDeansLister = !hasFailed
+      && !hasIncompleteGrades
+      && Number(calcGwa) <= 1.75;
+
+    return { gwa: calcGwa, totalUnits: totalUnits.toFixed(1), status, isDeansLister };
   };
 
   const getCumulativeMath = (semesters: SemesterData[]) => {
     let globalUnits = 0;
     let globalWeighted = 0;
     let hasFailed = false;
+    let hasDisqualifyingGrade = false;
+    const hasMissingGrades = semesters.some(sem => {
+      const hasPostedGrades = hasPostedFinalGrade(sem);
+      return hasPostedGrades && (sem.has_missing_grades || hasUnpostedFinalGrade(sem));
+    });
 
     semesters.forEach(sem => {
       sem.subjects_scratchpad?.forEach(sub => {
+        const grade = Number(sub.grade) || 0;
+
+        // CTU uses an ascending numeric scale, so a grade numerically above 2.5
+        // is lower-performing and disqualifies the student from Latin honors.
+        if (grade > 2.5 && grade <= 5.0) hasDisqualifyingGrade = true;
+
         if (isExcludedFromGwa(sub.subject)) return;
 
-        if (sub.grade > 0 && sub.grade <= 5.0) {
+        if (grade > 0 && grade <= 5.0) {
           const units = Number(sub.units) || 0;
-          const grade = Number(sub.grade) || 0;
 
           globalUnits += units;
           globalWeighted += (units * grade);
@@ -103,14 +139,16 @@ export function GradeEvaluation() {
       });
     });
 
-    if (globalUnits === 0) return { gwa: "N/A", status: "Pending" };
+    if (globalUnits === 0) return { gwa: "N/A", status: "Pending", latinHonor: null };
     
-    const finalGwa = (globalWeighted / globalUnits).toFixed(2);
+    const finalGwaValue = globalWeighted / globalUnits;
+    const finalGwa = finalGwaValue.toFixed(3);
     let status = "Pass";
     if (hasFailed) status = "Fail";
-    else if (Number(finalGwa) <= 1.75) status = "Dean's Lister";
 
-    return { gwa: finalGwa, status };
+    const latinHonor = getLatinHonor(finalGwaValue, hasDisqualifyingGrade, hasMissingGrades);
+
+    return { gwa: finalGwa, status, latinHonor };
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -152,13 +190,14 @@ export function GradeEvaluation() {
   };
 
   const getStatusBadge = (status: string) => {
-    if (status === "Dean's Lister") return "bg-amber-50 text-amber-800 border border-amber-200/60 font-semibold";
     if (status === "Pass") return "bg-emerald-50 text-emerald-800 border border-emerald-200/60 font-semibold";
     if (status === "Fail") return "bg-rose-50 text-rose-800 border border-rose-200/60 font-semibold";
     return "bg-gray-100 text-gray-800 border border-gray-200 font-semibold";
   };
 
-  const cumulativeData = result && Array.isArray(result.semesters) ? getCumulativeMath(result.semesters) : { gwa: "N/A", status: "Unknown" };
+  const cumulativeData = result && Array.isArray(result.semesters)
+    ? getCumulativeMath(result.semesters)
+    : { gwa: "N/A", status: "Unknown", latinHonor: null };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -250,10 +289,16 @@ export function GradeEvaluation() {
                     </h3>
                     <p className="text-xs text-gray-500 mt-0.5">Official CTU Grading Ruleset Applied</p>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs tracking-wide font-semibold flex items-center gap-1.5 self-start sm:self-auto ${getStatusBadge(cumulativeData.status)}`}>
-                    {cumulativeData.status === "Dean's Lister" && <Award className="h-3.5 w-3.5" />}
-                    {cumulativeData.status}
-                  </span>
+                  {cumulativeData.latinHonor ? (
+                    <span className="px-3 py-1 rounded-full text-xs tracking-wide font-semibold flex items-center gap-1.5 self-start sm:self-auto bg-amber-50 text-amber-800 border border-amber-200/60">
+                      <Award className="h-3.5 w-3.5" />
+                      {cumulativeData.latinHonor}
+                    </span>
+                  ) : cumulativeData.status !== "Pass" ? (
+                    <span className={`px-3 py-1 rounded-full text-xs tracking-wide font-semibold flex items-center gap-1.5 self-start sm:self-auto ${getStatusBadge(cumulativeData.status)}`}>
+                      {cumulativeData.status}
+                    </span>
+                  ) : null}
                 </div>
 
                 {/* GWA Card */}
@@ -265,6 +310,9 @@ export function GradeEvaluation() {
                   <div className="hidden sm:block w-px h-12 bg-gray-200"></div>
                   <div className="text-center sm:text-left max-w-[280px]">
                     <p className="text-xs text-gray-500 leading-relaxed">Calculated natively via deterministic mathematics ensuring 100% precision from extracted AI data.</p>
+                    <p className="text-[10px] text-gray-400 leading-relaxed mt-1.5">
+                      Latin honor standing is based on cumulative GWA and recorded final grades. A current semester with no posted grades is ignored. Final eligibility still requires completion of all graduation requirements and at least 75% residency credit.
+                    </p>
                   </div>
                 </div>
 
@@ -275,7 +323,8 @@ export function GradeEvaluation() {
                     </h3>
                     
                     {result.semesters.map((sem, idx) => {
-                      const math = getAccurateMath(sem); 
+                      const math = getAccurateMath(sem);
+                      const isCurrentSemester = !hasPostedFinalGrade(sem);
                       const yearMatch = (sem.semester_name || "").match(/(?:SY|AY)\s*(\d{4}-\d{4})/i);
                       const academicYear = yearMatch ? yearMatch[1] : "Academic Record";
                       const previousYearMatch = idx > 0
@@ -309,6 +358,12 @@ export function GradeEvaluation() {
                             </div>
 
                             <div className="flex items-center gap-4 sm:pl-5 sm:border-l border-gray-100">
+                              {math.isDeansLister && (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-800">
+                                  <Award className="h-3 w-3" />
+                                  Dean's Lister
+                                </span>
+                              )}
                               <div className="text-right">
                                 <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider block">Semester GWA</span>
                                 <span className="text-lg font-bold text-gray-900 leading-none">{math.gwa}</span>
@@ -329,13 +384,18 @@ export function GradeEvaluation() {
                             </div>
                           </div>
 
-                          {/* MISSING GRADES BANNER */}
-                          {sem.has_missing_grades && (
+                          {/* CURRENT / INCOMPLETE SEMESTER BANNER */}
+                          {isCurrentSemester ? (
+                            <div className="px-4 py-2 bg-sky-50 border-t border-sky-100 flex items-center gap-2">
+                              <Calendar className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                              <span className="text-[11px] font-medium text-sky-700">Current semester - final grades have not been posted and do not affect Latin honor standing.</span>
+                            </div>
+                          ) : (sem.has_missing_grades || hasUnpostedFinalGrade(sem)) ? (
                             <div className="px-4 py-2 bg-rose-50 border-t border-rose-100 flex items-center gap-2">
                               <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
                               <span className="text-[11px] font-medium text-rose-700">Missing or incomplete grades detected in this semester.</span>
                             </div>
-                          )}
+                          ) : null}
 
                           {/* MATH SCRATCHPAD */}
                           {expandedSemesters.includes(idx) && Array.isArray(sem.subjects_scratchpad) && (
