@@ -4,6 +4,7 @@ import secrets
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from dotenv import load_dotenv
 from passlib.context import CryptContext
 from jose import jwt
@@ -25,6 +26,39 @@ def hash_password(password: str):
 def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
+
+def _send_email(target_email: str, subject: str, html: str, text: str):
+    """Send an email through the configured SMTP server.
+
+    Gmail remains the default, so the capstone can continue using the existing
+    free Gmail app password. SMTP settings are configurable for another
+    provider later, and refused recipients are surfaced instead of being
+    silently reported as successful.
+    """
+    sender_email = (os.getenv("EMAIL_ADDRESS") or "").strip()
+    sender_password = (os.getenv("EMAIL_APP_PASSWORD") or "").replace(" ", "").strip()
+    smtp_host = (os.getenv("EMAIL_SMTP_HOST") or "smtp.gmail.com").strip()
+    smtp_port = int(os.getenv("EMAIL_SMTP_PORT") or "465")
+
+    if not sender_email or not sender_password:
+        raise ValueError("Email credentials missing in .env file")
+
+    target_email = str(target_email).strip()
+    message = MIMEMultipart("alternative")
+    message["Subject"] = subject
+    message["From"] = formataddr(("CTU Argao Support", sender_email))
+    message["To"] = target_email
+    message.attach(MIMEText(text, "plain", "utf-8"))
+    message.attach(MIMEText(html, "html", "utf-8"))
+
+    with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30) as server:
+        server.login(sender_email, sender_password)
+        refused = server.sendmail(sender_email, [target_email], message.as_string())
+
+    if refused:
+        reason = refused.get(target_email, "SMTP server refused the recipient")
+        raise RuntimeError(f"SMTP refused recipient {target_email}: {reason}")
+
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -43,17 +77,6 @@ def decode_access_token(token: str) -> dict:
 
 
 def send_forgot_password_email(target_email: str, otp_code: str):
-    sender_email = os.getenv("EMAIL_ADDRESS")
-    sender_password = os.getenv("EMAIL_APP_PASSWORD")
-
-    if not sender_email or not sender_password:
-        raise ValueError("Email credentials missing in .env file")
-
-    message = MIMEMultipart("alternative")
-    message["Subject"] = "Reset Your CTU Knowledge System Password"
-    message["From"] = f"CTU Argao Support <{sender_email}>"
-    message["To"] = target_email
-
     html = f"""
     <html>
         <body style="font-family: Arial, sans-serif;">
@@ -66,28 +89,18 @@ def send_forgot_password_email(target_email: str, otp_code: str):
         </body>
     </html>
     """
-    message.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, target_email, message.as_string())
+    _send_email(
+        target_email,
+        "Reset Your CTU Knowledge System Password",
+        html,
+        f"Use this one-time verification code to reset your password: {otp_code}\nThis code expires in 10 minutes.",
+    )
 
 # --- NEW: OTP LOGIC ---
 def generate_otp():
     return f"{secrets.randbelow(900000) + 100000:06d}"
 
 def send_otp_email(target_email: str, otp_code: str):
-    sender_email = os.getenv("EMAIL_ADDRESS")
-    sender_password = os.getenv("EMAIL_APP_PASSWORD")
-
-    if not sender_email or not sender_password:
-        raise ValueError("Email credentials missing in .env file")
-
-    message = MIMEMultipart("alternative")
-    message["Subject"] = f"Your CTU Knowledge System Verification Code: {otp_code}"
-    message["From"] = f"CTU Argao Support <{sender_email}>"
-    message["To"] = target_email
-
     html = f"""
     <html>
         <body style="font-family: Arial, sans-serif; background-color: #FAFAFA; padding: 20px;">
@@ -105,12 +118,13 @@ def send_otp_email(target_email: str, otp_code: str):
         </body>
     </html>
     """
-    message.attach(MIMEText(html, "html"))
-
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, target_email, message.as_string())
+        _send_email(
+            target_email,
+            f"Your CTU Knowledge System Verification Code: {otp_code}",
+            html,
+            f"Your CTU Knowledge System verification code is {otp_code}. This code expires in 10 minutes.",
+        )
         print(f"[OTP] Sent verification email to {target_email}")
     except Exception as e:
         print(f"[OTP] SMTP send failed: {e}")

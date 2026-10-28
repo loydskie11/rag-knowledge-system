@@ -1093,7 +1093,11 @@ def login_user(
         httponly=True,
         max_age=60 * 60 * 8, # 8 hours
         samesite="lax",
-        secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
+        # The presentation container is normally reached over HTTP via the
+        # host's hotspot IP. Secure cookies are opt-in so browsers do not
+        # silently drop the session on that HTTP connection. Set
+        # COOKIE_SECURE=true when the app is served over HTTPS.
+        secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
     )
     response.set_cookie(
         key="csrf_token",
@@ -1101,7 +1105,7 @@ def login_user(
         httponly=False,
         max_age=60 * 60 * 8,
         samesite="lax",
-        secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
+        secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
     )
 
     # Audit log

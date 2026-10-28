@@ -11,6 +11,8 @@ services:
     environment:
       # Override the localhost AI URL so the container can reach your host machine's Ollama
       - AI_BASE_URL=http://host.docker.internal:11434/v1
+      # Hotspot presentation access uses HTTP via the laptop IP.
+      - COOKIE_SECURE=false
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Optional: uncomment this volume mapping if you want live reloading for dev

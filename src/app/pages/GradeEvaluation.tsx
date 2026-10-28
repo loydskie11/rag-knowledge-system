@@ -25,6 +25,16 @@ interface EvaluationResult {
   recommendations: string[];
 }
 
+const isExcludedFromGwa = (subject: string) => {
+  const normalizedSubject = (subject || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+  return normalizedSubject.includes("NATIONAL SERVICE TRAINING PROGRAM")
+    || /\bNSTP\b/.test(normalizedSubject);
+};
+
 export function GradeEvaluation() {
   const [isDragging, setIsDragging] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -49,6 +59,8 @@ export function GradeEvaluation() {
     let hasFailed = false;
 
     semester.subjects_scratchpad.forEach(sub => {
+      if (isExcludedFromGwa(sub.subject)) return;
+
       if (sub.grade > 0 && sub.grade <= 5.0) {
         const units = Number(sub.units) || 0;
         const grade = Number(sub.grade) || 0;
@@ -78,10 +90,15 @@ export function GradeEvaluation() {
 
     semesters.forEach(sem => {
       sem.subjects_scratchpad?.forEach(sub => {
+        if (isExcludedFromGwa(sub.subject)) return;
+
         if (sub.grade > 0 && sub.grade <= 5.0) {
-          globalUnits += Number(sub.units);
-          globalWeighted += (Number(sub.units) * Number(sub.grade));
-          if (sub.grade > 3.0) hasFailed = true;
+          const units = Number(sub.units) || 0;
+          const grade = Number(sub.grade) || 0;
+
+          globalUnits += units;
+          globalWeighted += (units * grade);
+          if (grade > 3.0) hasFailed = true;
         }
       });
     });
@@ -336,9 +353,21 @@ export function GradeEvaluation() {
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-gray-200/60">
-                                    {sem.subjects_scratchpad.map((item, i) => (
+                                    {sem.subjects_scratchpad.map((item, i) => {
+                                      const excludedFromGwa = isExcludedFromGwa(item.subject);
+
+                                      return (
                                       <tr key={i} className={`text-gray-700 hover:bg-white/60 transition-colors ${!item.grade || item.grade === 0 ? 'opacity-50' : ''}`}>
-                                        <td className="py-2.5 font-medium text-gray-900 truncate max-w-[220px]" title={item.subject}>{item.subject}</td>
+                                        <td className="py-2.5 font-medium text-gray-900 max-w-[220px]" title={item.subject}>
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className="truncate">{item.subject}</span>
+                                            {excludedFromGwa && (
+                                              <span className="shrink-0 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-700">
+                                                Excluded from GWA
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
                                         <td className="py-2.5 text-center text-gray-600">{item.units}</td>
                                         <td className="py-2.5 text-center text-gray-600 font-mono">
                                           {item.midterm_grade != null && item.midterm_grade > 0 ? (
@@ -361,14 +390,17 @@ export function GradeEvaluation() {
                                             <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200/60 px-1.5 py-0.5 rounded">INC</span>
                                           )}
                                         </td>
-                                        <td className="py-2.5 text-right font-medium text-gray-500 font-mono">{(item.units * item.grade).toFixed(2)}</td>
+                                        <td className="py-2.5 text-right font-medium text-gray-500 font-mono">
+                                          {excludedFromGwa ? "Excluded" : (item.units * item.grade).toFixed(2)}
+                                        </td>
                                       </tr>
-                                    ))}
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>
                               <p className="mt-2.5 text-[10px] text-gray-400 italic">
-                                * CTU Policy: Periodic marks (Midterm/Final Term) may be omitted by instructors. Official course credit and semester GWA are computed strictly from the Final Grade column.
+                                * CTU Policy: Periodic marks (Midterm/Final Term) may be omitted by instructors. Official course credit and semester GWA are computed strictly from the Final Grade column. National Service Training Program (NSTP) remains displayed but is excluded from semester and cumulative GWA computations.
                               </p>
                             </div>
                           )}
