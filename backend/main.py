@@ -1522,6 +1522,7 @@ async def upload_document(
             "version":          version,
             "effectivity_date": effectivity_date,
             "upload_date":      datetime.now().isoformat(),
+            "storage_path":     unique_filename,
             "file_url":         public_url,
             "status":           "Active",
             "uploaded_by":      uploaded_by or "Unknown",
@@ -1641,6 +1642,7 @@ async def upload_new_version(
             "version":          new_version,
             "effectivity_date": new_effectivity_date,
             "upload_date":      datetime.now().isoformat(),
+            "storage_path":     unique_filename,
             "file_url":         public_url,
             "status":           "Active",
             "uploaded_by":      uploaded_by or "Unknown",
@@ -1742,6 +1744,74 @@ def get_documents(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
         raise HTTPException(status_code=500, detail="Failed to fetch documents")
+
+
+@app.get("/documents/file-url")
+def get_document_file_url(
+    document_name: str = Query(..., min_length=1),
+    version: Optional[str] = Query(None),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Return a fresh authorized signed URL for a repository document.
+
+    Stored Supabase signed URLs expire after a short period, so callers must
+    resolve the storage path from metadata and request a new URL at open time.
+    """
+    try:
+        response = (
+            supabase.table("document_sections")
+            .select("metadata")
+            .eq("metadata->>name", document_name.strip())
+            .limit(100)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Document storage is temporarily unavailable.") from exc
+
+    candidates = []
+    for row in response.data or []:
+        metadata = row.get("metadata") or {}
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except Exception:
+                metadata = {}
+        if metadata.get("name") != document_name.strip():
+            continue
+        if version and str(metadata.get("version", "")) != str(version):
+            continue
+        if current_user.role.upper() == "STUDENT":
+            if is_student_hidden_category(metadata.get("category")):
+                continue
+            if str(metadata.get("status") or "Active").strip().lower() not in {"active", "approved", "published"}:
+                continue
+        candidates.append(metadata)
+
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Document not found or access is not permitted.")
+
+    # Prefer an active/current record when several chunk rows contain metadata.
+    candidates.sort(
+        key=lambda item: (
+            str(item.get("status", "")).strip().lower() in {"active", "approved", "published"},
+            str(item.get("upload_date", "")),
+        ),
+        reverse=True,
+    )
+    metadata = candidates[0]
+    storage_path = metadata.get("storage_path") or get_private_storage_path(metadata.get("file_url"))
+    if not storage_path:
+        raise HTTPException(status_code=404, detail="Document storage path is missing.")
+
+    fresh_url = create_private_file_url(storage_path)
+    if not fresh_url:
+        raise HTTPException(status_code=503, detail="Could not create a temporary document URL.")
+
+    return {
+        "file_url": fresh_url,
+        "name": metadata.get("name", document_name.strip()),
+        "version": metadata.get("version", "1.0"),
+    }
 
 
 

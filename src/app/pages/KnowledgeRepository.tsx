@@ -168,8 +168,8 @@ export function KnowledgeRepository() {
     return matchesCategory && matchesOffice && matchesProgram && matchesSearch;
   });
 
-  const handleView = (doc: any) => {
-    if (doc.file_url) {
+  const handleView = async (doc: any) => {
+    if (doc.file_url || doc.name) {
       const userEmail = sessionStorage.getItem('userEmail') || 'Unknown';
       const userRole = sessionStorage.getItem('userRole') || 'STUDENT';
 
@@ -179,7 +179,24 @@ export function KnowledgeRepository() {
         user_email: userEmail,
         user_role: userRole
       }).catch(err => console.error("Silently failed to log access"));
-          window.open(doc.file_url, "_blank");
+
+      // Open a blank tab synchronously so browsers do not block the later
+      // navigation while the backend creates a fresh signed URL.
+      const previewWindow = window.open("about:blank", "_blank");
+      try {
+        const response = await apiClient.get("/documents/file-url", {
+          params: { document_name: doc.name, version: doc.version },
+        });
+        if (previewWindow) {
+          previewWindow.location.href = response.data.file_url;
+        } else {
+          window.open(response.data.file_url, "_blank");
+        }
+      } catch (error) {
+        previewWindow?.close();
+        console.error("Document view failed:", error);
+        showToast("The document could not be opened. Please try again.", "error");
+      }
     } else {
       showToast("Document link not found!", "error");
     }
