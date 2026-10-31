@@ -237,7 +237,10 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
             user_email: userEmail || "guest@ctu.edu.ph",
             user_role: currentRole,
           },
-          { cancelToken: source.token, timeout: 45000 }
+          // Local Ollama may need extra time on the first request while the
+          // model is loading into GPU memory. The backend continues to enforce
+          // its own rate limits and grounding checks.
+          { cancelToken: source.token, timeout: 120000 }
         );
 
         const formattedSources: Source[] = (response.data?.sources || []).map(

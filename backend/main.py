@@ -2008,6 +2008,7 @@ def ask_policy(
     db: Session = Depends(get_db),
     current_user: Optional[models.User] = Depends(get_optional_user)
 ):
+    request_started_at = time.perf_counter()
     # RAG Query Rate Limiting: Max 15 questions per 1 minute per IP to prevent vector database scraping
     limiter.check(req, key_name="ask_policy", max_requests=15, window_seconds=60)
 
@@ -2159,6 +2160,7 @@ def ask_policy(
     # ==========================================
     # 4. CONVERSATIONAL QUERY EXPANSION & SPELL CHECK
     # ==========================================
+    rewrite_started_at = time.perf_counter()
     if recent_history:
         history_summary = "\n".join([f"{'User' if h.role == 'user' else 'Assistant'}: {h.content}" for h in recent_history[-4:]])
         rewrite_prompt = f"""You are a search query optimizer for an institutional knowledge retrieval system.
@@ -2172,29 +2174,34 @@ Conversation History:
 
 Follow-up Question: "{question}"
 Standalone Search Query:"""
+        try:
+            rewrite_response = local_ai_client.chat.completions.create(
+                messages=[{'role': 'user', 'content': rewrite_prompt}],
+                model=ai_model,
+                temperature=0.0,
+                max_tokens=120,
+            )
+            optimized_query = rewrite_response.choices[0].message.content.strip().strip('"')
+        except Exception:
+            optimized_query = question
     else:
-        rewrite_prompt = f"""You are a search query optimizer. The user asked: "{question}"
-Rewrite this into a clean, professional, grammatically correct search query optimized for a vector database. 
-Fix all typos. Do not answer the question, ONLY output the optimized search string."""
-    
-    try:
-        rewrite_response = local_ai_client.chat.completions.create(
-            messages=[{'role': 'user', 'content': rewrite_prompt}],
-            model=ai_model,
-            temperature=0.0
-        )
-        optimized_query = rewrite_response.choices[0].message.content.strip().strip('"')
-    except Exception:
-        optimized_query = question
+        # A standalone question is already a valid retrieval query. Avoiding
+        # an extra LLM rewrite call removes one full local inference step from
+        # the common first-turn path and reduces timeout risk.
+        optimized_query = question.strip()
+
+    rewrite_elapsed_ms = round((time.perf_counter() - rewrite_started_at) * 1000)
 
     # ==========================================
     # 5. ROLE-AWARE RAG RETRIEVAL
     # ==========================================
     # Pass excluded_categories so the vector search itself skips restricted
     # documents — we don't waste retrieval slots and never leak context to the AI.
+    retrieval_started_at = time.perf_counter()
     relevant_chunks = vector_store.search_knowledge(
         optimized_query, excluded_categories=excluded_categories
     )
+    retrieval_elapsed_ms = round((time.perf_counter() - retrieval_started_at) * 1000)
 
     # Do not spend an LLM call, or risk a guess, when retrieval evidence is
     # weak. The score is the hybrid semantic/lexical score from vector_store.
@@ -2371,11 +2378,13 @@ SOURCE DOCUMENTS:
     # Grounded temperature: 0.0 for strictly factual, deterministic answers
     grounded_temp = 0.0
 
+    generation_started_at = time.perf_counter()
     try:
         response = local_ai_client.chat.completions.create(
             messages=messages_payload,
             model=ai_model,
-            temperature=grounded_temp
+            temperature=grounded_temp,
+            max_tokens=600,
         )
 
         raw_answer = response.choices[0].message.content
@@ -2407,7 +2416,31 @@ SOURCE DOCUMENTS:
             answer = "I do not have enough verified evidence in the retrieved policy text to answer that confidently. Please rephrase the question or consult the responsible office."
             follow_ups = []
 
+        generation_elapsed_ms = round((time.perf_counter() - generation_started_at) * 1000)
+        _log.info(
+            "ask_policy_timing",
+            extra={
+                "request_id": _request_id.get(),
+                "rewrite_ms": rewrite_elapsed_ms,
+                "retrieval_ms": retrieval_elapsed_ms,
+                "generation_ms": generation_elapsed_ms,
+                "total_ms": round((time.perf_counter() - request_started_at) * 1000),
+                "model": ai_model,
+                "source_count": len(relevant_chunks),
+            },
+        )
     except Exception as e:
+        _log.warning(
+            "ask_policy_generation_failed",
+            extra={
+                "request_id": _request_id.get(),
+                "rewrite_ms": rewrite_elapsed_ms,
+                "retrieval_ms": retrieval_elapsed_ms,
+                "generation_ms": round((time.perf_counter() - generation_started_at) * 1000),
+                "total_ms": round((time.perf_counter() - request_started_at) * 1000),
+                "model": ai_model,
+            },
+        )
         print(f"Cloud API Error: {e}")
         return {"answer": "I'm having a bit of trouble connecting to the network. Please try again in a moment!", "sources": [], "follow_ups": []}
 
