@@ -1,0 +1,218 @@
+/* ============================================================
+   CTU CSS DASHBOARD — Minimal scoped styles
+   Only Recharts tooltip, filter-tag scrollbar, and any
+   styles that cannot be expressed in Tailwind inline classes.
+   All layout/card/button styles now use Tailwind directly.
+   ============================================================ */
+
+/* --- Chart Tooltip (Recharts custom) --- */
+.chart-tooltip {
+  background: #08060D;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.chart-tooltip-label {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: rgba(255,255,255,0.6);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.chart-tooltip-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #FF9501;
+}
+
+/* --- SQD Score bar rows (DataTable / SQDScoreBars) --- */
+.sqd-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #E5E7EB;
+}
+.sqd-item:last-child { border-bottom: none; }
+
+.sqd-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4B5563;
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.sqd-bar-track {
+  flex: 1;
+  height: 8px;
+  background: #F3F4F6;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.sqd-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: #DD7230;
+  transition: width 0.6s ease;
+}
+
+.sqd-score-val {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #374151;
+  width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* --- Score Pills (DataTable) --- */
+.score-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.score-pill.excellent { background: rgba(16,185,129,0.1); color: #059669; }
+.score-pill.good { background: rgba(221,114,48,0.1); color: #DD7230; }
+.score-pill.fair { background: rgba(245,158,11,0.1); color: #B45309; }
+.score-pill.poor { background: rgba(244,63,94,0.1); color: #e11d48; }
+
+/* --- Likert Legend (SQDBar chart) --- */
+.likert-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.likert-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #4B5563;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* --- Suggestion cards (SuggestionsPanel) --- */
+.suggestion-card {
+  padding: 14px 16px;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  background: white;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  margin-bottom: 10px;
+}
+.suggestion-card:hover {
+  border-color: #DD7230;
+  box-shadow: 0 0 0 3px rgba(221,114,48,0.08);
+}
+
+.suggestion-text {
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.suggestion-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.suggestion-meta-item {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #9CA3AF;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* --- Data Table --- */
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.data-table thead th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9CA3AF;
+  background: #F9FAFB;
+  border-bottom: 1px solid #E5E7EB;
+  white-space: nowrap;
+}
+
+.data-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #F3F4F6;
+  color: #374151;
+  vertical-align: top;
+}
+
+.data-table tbody tr:hover td {
+  background: #FFFBF7;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* --- CC Charts bar labels --- */
+.cc-bar-label {
+  font-size: 0.72rem;
+  fill: #4B5563;
+}
+
+/* --- Loading spinner (Recharts area) --- */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Animations --- */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.35s ease forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease forwards;
+}

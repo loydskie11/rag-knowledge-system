@@ -1,0 +1,298 @@
+================================================================================
+EVALUATION QUESTIONNAIRE: CAMPUS-WIDE RAG-POWERED INSTITUTIONAL KNOWLEDGE SYSTEM
+FOR QUALITY ASSURANCE AND ACADEMIC GOVERNANCE
+Cebu Technological University - Argao Campus
+================================================================================
+
+PURPOSE
+This questionnaire evaluates the Campus-Wide RAG-Powered Institutional Knowledge
+System for Quality Assurance and Academic Governance at Cebu Technological
+University - Argao Campus. It is guided by the ISO/IEC 25010:2023 software quality
+model, the System Usability Scale (SUS), the RAG Triad computational metrics, and
+the study's specific functional objectives. Your feedback validates the system's
+effectiveness in supporting institutional efficiency, quality assurance, and
+compliance with the Data Privacy Act of 2012 (RA 10173).
+
+DATA PRIVACY NOTICE AND CONSENT
+By taking part in this evaluation, you consent to the collection and processing of
+your responses for this academic study at CTU Argao Campus. In compliance with the
+Data Privacy Act of 2012 (Republic Act No. 10173), your responses will be kept
+strictly confidential, stored securely on local encrypted drives, and analyzed in
+aggregate. Participation is voluntary: you may skip any question or withdraw at any
+time. All data will be anonymized in the final capstone report and securely disposed
+of upon project completion. For inquiries, contact the research team at:
+[research team email].
+
+[ ] I Agree. I have read this notice and voluntarily consent to participate.
+[ ] I Do Not Agree.
+
+================================================================================
+RESPONDENT PROFILE
+================================================================================
+
+Name (Optional):                 _____________________________________________
+Office / Department / Program:   _____________________________________________
+Date Answered:                   _____________________________________________
+
+Primary Role / Stakeholder Category (Choose ONE):
+[ ] Campus Administration (Campus Director / Administrative Officer)
+[ ] Quality Assurance (QA) Officer
+[ ] Campus Document Controller
+[ ] College Dean / Department Chair
+[ ] College Secretary
+[ ] Registrar Personnel
+[ ] Human Resources (HR)
+[ ] Office of Student Affairs (OSA)
+[ ] Faculty Member / Teaching Staff
+[ ] Student
+[ ] IT Expert / Technical Evaluator / MIS
+
+Modules you interacted with before answering (Check all that apply):
+[ ] Ask Policy (AI Chat Assistant)
+[ ] Knowledge Repository (Search, Browse, Download)
+[ ] Document Upload & Metadata Management
+[ ] Accreditation Support Module (AACCUP, ISO 9001:2015, CHED CMOs)
+[ ] Grade Evaluation and OCR Analytics Module
+[ ] Administrative Document Generator (Templates & AI Drafting)
+[ ] Governance Reference Module
+[ ] System Settings, RBAC & Audit Trail Logs (Admin features)
+
+================================================================================
+RATING SCALE AND INSTRUCTIONS
+================================================================================
+Please interact with your designated system modules before answering. Rate each
+statement by marking the number that best reflects your level of agreement:
+
+  5 - Strongly Agree
+  4 - Agree
+  3 - Neutral
+  2 - Disagree
+  1 - Strongly Disagree
+
+================================================================================
+PART I. ISO/IEC 25010:2023 SOFTWARE QUALITY EVALUATION
+================================================================================
+
+A. FUNCTIONAL SUITABILITY                                    5   4   3   2   1
+1. The system's features perform the tasks required for      [ ] [ ] [ ] [ ] [ ]
+   my role in academic governance and quality assurance.
+2. The system provides complete and correct information     [ ] [ ] [ ] [ ] [ ]
+   taken directly from approved institutional documents.
+3. The system provides the specific functions needed to      [ ] [ ] [ ] [ ] [ ]
+   finish my academic or administrative tasks.
+4. System-generated outputs (evidence maps, grade summaries, [ ] [ ] [ ] [ ] [ ]
+   drafted memos, reports) are relevant and useful.
+
+B. PERFORMANCE EFFICIENCY                                    5   4   3   2   1
+1. The system loads pages and returns AI answers within     [ ] [ ] [ ] [ ] [ ]
+   an acceptable time (2 to 5 seconds).
+2. Document search, uploading, indexing, and retrieval are   [ ] [ ] [ ] [ ] [ ]
+   fast and responsive.
+3. The system executes workflows efficiently without         [ ] [ ] [ ] [ ] [ ]
+   unnecessary processing steps.
+4. Document processing (OCR parsing and vectorization)       [ ] [ ] [ ] [ ] [ ]
+   finishes within a reasonable time.
+
+C. COMPATIBILITY                                             5   4   3   2   1
+1. The system works properly within standard web browser     [ ] [ ] [ ] [ ] [ ]
+   environments.
+2. Information is shared consistently across modules         [ ] [ ] [ ] [ ] [ ]
+   (Repository, Ask Policy, Accreditation, Grade Evaluation).
+3. The system handles the institution's standard file types  [ ] [ ] [ ] [ ] [ ]
+   (PDFs, spreadsheets, scanned document images).
+4. The system maintains consistent visual formatting and     [ ] [ ] [ ] [ ] [ ]
+   functionality across supported browsers.
+
+D. USABILITY                                                 5   4   3   2   1
+1. The system interface is intuitive and easy to navigate.   [ ] [ ] [ ] [ ] [ ]
+2. Labels, navigation menus, dialogue prompts, and buttons   [ ] [ ] [ ] [ ] [ ]
+   are clear and unambiguous.
+3. I can learn to operate the system quickly without         [ ] [ ] [ ] [ ] [ ]
+   requiring extensive technical training.
+4. The layout and visual presentation are professional,      [ ] [ ] [ ] [ ] [ ]
+   clean, and user-friendly.
+
+E. RELIABILITY                                               5   4   3   2   1
+1. The system operates consistently without unexpected       [ ] [ ] [ ] [ ] [ ]
+   system crashes or unhandled runtime errors.
+2. The AI assistant gives consistent, stable policy answers  [ ] [ ] [ ] [ ] [ ]
+   when similar inquiries are submitted.
+3. Stored documents, version histories, and academic         [ ] [ ] [ ] [ ] [ ]
+   records remain accurate and accessible.
+4. The system handles input errors gracefully and recovers   [ ] [ ] [ ] [ ] [ ]
+   smoothly from interrupted actions.
+
+F. SECURITY                                                  5   4   3   2   1
+1. The system protects sensitive university documents and    [ ] [ ] [ ] [ ] [ ]
+   student records from unauthorized viewing.
+2. The system maintains privacy and confidentiality in       [ ] [ ] [ ] [ ] [ ]
+   compliance with the Data Privacy Act of 2012 (RA 10173).
+3. Access to restricted features and files is strictly       [ ] [ ] [ ] [ ] [ ]
+   governed based on assigned user roles (RBAC).
+4. The system provides secure authentication (JWT/OTP) and   [ ] [ ] [ ] [ ] [ ]
+   an immutable audit trail for data modifications.
+
+G. MAINTAINABILITY (Evaluated by IT staff or via stability)  5   4   3   2   1
+1. The modular architecture allows components to be          [ ] [ ] [ ] [ ] [ ]
+   updated without breaking existing functionalities.
+2. System error logs and audit trails allow technical staff  [ ] [ ] [ ] [ ] [ ]
+   to identify and troubleshoot issues easily.
+3. New or updated institutional policies can be uploaded     [ ] [ ] [ ] [ ] [ ]
+   and indexed without needing a full system rebuild.
+4. The platform remains stable and operational following     [ ] [ ] [ ] [ ] [ ]
+   configuration updates or maintenance tasks.
+
+H. PORTABILITY                                               5   4   3   2   1
+1. The platform executes reliably across modern operating    [ ] [ ] [ ] [ ] [ ]
+   systems and web browsers.
+2. The web interface is accessible and usable across         [ ] [ ] [ ] [ ] [ ]
+   desktop workstations, laptops, and mobile devices.
+3. The user interface layout adapts responsively to varying  [ ] [ ] [ ] [ ] [ ]
+   display resolutions and screen sizes.
+4. Accessing the locally hosted system environment is        [ ] [ ] [ ] [ ] [ ]
+   straightforward for authorized campus users.
+
+================================================================================
+PART II. OBJECTIVE-BASED FUNCTIONAL VALIDATION
+(Answer items corresponding to the functional modules relevant to your role)
+================================================================================
+
+OBJECTIVE 1: KNOWLEDGE REPOSITORY & RAG ENGINE               5   4   3   2   1
+1. The repository centralizes multi-departmental records     [ ] [ ] [ ] [ ] [ ]
+   with version control and metadata tagging that facilitate
+   rapid discovery.
+2. The AskPolicy engine returns context-aware responses      [ ] [ ] [ ] [ ] [ ]
+   that cite specific source document snippets and pages.
+
+OBJECTIVE 2: QUERY ANALYTICS & FEEDBACK MECHANISM            5   4   3   2   1
+3. The administrative dashboard query analytics (recent      [ ] [ ] [ ] [ ] [ ]
+   inquiries, frequency trends) provide actionable insights
+   into campus information needs.
+4. The feedback mechanism allows users to flag inaccurate,   [ ] [ ] [ ] [ ] [ ]
+   incomplete, or out-of-date AI policy responses easily.
+
+OBJECTIVE 3: ACCREDITATION SUPPORT (AACCUP & ISO)            5   4   3   2   1
+5. Matrix-based evidence mapping effectively organizes       [ ] [ ] [ ] [ ] [ ]
+   institutional documents under required accreditation
+   areas and parameters.
+6. The system identifies documentation gaps and facilitates  [ ] [ ] [ ] [ ] [ ]
+   historical retrieval of Corrective Action Plans (CAP).
+
+OBJECTIVE 4: ROLE-BASED ACCESS CONTROL & AUDIT TRAIL         5   4   3   2   1
+7. Role-Based Access Control restricts file management and   [ ] [ ] [ ] [ ] [ ]
+   administrative tools according to official clearance.
+8. The exportable audit trail provides a clear, verifiable   [ ] [ ] [ ] [ ] [ ]
+   log of document revisions, user logins, and AI inquiries.
+
+OBJECTIVE 5: OCR-BASED GRADE EVALUATION                      5   4   3   2   1
+9. The OCR parsing engine reads and extracts grade records   [ ] [ ] [ ] [ ] [ ]
+   accurately from PDFs, spreadsheets, and document images.
+10. The system evaluates student academic progress against   [ ] [ ] [ ] [ ] [ ]
+    program graduation requirements faster than manual
+    checking.
+
+OVERALL FUNCTIONAL IMPACT                                    5   4   3   2   1
+11. Overall, the system streamlines document management,     [ ] [ ] [ ] [ ] [ ]
+    reduces administrative overhead, and strengthens
+    institutional governance.
+
+================================================================================
+PART III. SYSTEM USABILITY SCALE (SUS)
+================================================================================
+Please mark the response that best reflects your immediate reaction:
+
+STATEMENT                                                    5   4   3   2   1
+1. I think that I would like to use this system frequently.  [ ] [ ] [ ] [ ] [ ]
+2. I found the system unnecessarily complex.                 [ ] [ ] [ ] [ ] [ ]
+3. I thought the system was easy to use.                     [ ] [ ] [ ] [ ] [ ]
+4. I think that I would need the support of a technical      [ ] [ ] [ ] [ ] [ ]
+   person to be able to use this system.
+5. I found the various functions in this system were         [ ] [ ] [ ] [ ] [ ]
+   well integrated.
+6. I thought there was too much inconsistency in this        [ ] [ ] [ ] [ ] [ ]
+   system.
+7. I would imagine that most people would learn to use this  [ ] [ ] [ ] [ ] [ ]
+   system very quickly.
+8. I found the system very cumbersome to use.                [ ] [ ] [ ] [ ] [ ]
+9. I felt very confident using the system.                   [ ] [ ] [ ] [ ] [ ]
+10. I needed to learn a lot of things before I could get     [ ] [ ] [ ] [ ] [ ]
+    going with this system.
+
+================================================================================
+PART IV. ASKPOLICY AI EVALUATION (RAG TRIAD METRICS)
+================================================================================
+Open the Ask Policy AI interface and submit THREE (3) real-world policy
+questions regarding CTU rules you are familiar with (e.g., from the Student
+Handbook, Faculty Manual, Grading Policy, or CHED CMOs).
+
+Record your queries:
+Query 1: ______________________________________________________________________
+Query 2: ______________________________________________________________________
+Query 3: ______________________________________________________________________
+
+--------------------------------------------------------------------------------
+A. Context Retrieval Accuracy (Top K = 5) [For IT Experts / Technical Evaluators]
+Count the document chunks retrieved from Supabase pgvector:
+
+Test Query       Chunks Retrieved (K = 5)    Number of Relevant Chunks Retrieved
+Query 1          5                           [   ]
+Query 2          5                           [   ]
+Query 3          5                           [   ]
+
+--------------------------------------------------------------------------------
+B. Answer Faithfulness / Groundedness [All Evaluators]
+Is the answer based strictly on cited CTU documents without hallucination?
+
+Rating Definitions:
+- Fully Supported:  Every claim is correct and found in cited documents.
+- Mostly Supported: Correct overall, but 1 minor detail is not in documents.
+- Partly Incorrect: Some statements contradict or are not in documents.
+- Invented:         Most statements are fabricated/wrong (hallucination).
+
+Test Query       Fully Supported   Mostly Supported   Partly Incorrect   Invented
+Query 1          [ ]               [ ]                [ ]                [ ]
+Query 2          [ ]               [ ]                [ ]                [ ]
+Query 3          [ ]               [ ]                [ ]                [ ]
+
+--------------------------------------------------------------------------------
+C. Answer Relevance (Mean Opinion Score - MOS) [All Evaluators]
+Did the answer address your prompt directly without unnecessary fluff?
+
+Scale:
+  5 - Highly Relevant (Direct, concise, and fully answers prompt)
+  4 - Relevant (Answers well, with minor conversational fluff)
+  3 - Neutral (Generic response; partially answers prompt)
+  2 - Irrelevant (Misunderstood query; mostly unhelpful)
+  1 - Completely Off-Topic (Failed to address prompt)
+
+Test Query                                                   5   4   3   2   1
+Query 1                                                      [ ] [ ] [ ] [ ] [ ]
+Query 2                                                      [ ] [ ] [ ] [ ] [ ]
+Query 3                                                      [ ] [ ] [ ] [ ] [ ]
+
+OVERALL AI SATISFACTION                                      5   4   3   2   1
+Overall, I am satisfied with the responses provided by       [ ] [ ] [ ] [ ] [ ]
+the AskPolicy AI.
+
+================================================================================
+PART V. QUALITATIVE FEEDBACK & RECOMMENDATIONS
+================================================================================
+
+1. What aspect or feature of the system did you find most beneficial for your
+   role?
+   _____________________________________________________________________________
+   _____________________________________________________________________________
+
+2. What challenges, delays, or technical errors did you encounter while using
+   the platform?
+   _____________________________________________________________________________
+   _____________________________________________________________________________
+
+3. What specific suggestions or additional features do you recommend for future
+   system enhancements?
+   _____________________________________________________________________________
+   _____________________________________________________________________________
+
+================================================================================
+THANK YOU FOR YOUR VALUABLE TIME AND COOPERATION!
+================================================================================
