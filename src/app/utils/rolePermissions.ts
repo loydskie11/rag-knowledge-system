@@ -1,143 +1,82 @@
 import type { UserRole } from "../contexts/RoleContext";
 
-const basePermissions = {
-  SYSTEM_ADMIN: {
-    canAccessDashboard: true,
-    canAccessKnowledgeRepository: true,
-    canAccessAskPolicy: true,
-    canAccessAccreditationSupport: true,
-    canAccessGovernanceReference: true,
-    canAccessAuditTrail: true,
-    canAccessUsersRoles: true,
-    canAccessSettings: true,
-    canAccessBroadcastAnnouncement: true,
-    canAccessDocumentGenerator: true,
-    canAccessPaperTrail: true,
-    canAccessGradeEvaluation: true,
-    canAccessClientSurvey: true,
-    canAccessServiceSatisfaction: true,
-    canUploadDocuments: true,
-    canDeleteDocuments: true,
-    canEditDocuments: true,
-    canManageUsers: true,
-    canViewAnalytics: true,
-  },
-  FACULTY: {
-    canAccessDashboard: true,
-    canAccessKnowledgeRepository: true,
-    canAccessAskPolicy: true,
-    canAccessAccreditationSupport: true,
-    canAccessGovernanceReference: true,
-    canAccessAuditTrail: false,
-    canAccessUsersRoles: false,
-    canAccessSettings: false,
-    canAccessBroadcastAnnouncement: false,
-    canAccessDocumentGenerator: true,
-    canAccessPaperTrail: true,
-    canAccessGradeEvaluation: true,
-    canAccessClientSurvey: true,
-    canAccessServiceSatisfaction: true,
-    canUploadDocuments: false,
-    canDeleteDocuments: false,
-    canEditDocuments: false,
-    canManageUsers: false,
-    canViewAnalytics: true,
-  },
-  DOCUMENT_CONTROLLER: {
-    canAccessDashboard: true,
-    canAccessKnowledgeRepository: true,
-    canAccessAskPolicy: true,
-    canAccessAccreditationSupport: false,
-    canAccessGovernanceReference: true,
-    canAccessAuditTrail: false,
-    canAccessUsersRoles: false,
-    canAccessSettings: false,
-    canAccessBroadcastAnnouncement: false,
-    canAccessDocumentGenerator: true,
-    canAccessPaperTrail: true,
-    canAccessGradeEvaluation: false,
-    canAccessClientSurvey: false,
-    canAccessServiceSatisfaction: false,
-    canUploadDocuments: false,
-    canDeleteDocuments: false,
-    canEditDocuments: false,
-    canManageUsers: false,
-    canViewAnalytics: false,
-  },
-  STUDENT: {
-    canAccessDashboard: true,
-    canAccessKnowledgeRepository: true,
-    canAccessAskPolicy: true,
-    canAccessAccreditationSupport: false,
-    canAccessGovernanceReference: false,
-    canAccessAuditTrail: false,
-    canAccessUsersRoles: false,
-    canAccessSettings: false,
-    canAccessBroadcastAnnouncement: false,
-    canAccessDocumentGenerator: false,
-    canAccessPaperTrail: false,
-    canAccessGradeEvaluation: true,
-    canAccessClientSurvey: true,
-    canAccessServiceSatisfaction: false,
-    canUploadDocuments: false,
-    canDeleteDocuments: false,
-    canEditDocuments: false,
-    canManageUsers: false,
-    canViewAnalytics: false,
-  },
+export type PermissionKey =
+  | "canAccessDashboard" | "canAccessKnowledgeRepository" | "canAccessAskPolicy"
+  | "canAccessAccreditationSupport" | "canAccessAuditTrail"
+  | "canAccessUsersRoles" | "canAccessSettings" | "canAccessBroadcastAnnouncement"
+  | "canAccessDocumentGenerator" | "canAccessPaperTrail" | "canAccessGradeEvaluation"
+  | "canAccessClientSurvey" | "canAccessServiceSatisfaction" | "canUploadDocuments"
+  | "canDeleteDocuments" | "canEditDocuments" | "canManageUsers" | "canViewAnalytics";
+
+export type BackendCapability =
+  | "system.manage" | "users.manage" | "audit.view" | "settings.manage"
+  | "broadcast.manage" | "governance.access" | "governance.review"
+  | "governance.manage" | "governance.cross_office" | "documents.manage"
+  | "paper_trail.read" | "paper_trail.control" | "survey.analytics"
+  | "survey.cross_office";
+
+const studentPermissions: Record<PermissionKey, boolean> = {
+  canAccessDashboard: true, canAccessKnowledgeRepository: true, canAccessAskPolicy: true,
+  canAccessAccreditationSupport: false,
+  canAccessAuditTrail: false, canAccessUsersRoles: false, canAccessSettings: false,
+  canAccessBroadcastAnnouncement: false, canAccessDocumentGenerator: false,
+  canAccessPaperTrail: false, canAccessGradeEvaluation: true, canAccessClientSurvey: true,
+  canAccessServiceSatisfaction: false, canUploadDocuments: false, canDeleteDocuments: false,
+  canEditDocuments: false, canManageUsers: false, canViewAnalytics: false,
 };
 
-export const rolePermissions = {
-  ...basePermissions,
-  OFFICE_HEAD: {
-    ...basePermissions.FACULTY,
-    canUploadDocuments: true, canEditDocuments: true, canDeleteDocuments: true,
-  },
-  COLLEGE_DEAN: {
-    ...basePermissions.FACULTY,
-    canUploadDocuments: true, canEditDocuments: true, canDeleteDocuments: true,
-  },
-  PROGRAM_CHAIR: {
-    ...basePermissions.FACULTY,
-    canUploadDocuments: true, canEditDocuments: true, canDeleteDocuments: true,
-  },
-  COLLEGE_SECRETARY: {
-    ...basePermissions.FACULTY,
-    canUploadDocuments: true, canEditDocuments: true, canDeleteDocuments: true,
-    canAccessGradeEvaluation: false,
-  },
-  // Compatibility for a stale browser session; never grant legacy ADMIN system access.
-  ADMIN: { ...basePermissions.FACULTY, canUploadDocuments: true, canEditDocuments: true, canDeleteDocuments: true },
+const personnelPermissions: Record<PermissionKey, boolean> = {
+  ...studentPermissions,
+  canAccessDocumentGenerator: true,
+  canAccessPaperTrail: true, canAccessGradeEvaluation: true,
 };
 
-export function hasCapability(permission: string): boolean {
+const adminPermissions = Object.fromEntries(
+  Object.keys(studentPermissions).map((key) => [key, true]),
+) as Record<PermissionKey, boolean>;
+
+export const rolePermissions: Record<UserRole, Record<PermissionKey, boolean>> = {
+  SYSTEM_ADMIN: adminPermissions,
+  PERSONNEL: personnelPermissions,
+  STUDENT: studentPermissions,
+};
+
+export function hasCapability(permission: BackendCapability): boolean {
   try { return JSON.parse(sessionStorage.getItem("effectivePermissions") || "{}")[permission] === true; }
   catch { return false; }
 }
 
-export function hasPermission(role: UserRole, permission: keyof typeof rolePermissions.SYSTEM_ADMIN): boolean {
+const capabilityPermissionMap: Partial<Record<PermissionKey, BackendCapability>> = {
+  canAccessAccreditationSupport: "governance.access",
+  canAccessAuditTrail: "audit.view",
+  canAccessUsersRoles: "users.manage",
+  canAccessSettings: "settings.manage",
+  canAccessBroadcastAnnouncement: "broadcast.manage",
+  canAccessPaperTrail: "paper_trail.read",
+  canAccessServiceSatisfaction: "survey.analytics",
+  canUploadDocuments: "documents.manage",
+  canDeleteDocuments: "documents.manage",
+  canEditDocuments: "documents.manage",
+  canManageUsers: "users.manage",
+  canViewAnalytics: "survey.analytics",
+};
+
+export function hasPermission(role: UserRole, permission: PermissionKey): boolean {
+  const capability = capabilityPermissionMap[permission];
+  if (capability) return hasCapability(capability);
   return rolePermissions[role]?.[permission] === true;
 }
 
 export function getAccessibleRoutes(role: UserRole) {
-  const permissions = rolePermissions[role] || rolePermissions.STUDENT;
-  const routes = [];
-
-  if (permissions.canAccessDashboard) routes.push("/app");
-  if (permissions.canAccessKnowledgeRepository) routes.push("/app/knowledge-repository");
-  if (permissions.canAccessAskPolicy) routes.push("/app/ask-policy");
-  if (permissions.canAccessAccreditationSupport) routes.push("/app/accreditation-support");
-  if (permissions.canAccessGovernanceReference) routes.push("/app/governance-reference");
-  if (permissions.canAccessAuditTrail) routes.push("/app/audit-trail");
-  if (permissions.canAccessUsersRoles) routes.push("/app/users-roles");
-  if (permissions.canAccessSettings) routes.push("/app/settings");
-  if (permissions.canAccessBroadcastAnnouncement) routes.push("/app/broadcast-announcement");
-  if (permissions.canAccessDocumentGenerator) routes.push("/app/document-generator");
-  if (permissions.canAccessPaperTrail) routes.push("/app/paper-trail");
-  if (permissions.canAccessGradeEvaluation) routes.push("/app/grade-evaluation");
-  if (permissions.canAccessClientSurvey) routes.push("/app/client-survey");
-  if (permissions.canAccessServiceSatisfaction) routes.push("/app/client-survey-dashboard");
-
-  return routes;
+  const routePermissions: Array<[PermissionKey, string]> = [
+    ["canAccessDashboard", "/app"], ["canAccessKnowledgeRepository", "/app/knowledge-repository"],
+    ["canAccessAskPolicy", "/app/ask-policy"], ["canAccessAccreditationSupport", "/app/accreditation-support"],
+    ["canAccessAuditTrail", "/app/audit-trail"],
+    ["canAccessUsersRoles", "/app/users-roles"], ["canAccessSettings", "/app/settings"],
+    ["canAccessBroadcastAnnouncement", "/app/broadcast-announcement"],
+    ["canAccessDocumentGenerator", "/app/document-generator"], ["canAccessPaperTrail", "/app/paper-trail"],
+    ["canAccessGradeEvaluation", "/app/grade-evaluation"], ["canAccessClientSurvey", "/app/client-survey"],
+    ["canAccessServiceSatisfaction", "/app/client-survey-dashboard"],
+  ];
+  return routePermissions.filter(([permission]) => hasPermission(role, permission)).map(([, route]) => route);
 }
-

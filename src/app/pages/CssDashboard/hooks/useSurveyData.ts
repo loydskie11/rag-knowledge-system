@@ -86,7 +86,6 @@ export function useSurveyData(): UseSurveyDataReturn {
       const rowYear = getResponseYear(row);
       if (rowYear !== filters.year) return false;
     }
-
     if (filters.campus.length > 0 && !filters.campus.includes(row.campus)) return false;
     if (filters.office_visited && row.office_visited !== filters.office_visited) return false;
     if (filters.client_type.length > 0 && !filters.client_type.includes(row.client_type)) return false;

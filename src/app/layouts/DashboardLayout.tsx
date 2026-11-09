@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useRole } from "../contexts/RoleContext";
 import { hasPermission } from "../utils/rolePermissions";
+import type { PermissionKey } from "../utils/rolePermissions";
 import { RoleSwitcher } from "../components/RoleSwitcher";
 import { NotificationSidebar } from "../components/NotificationSidebar";
 import { useNotifications } from "../utils/useNotifications";
@@ -20,6 +21,7 @@ export function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { userRole } = useRole();
+  const [profileName, setProfileName] = useState(() => sessionStorage.getItem("userName") || "CTU User");
 
 
   const isAskPolicy = location.pathname === '/app/ask-policy';
@@ -38,9 +40,18 @@ export function DashboardLayout() {
   const currentRole = userRole || "STUDENT";
   const userProfile = {
     role:  currentRole,
-    name:  sessionStorage.getItem("userName")  || "CTU User",
+    name:  profileName,
     email: sessionStorage.getItem("userEmail") || "user@ctu.edu.ph",
   };
+
+  useEffect(() => {
+    const handleProfileUpdate = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      setProfileName(detail?.full_name || sessionStorage.getItem("userName") || "CTU User");
+    };
+    window.addEventListener("auth-profile-updated", handleProfileUpdate);
+    return () => window.removeEventListener("auth-profile-updated", handleProfileUpdate);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -60,7 +71,13 @@ export function DashboardLayout() {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  const allMenuItems = [
+  const allMenuItems: Array<{
+    path: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    permission: PermissionKey;
+    isExternal?: boolean;
+  }> = [
     { path: "/app",                        label: "Dashboard",                  icon: LayoutDashboard,    permission: "canAccessDashboard"             },
     { path: "/app/ask-policy",             label: "AI Assistant",               icon: Sparkles,           permission: "canAccessAskPolicy"             },
     { path: "/app/knowledge-repository",   label: "Knowledge Repository",       icon: Database,           permission: "canAccessKnowledgeRepository"    },
@@ -83,34 +100,15 @@ export function DashboardLayout() {
   ];
 
   const menuItems = allMenuItems.filter((item) =>
-    hasPermission(userProfile.role, item.permission as any)
+    hasPermission(userProfile.role, item.permission)
   );
 
   const getRoleBadge = () => {
-    const designation = sessionStorage.getItem("userDesignation");
-    const dept = sessionStorage.getItem("userDepartment");
     switch (userProfile.role) {
       case "SYSTEM_ADMIN":
         return { icon: Shield, color: "bg-[#DD7230]", label: "System Administrator" };
-      case "OFFICE_HEAD":
-      case "ADMIN":
-        return { icon: Shield, color: "bg-[#DD7230]", label: "Office Head" };
-      case "COLLEGE_DEAN":
-        return { icon: GraduationCap, color: "bg-[#DD7230]", label: "College Dean" };
-      case "PROGRAM_CHAIR":
-        return { icon: BookOpen, color: "bg-[#DD7230]", label: "Program Chair" };
-      case "COLLEGE_SECRETARY":
-        return { icon: FileText, color: "bg-[#DD7230]", label: "College Secretary" };
-      case "DOCUMENT_CONTROLLER":
-        return { icon: Shield, color: "bg-[#DD7230]", label: "Document Controller" };
-      case "FACULTY": 
-        if (designation === "College Dean") {
-          return { icon: BookOpen, color: "bg-purple-600", label: `Dean • ${dept || 'College'}` };
-        }
-        if (designation === "Program Chair") {
-          return { icon: BookOpen, color: "bg-blue-600", label: `Chair • ${dept || 'Program'}` };
-        }
-        return { icon: BookOpen, color: "bg-[#DD7230]", label: "Faculty" };
+      case "PERSONNEL":
+        return { icon: BookOpen, color: "bg-[#DD7230]", label: "Personnel" };
       default:        
         return { icon: GraduationCap, color: "bg-[#DD7230]", label: "Student" };
     }

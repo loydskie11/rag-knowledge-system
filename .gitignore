@@ -24,10 +24,14 @@ dist-ssr
 *.sw?
 
 .env
-.env
+*.env
 
+venv/
 .venv/
+backend/venv/
+backend/.venv/
 __pycache__/
+*.pyc
 
 fromBackup/
 backups/

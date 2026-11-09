@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from database import get_db
-from dependencies import get_current_faculty_or_admin, supabase
-from permissions import filter_office_records
+from dependencies import get_current_survey_analyst, supabase
+from permissions import filter_survey_records
 
 router = APIRouter(tags=["Client Satisfaction Survey"])
 
@@ -83,16 +83,16 @@ def submit_css_response(req: schemas.CssResponseCreate, db: Session = Depends(ge
 @router.get("/css-responses", response_model=List[schemas.CssResponseOut])
 def get_css_responses(
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_current_faculty_or_admin)
+    admin: models.User = Depends(get_current_survey_analyst)
 ):
     """Fetches all Client Satisfaction Survey responses (Admin only)."""
     try:
-        return filter_office_records(admin, db.query(models.CssResponse).order_by(models.CssResponse.created_at.desc()).all(), "office_visited")
+        return filter_survey_records(admin, db.query(models.CssResponse).order_by(models.CssResponse.created_at.desc()).all(), "office_visited")
     except Exception as e:
         if supabase:
             try:
                 res = supabase.table("css_responses").select("*").order("created_at", desc=True).execute()
-                return filter_office_records(admin, res.data or [], "office_visited")
+                return filter_survey_records(admin, res.data or [], "office_visited")
             except Exception as sb_err:
                 raise HTTPException(status_code=500, detail=f"Failed to retrieve survey responses: {str(sb_err)}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve survey responses: {str(e)}")

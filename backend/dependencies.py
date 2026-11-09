@@ -1,4 +1,4 @@
-from permissions import require_system_admin, role_of
+from permissions import require_system_admin, role_of, permissions_for
 import os
 from typing import Optional
 from fastapi import Request, Depends, HTTPException, status
@@ -66,6 +66,70 @@ def _get_user_by_email(email: str, db: Session):
             pass
     return None
 
+
+def _load_effective_assignments(user, db: Session):
+    """Attach normalized assignment records without trusting request/JWT metadata."""
+    rows = []
+    iso_processes = []
+    try:
+        assignments = db.query(models.UserAssignment).filter(
+            models.UserAssignment.user_id == user.id,
+            models.UserAssignment.is_active.is_(True),
+        ).all()
+        office_ids = {a.scope_id for a in assignments if a.scope_type in {"OFFICE", "COLLEGE"} and a.scope_id}
+        program_ids = {a.scope_id for a in assignments if a.scope_type == "PROGRAM" and a.scope_id}
+        units = {str(x.id): x for x in db.query(models.OrganizationalUnit).filter(models.OrganizationalUnit.id.in_(office_ids)).all()} if office_ids else {}
+        programs = {str(x.id): x for x in db.query(models.AcademicProgram).filter(models.AcademicProgram.id.in_(program_ids)).all()} if program_ids else {}
+        for assignment in assignments:
+            scope = units.get(str(assignment.scope_id)) or programs.get(str(assignment.scope_id))
+            rows.append({
+                "id": str(assignment.id),
+                "assignment_type": assignment.assignment_type,
+                "scope_type": assignment.scope_type,
+                "scope_id": str(assignment.scope_id) if assignment.scope_id else None,
+                "scope_code": getattr(scope, "code", "ARGAO" if assignment.scope_type == "CAMPUS" else ""),
+                "scope_name": getattr(scope, "name", "CTU Argao Campus" if assignment.scope_type == "CAMPUS" else ""),
+                "is_primary": bool(assignment.is_primary),
+                "is_active": bool(assignment.is_active),
+            })
+        office_scope_ids = {a.scope_id for a in assignments if a.scope_type == "OFFICE" and a.scope_id}
+        if office_scope_ids:
+            mapped_processes = db.query(models.ISOProcessGroup.id, models.ISOProcessGroup.name).join(
+                models.ISOProcessUnitMapping,
+                models.ISOProcessUnitMapping.process_group_id == models.ISOProcessGroup.id,
+            ).filter(models.ISOProcessUnitMapping.organizational_unit_id.in_(office_scope_ids)).distinct().all()
+            process_ids = [item[0] for item in mapped_processes]
+            iso_processes = [item[1] for item in mapped_processes]
+            iso_processes.extend(alias for (alias,) in db.query(models.ISOProcessAlias.alias).filter(models.ISOProcessAlias.process_group_id.in_(process_ids)).all())
+    except Exception:
+        if supabase:
+            try:
+                assignment_result = supabase.table("user_assignments").select("*").eq("user_id", str(user.id)).eq("is_active", True).execute()
+                for assignment in assignment_result.data or []:
+                    scope_code = "ARGAO" if assignment.get("scope_type") == "CAMPUS" else ""
+                    scope_name = "CTU Argao Campus" if assignment.get("scope_type") == "CAMPUS" else ""
+                    scope_id = assignment.get("scope_id")
+                    table = "academic_programs" if assignment.get("scope_type") == "PROGRAM" else "organizational_units"
+                    if scope_id and assignment.get("scope_type") != "CAMPUS":
+                        scope_result = supabase.table(table).select("code,name").eq("id", scope_id).limit(1).execute()
+                        if scope_result.data:
+                            scope_code, scope_name = scope_result.data[0]["code"], scope_result.data[0]["name"]
+                    rows.append({**assignment, "scope_code": scope_code, "scope_name": scope_name})
+                office_scope_ids = [a.get("scope_id") for a in rows if a.get("scope_type") == "OFFICE" and a.get("scope_id")]
+                if office_scope_ids:
+                    mappings = supabase.table("iso_process_unit_mappings").select("process_group_id").in_("organizational_unit_id", office_scope_ids).execute()
+                    process_ids = list({row["process_group_id"] for row in (mappings.data or [])})
+                    if process_ids:
+                        processes = supabase.table("iso_process_groups").select("name").in_("id", process_ids).execute()
+                        iso_processes = [row["name"] for row in (processes.data or [])]
+                        aliases = supabase.table("iso_process_aliases").select("alias").in_("process_group_id", process_ids).execute()
+                        iso_processes.extend(row["alias"] for row in (aliases.data or []))
+            except Exception:
+                rows = []
+    setattr(user, "_effective_assignments", rows if rows else None)
+    setattr(user, "_accessible_iso_processes", iso_processes)
+    return user
+
 def get_current_user(
     request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
@@ -102,7 +166,7 @@ def get_current_user(
     if user.status != "Active":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled.")
 
-    return user
+    return _load_effective_assignments(user, db)
 
 def get_optional_user(
     request: Request,
@@ -118,7 +182,7 @@ def get_optional_user(
         email = payload.get("sub")
         if email:
             resolved = _get_user_by_email(email, db)
-            return resolved if resolved and resolved.status == "Active" else None
+            return _load_effective_assignments(resolved, db) if resolved and resolved.status == "Active" else None
     except Exception:
         pass
     return None
@@ -129,10 +193,16 @@ def get_current_admin(current_user: models.User = Depends(get_current_user)) -> 
 
 
 def get_current_faculty_or_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
-    """Enforces Faculty or Admin role requirement."""
-    if role_of(current_user) not in {"FACULTY", "OFFICE_HEAD", "COLLEGE_DEAN", "PROGRAM_CHAIR", "COLLEGE_SECRETARY", "SYSTEM_ADMIN"}:
+    """Compatibility dependency for authenticated campus personnel."""
+    if role_of(current_user) not in {"PERSONNEL", "SYSTEM_ADMIN"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access restricted to Faculty and Administrator roles."
+            detail="Access restricted to campus personnel."
         )
+    return current_user
+
+
+def get_current_survey_analyst(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if not permissions_for(current_user)["survey.analytics"]:
+        raise HTTPException(status_code=403, detail="Survey Analytics permission is required.")
     return current_user

@@ -71,11 +71,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export const Dashboard: React.FC = () => {
   const userRole = sessionStorage.getItem('userRole') || '';
-  const userOffice = sessionStorage.getItem('userAdministrativeOffice') || '';
-  const isIqaAuditor = sessionStorage.getItem('isIqaAuditor') === 'true';
+  const assignedOffices: string[] = (() => {
+    try { return JSON.parse(sessionStorage.getItem('userAssignments') || '[]').filter((a: any) => a.scope_type === 'OFFICE').map((a: any) => a.scope_name); }
+    catch { return []; }
+  })();
+  const userOffice = assignedOffices.join(', ');
 
-  const isGlobalAccess = hasCapability("governance.cross_office");
-  const isScopedAccess = !isGlobalAccess && userRole === 'FACULTY' && userOffice !== '';
+  const isGlobalAccess = hasCapability("survey.cross_office");
+  const isScopedAccess = !isGlobalAccess && userRole === 'PERSONNEL' && assignedOffices.length > 0;
   const isRestricted = !isGlobalAccess && !isScopedAccess;
 
   const { data, filteredData, availableYears, loading, error, connected, filters, setFilters, resetFilters, refetch, lastUpdated } = useSurveyData();
@@ -234,7 +237,7 @@ export const Dashboard: React.FC = () => {
               {hasActiveFilters && (
                 <span className="bg-white/30 px-1 py-0.5 rounded text-[10px] font-bold leading-none">
                   {[filters.campus, filters.client_type, filters.gender].flat().length +
-                    (filters.year !== '' && filters.year !== 'all' ? 1 : 0) +
+                    (filters.year !== 'all' ? 1 : 0) +
                     (filters.office_visited ? 1 : 0) +
                     (filters.service_availed ? 1 : 0) +
                     (filters.dateFrom ? 1 : 0)}
@@ -252,8 +255,8 @@ export const Dashboard: React.FC = () => {
               setFilters={setFilters}
               resetFilters={resetFilters}
               data={data}
-              availableYears={availableYears}
               hideOfficeFilter={isScopedAccess}
+              availableYears={availableYears}
             />
           </div>
         )}

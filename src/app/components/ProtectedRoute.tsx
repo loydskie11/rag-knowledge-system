@@ -2,10 +2,11 @@ import { Fragment } from "react"
 import { Navigate } from "react-router"
 import { useRole } from "../contexts/RoleContext"
 import { hasPermission } from "../utils/rolePermissions"
+import type { PermissionKey } from "../utils/rolePermissions"
 
 interface ProtectedRouteProps {
   children: React.ReactNode
-  permission?: string // <-- The '?' makes this prop optional!
+  permission?: PermissionKey
 }
 
 export function ProtectedRoute({ children, permission }: ProtectedRouteProps) {
@@ -23,7 +24,7 @@ export function ProtectedRoute({ children, permission }: ProtectedRouteProps) {
   const currentRole = userRole || "STUDENT"
 
   // Only check permissions if a specific permission was actually requested
-  if (permission && !hasPermission(currentRole, permission as any)) {
+  if (permission && !hasPermission(currentRole, permission)) {
     return <Navigate to="/app" replace />
   }
 

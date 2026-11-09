@@ -143,12 +143,61 @@ export const AaccupTabContent = ({
   setEditingAaccupReq,
   setShowEditAaccupReqModal,
   setAaccupReqToDelete,
-  setShowDeleteAaccupReqModal
+  setShowDeleteAaccupReqModal,
+  accreditationCycles,
+  selectedAccreditationCycleId,
+  onAccreditationCycleChange,
+  selectedAccreditationCycle,
+  isHistoricalCycle,
+  selectedCycleCertificate,
+  handleOpenAaccupEvidence,
 }: any) => {
   return (
     <>
+      <div className={`rounded-xl border p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${isHistoricalCycle ? "bg-amber-50/70 border-amber-200" : "bg-white border-gray-200"}`}>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <History className={`h-4 w-4 ${isHistoricalCycle ? "text-amber-700" : "text-[#DD7230]"}`} />
+            <h3 className="text-sm font-semibold text-gray-900">Accreditation cycle</h3>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${isHistoricalCycle ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
+              {isHistoricalCycle ? "READ-ONLY HISTORY" : "CURRENT LEVEL"}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-gray-600 truncate">
+            {selectedAccreditationCycle?.cycle_label || "Current accreditation cycle"}
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+          {selectedCycleCertificate?.certificate_url && (
+            <button
+              type="button"
+              onClick={() => handleOpenAaccupEvidence({ direct_url: selectedCycleCertificate.certificate_url, name: `${selectedProgram} accreditation certificate` })}
+              className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:text-[#DD7230] flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <FileCheck className="h-3.5 w-3.5" /> View certificate
+            </button>
+          )}
+          <select
+            value={selectedAccreditationCycleId || ""}
+            onChange={(event) => onAccreditationCycleChange(event.target.value)}
+            className="min-w-64 px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+          >
+            {accreditationCycles.filter((cycle: any) => cycle.status === "ACTIVE").map((cycle: any) => (
+              <option key={cycle.id} value={cycle.id}>Current Level — {cycle.level_name} (Attempt {cycle.attempt_number})</option>
+            ))}
+            {accreditationCycles.some((cycle: any) => cycle.status === "CLOSED") && (
+              <optgroup label="Previous Levels">
+                {accreditationCycles.filter((cycle: any) => cycle.status === "CLOSED").map((cycle: any) => (
+                  <option key={cycle.id} value={cycle.id}>{cycle.level_name} — Attempt {cycle.attempt_number}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+      </div>
+
       {/* 100% Compliant: Ready for Official Assessment Banner */}
-      {currentData.overall === 100 && (
+      {!isHistoricalCycle && currentData.overall === 100 && (
         <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
@@ -163,7 +212,7 @@ export const AaccupTabContent = ({
               </p>
             </div>
           </div>
-          {hasCapability("governance.manage") && (
+          {hasCapability("governance.cross_office") && (
             <button
               onClick={() => {
                 setUpgradeForm({
@@ -225,7 +274,7 @@ export const AaccupTabContent = ({
                 </span>
               </div>
               <div className="flex items-center gap-3 w-full md:w-auto">
-                {hasCapability("governance.manage") && (
+                {!isHistoricalCycle && hasCapability("governance.manage") && (
                   <button
                     onClick={() => setShowAreaConfigModal(true)}
                     className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all cursor-pointer border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs shrink-0"
@@ -249,7 +298,7 @@ export const AaccupTabContent = ({
             </div>
 
             {/* Admin Verification Queue Panel */}
-            {(hasCapability("governance.review")) && pendingDocs.length > 0 && (
+            {!isHistoricalCycle && hasCapability("governance.review") && pendingDocs.length > 0 && (
               <div className="mb-6 bg-gray-50/60 border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
                 <div 
                   onClick={() => setIsAdminQueueOpen(!isAdminQueueOpen)}
@@ -297,7 +346,7 @@ export const AaccupTabContent = ({
 
                         <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                           <button
-                            onClick={() => handleAdminReview(doc.name, "Approved")}
+                            onClick={() => handleAdminReview(doc.evidence_id, "Approved")}
                             disabled={isReviewing}
                             className="px-3 py-1.5 bg-[#DD7230] hover:bg-[#c86324] text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
                           >
@@ -400,16 +449,22 @@ export const AaccupTabContent = ({
                 <h2 className="text-xl font-bold text-gray-900">{expandedArea.title}</h2>
               </div>
             </div>
-            <button
-              onClick={() => {
-                setUploadTargetArea(expandedArea);
-                setUploadForm({ fileName: "", requirementTarget: "" });
-                setShowUploadModal(true);
-              }}
-              className="px-4 py-2.5 bg-[#DD7230] hover:bg-[#DD7230] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
-            >
-              <Upload className="h-4 w-4" /> Upload Evidence File
-            </button>
+            {isHistoricalCycle ? (
+              <div className="px-3 py-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5" /> Previous-cycle evidence cannot be changed
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setUploadTargetArea(expandedArea);
+                  setUploadForm({ fileName: "", requirementTarget: "" });
+                  setShowUploadModal(true);
+                }}
+                className="px-4 py-2.5 bg-[#DD7230] hover:bg-[#DD7230] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+              >
+                <Upload className="h-4 w-4" /> Upload Evidence File
+              </button>
+            )}
           </div>
 
           {isLoadingDetails ? (
@@ -422,7 +477,7 @@ export const AaccupTabContent = ({
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Required Documents Checklist</h3>
-                  {hasCapability("governance.review") && (
+                  {!isHistoricalCycle && hasCapability("governance.review") && (
                     <button
                       onClick={() => {
                         setNewAaccupReq({ area_code: expandedArea.code, area_title: expandedArea.title, description: "" });
@@ -459,7 +514,7 @@ export const AaccupTabContent = ({
                           >
                             {req.is_met || req.isUploaded ? "Uploaded" : "Missing Evidence"}
                           </span>
-                          {hasCapability("governance.review") && (
+                          {!isHistoricalCycle && hasCapability("governance.review") && (
                             <div className="flex items-center gap-1 ml-1">
                               <button
                                 onClick={() => {
@@ -500,7 +555,7 @@ export const AaccupTabContent = ({
 
               <div>
                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">Uploaded Evidence Files ({selectedProgram})</h3>
-                {areaDetails.uploadedFiles.length === 0 ? (
+                {!areaDetails?.uploadedFiles || areaDetails.uploadedFiles.length === 0 ? (
                   <div className="py-10 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs">
                     No evidence files uploaded for this area yet.
                   </div>
@@ -539,31 +594,21 @@ export const AaccupTabContent = ({
                             {doc.status || "Pending Verification"}
                           </span>
 
-                          {(doc.url || doc.file_url) && (
-                            <a
-                              href={doc.url || doc.file_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                apiClient.post("/audit/access", {
-                                  document_name: doc.name,
-                                  action_type: "View",
-                                  user_email: sessionStorage.getItem('userEmail'),
-                                  user_role: userRole
-                                }).catch(() => {});
-                              }}
+                          {doc.evidence_id && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAaccupEvidence(doc)}
                               className="p-1.5 text-gray-500 hover:text-[#DD7230] hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
                               title="View Evidence File"
                             >
                               <Eye className="h-4 w-4" />
-                            </a>
+                            </button>
                           )}
 
-                          {hasCapability("governance.manage") && (
+                          {!isHistoricalCycle && hasCapability("documents.manage") && (
                             <button
                               onClick={() => {
-                                setDocToDelete(doc.name);
+                                setDocToDelete(doc);
                                 setShowDeleteModal(true);
                               }}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
@@ -1041,7 +1086,7 @@ export const IsoTabContent = ({
     <>
       {!expandedIsoClause ? (
         <>
-          {/* --- 100% ISO 9001:2015 COMPLIANCE SUCCESS BANNER --- */}
+          {/* Internal checklist completion is not the same as external ISO certification. */}
           {(cycleTotalCount ?? isoTotalCount) > 0 && (cycleCompliantCount ?? isoCompliantCount) === (cycleTotalCount ?? isoTotalCount) && (
             <div className="p-6 bg-[#006837] text-white rounded-2xl shadow-xl border-2 border-emerald-400 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
               <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
@@ -1053,30 +1098,22 @@ export const IsoTabContent = ({
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="px-2.5 py-0.5 bg-amber-400 text-gray-900 text-[10px] font-bold uppercase rounded-md tracking-wider shadow-sm flex items-center gap-1">
-                        <Award className="h-3 w-3 text-amber-900" /> 100% Fully Compliant
+                        <Award className="h-3 w-3 text-amber-900" /> All tracked clauses compliant
                       </span>
                       <span className="px-2.5 py-0.5 bg-white/20 text-white text-[10px] font-semibold rounded-md uppercase tracking-wider backdrop-blur-sm border border-white/30">
                         {selectedIsoCycleYear}
                       </span>
-                      <span className="text-xs font-semibold text-emerald-100 hidden sm:inline">ISO 9001:2015 Audit Certified</span>
+                      <span className="text-xs font-semibold text-emerald-100 hidden sm:inline">Internal audit checklist complete</span>
                     </div>
                     <h3 className="text-xl font-black mt-1 tracking-tight">
-                      Institutional Quality Management System (QMS) Verified for {selectedIsoCycleYear}!
+                      Internal QMS review complete for {selectedIsoCycleYear}
                     </h3>
                     <p className="text-xs text-emerald-100 mt-1 max-w-2xl leading-relaxed font-medium">
-                      All {isoTotalCount} Internal Quality Audit (IQA) clauses for <span className="font-bold underline">{selectedIsoCycleYear}</span> have been successfully audited and approved. Historical audit records from previous cycles remain archived and preserved.
+                      All {isoTotalCount} tracked Internal Quality Audit clauses for <span className="font-bold underline">{selectedIsoCycleYear}</span> are marked compliant. This internal status does not claim external ISO certification; official outcomes belong in Accreditation Results.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    onClick={() => showToast(`ISO Audit Report for ${selectedIsoCycleYear} generated!`, "success")}
-                    className="px-5 py-3 bg-amber-400 text-gray-900 font-bold text-xs rounded-xl hover:bg-amber-300 transition-all cursor-pointer shadow-lg active:scale-95 flex items-center gap-2 uppercase tracking-wider"
-                  >
-                    <Download className="h-4 w-4" /> Download Report ({selectedIsoCycleYear})
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -1776,6 +1813,273 @@ export const IsoTabContent = ({
   );
 };
 
+const ISO_RESULT_TYPE_LABELS: Record<string, string> = {
+  INTERNAL_AUDIT: "Internal quality audit",
+  CERTIFICATION_AUDIT: "External certification audit",
+  SURVEILLANCE_AUDIT: "External surveillance audit",
+  RECERTIFICATION_AUDIT: "External recertification audit",
+  OTHER_EXTERNAL: "Other external audit",
+};
+
+const emptyIsoResultForm = {
+  cycle_id: "",
+  standard_version: "ISO 9001:2015",
+  result_type: "INTERNAL_AUDIT",
+  audit_start_date: "",
+  audit_end_date: "",
+  auditor_or_certification_body: "",
+  conclusion: "",
+  certification_status: "",
+  major_nonconformities: 0,
+  minor_nonconformities: 0,
+  observations: 0,
+  opportunities_for_improvement: 0,
+  summary: "",
+  record_status: "DRAFT",
+};
+
+const ISOResultsContent = ({ showToast }: { showToast: (message: string, type?: "success" | "error" | "warning") => void }) => {
+  const canManage = hasCapability("governance.cross_office");
+  const [results, setResults] = useState<any[]>([]);
+  const [cycles, setCycles] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingResult, setEditingResult] = useState<any>(null);
+  const [form, setForm] = useState({ ...emptyIsoResultForm });
+  const [reportFile, setReportFile] = useState<File | null>(null);
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const loadResults = async () => {
+    setIsLoading(true);
+    try {
+      const [resultsResponse, cyclesResponse] = await Promise.all([
+        apiClient.get("/iso/results"),
+        apiClient.get("/iso/audit-cycles"),
+      ]);
+      setResults(resultsResponse.data || []);
+      setCycles(cyclesResponse.data || []);
+    } catch (error) {
+      showToast("ISO results could not be loaded.", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { loadResults(); }, []);
+
+  const openCreate = () => {
+    const cycle = cycles[0];
+    setEditingResult(null);
+    setForm({
+      ...emptyIsoResultForm,
+      cycle_id: cycle?.id || "",
+      standard_version: cycle?.standard_version || "ISO 9001:2015",
+    });
+    setReportFile(null);
+    setCertificateFile(null);
+    setShowModal(true);
+  };
+
+  const openEdit = (result: any) => {
+    if (result.record_status === "FINALIZED") return;
+    setEditingResult(result);
+    setForm({
+      cycle_id: result.cycle_id,
+      standard_version: result.standard_version,
+      result_type: result.result_type,
+      audit_start_date: result.audit_start_date?.split("T")[0] || "",
+      audit_end_date: result.audit_end_date?.split("T")[0] || "",
+      auditor_or_certification_body: result.auditor_or_certification_body,
+      conclusion: result.conclusion,
+      certification_status: result.certification_status || "",
+      major_nonconformities: result.major_nonconformities || 0,
+      minor_nonconformities: result.minor_nonconformities || 0,
+      observations: result.observations || 0,
+      opportunities_for_improvement: result.opportunities_for_improvement || 0,
+      summary: result.summary,
+      record_status: "DRAFT",
+    });
+    setReportFile(null);
+    setCertificateFile(null);
+    setShowModal(true);
+  };
+
+  const uploadArtifact = async (resultId: string, artifactType: "report" | "certificate", file: File) => {
+    const data = new FormData();
+    data.append("file", file);
+    await apiClient.post(`/iso/results/${resultId}/artifact/${artifactType}`, data);
+  };
+
+  const saveResult = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!form.cycle_id || !form.audit_end_date || !form.auditor_or_certification_body.trim() || !form.conclusion.trim() || !form.summary.trim()) {
+      showToast("Complete the cycle, audit date, auditor, conclusion, and summary.", "error");
+      return;
+    }
+    const external = form.result_type !== "INTERNAL_AUDIT";
+    if (form.record_status === "FINALIZED" && external && !form.certification_status) {
+      showToast("Select the external certification outcome before finalizing.", "error");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const payload = {
+        ...form,
+        audit_start_date: form.audit_start_date || null,
+        certification_status: external ? form.certification_status || null : null,
+        record_status: "DRAFT",
+      };
+      const response = editingResult
+        ? await apiClient.put(`/iso/results/${editingResult.id}`, payload)
+        : await apiClient.post("/iso/results", payload);
+      const resultId = response.data.id;
+      if (reportFile) await uploadArtifact(resultId, "report", reportFile);
+      if (external && certificateFile) await uploadArtifact(resultId, "certificate", certificateFile);
+      if (form.record_status === "FINALIZED") {
+        await apiClient.put(`/iso/results/${resultId}`, { ...payload, record_status: "FINALIZED" });
+      }
+      setShowModal(false);
+      await loadResults();
+      showToast(form.record_status === "FINALIZED" ? "ISO result finalized and added to history." : "ISO result draft saved.", "success");
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail || "ISO result could not be saved.", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openArtifact = async (result: any, artifactType: "report" | "certificate") => {
+    try {
+      const response = await apiClient.get(`/iso/results/${result.id}/artifact/${artifactType}/url`);
+      window.open(response.data.file_url, "_blank", "noopener,noreferrer");
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail || `The ${artifactType} could not be opened.`, "error");
+    }
+  };
+
+  const isExternalForm = form.result_type !== "INTERNAL_AUDIT";
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">ISO audit results</h2>
+          <p className="text-xs text-gray-500 mt-1 max-w-3xl">
+            Campus-wide internal audit conclusions and external certification outcomes. Internal audits are recorded as audit findings and never presented as ISO certification.
+          </p>
+        </div>
+        {canManage && (
+          <button onClick={openCreate} disabled={!cycles.length} className="px-3.5 py-2 bg-[#DD7230] text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+            <Plus className="w-3.5 h-3.5" /> Add ISO result
+          </button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="py-14 text-center text-sm text-gray-500"><Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />Loading ISO results...</div>
+      ) : results.length === 0 ? (
+        <div className="bg-white rounded-xl border border-dashed border-gray-300 py-14 px-5 text-center">
+          <FileBadge className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-gray-700">No ISO audit results recorded yet</p>
+          <p className="text-xs text-gray-500 mt-1">Create a result after an internal audit or an official external audit is completed.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {results.map((result) => {
+            const internal = result.result_type === "INTERNAL_AUDIT";
+            const finalized = result.record_status === "FINALIZED";
+            return (
+              <div key={result.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${internal ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
+                        {ISO_RESULT_TYPE_LABELS[result.result_type] || result.result_type}
+                      </span>
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-gray-100 text-gray-700">{result.cycle_name}</span>
+                      <span className={`px-2.5 py-1 rounded-md text-[11px] font-medium ${finalized ? "bg-gray-900 text-white" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+                        {finalized ? "Finalized" : "Draft"}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-semibold text-gray-900">{result.conclusion}</h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {result.standard_version} • Audit ended {result.audit_end_date?.split("T")[0]} • {result.auditor_or_certification_body}
+                    </p>
+                  </div>
+                  {canManage && !finalized && (
+                    <button onClick={() => openEdit(result)} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 flex items-center gap-1.5 cursor-pointer hover:bg-gray-50">
+                      <Edit className="w-3.5 h-3.5" /> Edit draft
+                    </button>
+                  )}
+                </div>
+                <div className="p-5 space-y-4">
+                  {!internal && result.certification_status && (
+                    <div className="text-xs"><span className="text-gray-500">External certification outcome:</span> <strong className="text-gray-900">{result.certification_status.replaceAll("_", " ")}</strong></div>
+                  )}
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      ["Major nonconformities", result.major_nonconformities],
+                      ["Minor nonconformities", result.minor_nonconformities],
+                      ["Observations", result.observations],
+                      ["Improvement opportunities", result.opportunities_for_improvement],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                        <div className="text-lg font-semibold text-gray-900">{value}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {result.report_original_filename && <button onClick={() => openArtifact(result, "report")} className="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg flex items-center gap-1.5 cursor-pointer"><FileText className="w-3.5 h-3.5" /> View audit report</button>}
+                    {result.certificate_original_filename && <button onClick={() => openArtifact(result, "certificate")} className="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-1.5 cursor-pointer"><FileCheck className="w-3.5 h-3.5" /> View certificate</button>}
+                    {finalized && <span className="text-[11px] text-gray-500 sm:ml-auto">Finalized by {result.finalized_by} on {result.finalized_at?.split("T")[0]}</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div><h3 className="text-base font-semibold text-gray-900">{editingResult ? "Edit ISO result draft" : "Add ISO audit result"}</h3><p className="text-xs text-gray-500 mt-0.5">Save a draft or finalize it as a read-only historical result.</p></div>
+              <button onClick={() => setShowModal(false)} disabled={isSaving} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <form onSubmit={saveResult} className="overflow-y-auto p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit cycle</label><select value={form.cycle_id} onChange={(e) => { const cycle = cycles.find(item => item.id === e.target.value); setForm({ ...form, cycle_id: e.target.value, standard_version: cycle?.standard_version || form.standard_version }); }} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">{cycles.map(cycle => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></div>
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">ISO standard version</label><input value={form.standard_version} onChange={(e) => setForm({ ...form, standard_version: e.target.value })} required placeholder="e.g. ISO 9001:2015" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit type</label><select value={form.result_type} onChange={(e) => setForm({ ...form, result_type: e.target.value, certification_status: e.target.value === "INTERNAL_AUDIT" ? "" : form.certification_status })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">{Object.entries(ISO_RESULT_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Auditor or certification body</label><input value={form.auditor_or_certification_body} onChange={(e) => setForm({ ...form, auditor_or_certification_body: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit start date</label><input type="date" value={form.audit_start_date} onChange={(e) => setForm({ ...form, audit_start_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit end date</label><input type="date" value={form.audit_end_date} onChange={(e) => setForm({ ...form, audit_end_date: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+              </div>
+              <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Conclusion</label><input value={form.conclusion} onChange={(e) => setForm({ ...form, conclusion: e.target.value })} required placeholder={isExternalForm ? "e.g. Certification maintained" : "e.g. QMS effective with corrective actions required"} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+              {isExternalForm && <div><label className="block text-xs font-medium text-gray-700 mb-1.5">External certification outcome</label><select value={form.certification_status} onChange={(e) => setForm({ ...form, certification_status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"><option value="">Select an outcome</option>{["CERTIFIED", "MAINTAINED", "RECOMMENDED", "SUSPENDED", "WITHDRAWN", "NOT_CERTIFIED"].map(value => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></div>}
+              <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Result summary</label><textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} required rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none" placeholder="Summarize the audit scope, outcome, significant findings, and required follow-up." /></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[["Major NC", "major_nonconformities"], ["Minor NC", "minor_nonconformities"], ["Observations", "observations"], ["Opportunities", "opportunities_for_improvement"]].map(([label, key]) => <div key={key}><label className="block text-xs font-medium text-gray-700 mb-1.5">{label}</label><input type="number" min="0" value={(form as any)[key]} onChange={(e) => setForm({ ...form, [key]: Math.max(0, Number(e.target.value)) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>)}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit report (PDF or image)</label><input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setReportFile(e.target.files?.[0] || null)} className="w-full text-xs text-gray-600 file:mr-3 file:px-3 file:py-2 file:border-0 file:rounded-lg file:bg-gray-100 file:text-gray-700" />{editingResult?.report_original_filename && !reportFile && <p className="text-[11px] text-gray-500 mt-1">Current: {editingResult.report_original_filename}</p>}</div>
+                {isExternalForm && <div><label className="block text-xs font-medium text-gray-700 mb-1.5">External certificate (optional)</label><input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setCertificateFile(e.target.files?.[0] || null)} className="w-full text-xs text-gray-600 file:mr-3 file:px-3 file:py-2 file:border-0 file:rounded-lg file:bg-gray-100 file:text-gray-700" />{editingResult?.certificate_original_filename && !certificateFile && <p className="text-[11px] text-gray-500 mt-1">Current: {editingResult.certificate_original_filename}</p>}</div>}
+              </div>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">Finalized results become read-only. Save as a draft until the conclusion, counts, and proof files have been checked.</div>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 pt-2 border-t border-gray-100">
+                <select value={form.record_status} onChange={(e) => setForm({ ...form, record_status: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white"><option value="DRAFT">Save as draft</option><option value="FINALIZED">Finalize result</option></select>
+                <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowModal(false)} disabled={isSaving} className="px-4 py-2 text-xs font-semibold text-gray-700 border border-gray-300 rounded-lg cursor-pointer">Cancel</button><button type="submit" disabled={isSaving} className="px-4 py-2 text-xs font-semibold text-white bg-[#DD7230] rounded-lg cursor-pointer disabled:opacity-50 flex items-center gap-1.5">{isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}{form.record_status === "FINALIZED" ? "Finalize result" : "Save draft"}</button></div>
+              </div>
+            </form>
+          </div>
+        </div>, document.body
+      )}
+    </div>
+  );
+};
+
 export const ResultsTabContent = ({
   currentData,
   selectedProgram,
@@ -1789,7 +2093,10 @@ export const ResultsTabContent = ({
   showToast,
   setTargetHistoryId,
   setShowCertModal,
-  handleViewDocument
+  handleViewDocument,
+  hasProgramAssignment,
+  resultsView,
+  setResultsView,
 }: any) => {
   const handleDownloadScorecard = () => {
     try {
@@ -1799,6 +2106,7 @@ export const ResultsTabContent = ({
         [],
         ["Program", selectedProgram],
         ["AACCUP Standing", programAccreditation?.current_level || currentData.level || "Candidate Status"],
+        ["Active Cycle", programAccreditation?.active_cycle?.cycle_label || "Current baseline"],
         ["Validity Period", programAccreditation?.valid_until ? programAccreditation.valid_until.split("T")[0] : 'N/A'],
         ["Overall AACCUP Score", `${currentData.overall || 0}%`],
         [],
@@ -1829,7 +2137,13 @@ export const ResultsTabContent = ({
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <div className="space-y-5">
+      <div className="inline-flex p-1 bg-gray-100 border border-gray-200 rounded-lg">
+        <button onClick={() => setResultsView("aaccup")} disabled={!hasProgramAssignment} className={`px-4 py-2 rounded-md text-xs font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${resultsView === "aaccup" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>AACCUP results</button>
+        <button onClick={() => setResultsView("iso")} className={`px-4 py-2 rounded-md text-xs font-semibold cursor-pointer ${resultsView === "iso" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"}`}>ISO results</button>
+      </div>
+      {resultsView === "iso" ? <ISOResultsContent showToast={showToast} /> : !hasProgramAssignment ? <ProgramAssignmentRequired /> : (
+      <div className="flex flex-col lg:flex-row gap-6">
       {/* Left Column: Timeline & History */}
       <div className="w-full lg:w-2/3 space-y-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -1843,7 +2157,7 @@ export const ResultsTabContent = ({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {hasCapability("governance.manage") && (
+              {hasCapability("governance.cross_office") && (
                 <>
                   <button
                     onClick={() => {
@@ -1924,7 +2238,7 @@ export const ResultsTabContent = ({
                             <span className="text-[11px] text-gray-400 italic">No certificate or evidence file attached yet.</span>
                           )}
 
-                          {hasCapability("governance.manage") && (
+                          {hasCapability("governance.cross_office") && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1973,6 +2287,13 @@ export const ResultsTabContent = ({
               <span className="font-semibold text-gray-600">AACCUP Standing</span>
               <strong className="text-[#DD7230] font-bold">{programAccreditation?.current_level || currentData.level || "Candidate Status"}</strong>
             </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs">
+              <div className="flex justify-between items-center gap-3">
+                <span className="font-semibold text-gray-600">Active Cycle</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold">ACTIVE</span>
+              </div>
+              <p className="mt-1.5 text-gray-900 font-semibold leading-relaxed">{programAccreditation?.active_cycle?.cycle_label || "Current baseline cycle"}</p>
+            </div>
             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex justify-between items-center text-xs">
               <span className="font-semibold text-gray-600">Validity Period</span>
               <strong className="text-gray-900">{programAccreditation?.valid_until ? programAccreditation.valid_until.split("T")[0] : 'N/A'}</strong>
@@ -2003,6 +2324,8 @@ export const ResultsTabContent = ({
           </div>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 };
@@ -2178,14 +2501,25 @@ export const ReusableUploadModal = ({
   );
 };
 
+const ProgramAssignmentRequired = () => (
+  <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+    <h3 className="text-sm font-semibold text-amber-900">No academic program assigned</h3>
+    <p className="mt-1 text-xs text-amber-800">Ask the System Administrator to assign a program before accessing accreditation evidence or progress.</p>
+  </div>
+);
+
 export function AccreditationSupport() {
   const navigate = useNavigate();
   const userRole = sessionStorage.getItem('userRole') || 'STUDENT';
-  const userDept = sessionStorage.getItem('userDepartment') || 'BSIT';
+  const userDept = sessionStorage.getItem('userDepartment') || '';
   const userName = sessionStorage.getItem('userName') || 'Faculty User';
   const userAdminOffice = sessionStorage.getItem('userAdministrativeOffice') || '';
   const userIsIqaAuditor = sessionStorage.getItem('isIqaAuditor') === 'true';
   const isQualityAssuranceOrAuditor = hasCapability("governance.cross_office");
+  const allowedIsoProcesses: string[] = (() => {
+    try { return JSON.parse(sessionStorage.getItem('allowedIsoProcesses') || '[]'); }
+    catch { return []; }
+  })();
   const allowedPrograms: string[] = (() => {
     try { return JSON.parse(sessionStorage.getItem('allowedPrograms') || '[]'); }
     catch { return []; }
@@ -2194,12 +2528,13 @@ export function AccreditationSupport() {
     ? CAMPUS_PROGRAMS
     : CAMPUS_PROGRAMS.filter((program) => allowedPrograms.includes(program.code));
   const canSelectProgram = visiblePrograms.length > 1;
-  const isOfficeRestricted = !isQualityAssuranceOrAuditor && Boolean(userAdminOffice);
-  const workflowOffices = isQualityAssuranceOrAuditor ? ISO_OFFICES_16 : [userAdminOffice].filter(Boolean);
+  const isOfficeRestricted = !isQualityAssuranceOrAuditor && allowedIsoProcesses.length > 0;
+  const workflowOffices = isQualityAssuranceOrAuditor ? ISO_OFFICES_16 : allowedIsoProcesses;
   const hasProgramAssignment = visiblePrograms.length > 0;
-  const isUnassignedFaculty = !isQualityAssuranceOrAuditor && !userAdminOffice;
+  const isUnassignedFaculty = !isQualityAssuranceOrAuditor && !userAdminOffice && allowedIsoProcesses.length === 0;
 
-  const [selectedProgram, setSelectedProgram] = useState(visiblePrograms[0]?.code || userDept || "BSIT");
+  const [selectedProgram, setSelectedProgram] = useState(visiblePrograms[0]?.code || "");
+  const [resultsView, setResultsView] = useState<"aaccup" | "iso">(hasProgramAssignment ? "aaccup" : "iso");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   
@@ -2227,7 +2562,7 @@ export function AccreditationSupport() {
   const [isUploading, setIsUploading] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [docToDelete, setDocToDelete] = useState<string | null>(null);
+  const [docToDelete, setDocToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -2838,7 +3173,18 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   // Dynamic IQA Schedule & Days States
   const [iqaSchedule, setIqaSchedule] = useState<any>(null);
   const [showEditIqaModal, setShowEditIqaModal] = useState(false);
-  const [iqaFormData, setIqaFormData] = useState({ academic_year: "" });
+  const [iqaFormData, setIqaFormData] = useState({
+    academic_year: "",
+    day1_date: "",
+    day1_title: "",
+    day1_scope: "",
+    day2_date: "",
+    day2_title: "",
+    day2_scope: "",
+    day3_date: "",
+    day3_title: "",
+    day3_scope: "",
+  });
   const [isSavingIqa, setIsSavingIqa] = useState(false);
 
   const [iqaDays, setIqaDays] = useState<any[]>(() => {
@@ -2861,6 +3207,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
 
   // Dynamic AACCUP Program Accreditation & Upgrade Modal (Dynamic Level & History)
   const [programAccreditation, setProgramAccreditation] = useState<any>(null);
+  const [selectedAccreditationCycleId, setSelectedAccreditationCycleId] = useState("");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeForm, setUpgradeForm] = useState({
     new_level: "Level I Accredited",
@@ -2884,49 +3231,62 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   const [certFile, setCertFile] = useState<File | null>(null);
   const [isUploadingCert, setIsUploadingCert] = useState(false);
 
-  const refreshData = async () => {
+  const loadAccreditationCycleData = async (cycleId: string, area: any = expandedArea) => {
+    if (!cycleId || !selectedProgram) return;
+    const response = await apiClient.get(`/accreditation-status/${selectedProgram}`, {
+      params: { cycle_id: cycleId }
+    });
+    setCurrentData(response.data);
+
+    if (area) {
+      const detailsRes = await apiClient.get(`/accreditation-details/${selectedProgram}/${area.code}`, {
+        params: { cycle_id: cycleId }
+      });
+      setAreaDetails(detailsRes.data);
+      const updatedArea = response.data.areas.find((item: any) => item.code === area.code);
+      if (updatedArea) setExpandedArea(updatedArea);
+    }
+  };
+
+  const refreshData = async (preferActiveCycle = false) => {
     fetchIsoCycles();
     fetchIsoData(selectedIsoCycleYear);
     fetchIqaDays(selectedIsoCycleYear);
     if (hasCapability("governance.review")) fetchPendingQueue();
     if (!hasProgramAssignment) return;
     try {
-      const response = await apiClient.get(`/accreditation-status/${selectedProgram}`);
-      setCurrentData(response.data);
-
-      try {
-        const accRes = await apiClient.get(`/accreditation/program/${selectedProgram}`);
-        setProgramAccreditation(accRes.data);
-        if (accRes.data?.active_areas) {
-          const parsed = accRes.data.active_areas.split(",").map((s: string) => s.trim()).filter(Boolean);
-          if (parsed.length > 0) {
-            setActiveAreas(parsed);
-          }
+      const accRes = await apiClient.get(`/accreditation/program/${selectedProgram}`);
+      const accreditation = accRes.data;
+      setProgramAccreditation(accreditation);
+      if (accreditation?.active_areas) {
+        const parsed = accreditation.active_areas.split(",").map((s: string) => s.trim()).filter(Boolean);
+        if (parsed.length > 0) {
+          setActiveAreas(parsed);
         }
-      } catch (err) {
-        console.error("Failed to fetch program accreditation", err);
       }
 
-      // Reload details for the currently expanded area (if any),
-      // or eagerly fetch the first area so requirements paint correctly on first load
-      if (expandedArea) {
-        const detailsRes = await apiClient.get(`/accreditation-details/${selectedProgram}/${expandedArea.code}`);
-        setAreaDetails(detailsRes.data);
-        const updatedArea = response.data.areas.find((a: any) => a.code === expandedArea.code);
-        if (updatedArea) setExpandedArea(updatedArea);
-      } else if (response.data.areas && response.data.areas.length > 0) {
-        // On first load with no area open, pre-fetch the first area's details
-        // so the DB-seeded requirements are ready the moment the user expands any area
-        const firstArea = response.data.areas[0];
-        try {
-          await apiClient.get(`/accreditation-details/${selectedProgram}/${firstArea.code}`);
-        } catch (_) { /* non-critical pre-fetch, ignore errors */ }
-      }
+      const cycles = accreditation?.cycles || [];
+      const retainedCycle = preferActiveCycle ? null : cycles.find((cycle: any) => cycle.id === selectedAccreditationCycleId);
+      const activeCycle = accreditation?.active_cycle || cycles.find((cycle: any) => cycle.status === "ACTIVE");
+      const cycleId = retainedCycle?.id || activeCycle?.id || cycles[0]?.id || "";
+      setSelectedAccreditationCycleId(cycleId);
+      if (cycleId) await loadAccreditationCycleData(cycleId);
       
       fetchChedData();
       
     } catch (error) {
       console.error("Failed to refresh data", error);
+    }
+  };
+
+  const handleAccreditationCycleChange = async (cycleId: string) => {
+    setSelectedAccreditationCycleId(cycleId);
+    setExpandedArea(null);
+    setAreaDetails({ requirements: [], uploadedFiles: [] });
+    try {
+      await loadAccreditationCycleData(cycleId, null);
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to load the selected accreditation cycle.", "error");
     }
   };
 
@@ -3036,7 +3396,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       );
       showToast(`Program ${selectedProgram} standing updated to ${editStandingForm.new_level}!`, "success");
       setShowEditStandingModal(false);
-      await refreshData();
+      await refreshData(true);
     } catch (error: any) {
       showToast(error.response?.data?.detail || "Failed to update accreditation standing.", "error");
     } finally {
@@ -3064,7 +3424,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       showToast(`Program ${selectedProgram} officially upgraded to ${upgradeForm.new_level}!`, "success");
       setShowUpgradeModal(false);
       setUpgradeForm({ new_level: "Level I Accredited", valid_until_date: "", certificate_url: "", remarks: "" });
-      await refreshData();
+      await refreshData(true);
     } catch (error: any) {
       showToast(error.response?.data?.detail || "Failed to upgrade accreditation level.", "error");
     } finally {
@@ -3412,11 +3772,11 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   }, [selectedIsoCycleYear, activeTab]);
 
   useEffect(() => {
-    if (isOfficeRestricted && userAdminOffice) {
-      setIsoOfficeFilter(userAdminOffice);
-      setQmsOfficeFilter(userAdminOffice);
+    if (isOfficeRestricted && workflowOffices[0]) {
+      setIsoOfficeFilter(workflowOffices[0]);
+      setQmsOfficeFilter(workflowOffices[0]);
     }
-  }, [isOfficeRestricted, userAdminOffice]);
+  }, [isOfficeRestricted, workflowOffices.join("|")]);
 
   const handleCreateIsoCycle = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3448,7 +3808,9 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     setExpandedArea(area);
     setIsLoadingDetails(true);
     try {
-      const response = await apiClient.get(`/accreditation-details/${selectedProgram}/${area.code}`);
+      const response = await apiClient.get(`/accreditation-details/${selectedProgram}/${area.code}`, {
+        params: { cycle_id: selectedAccreditationCycleId }
+      });
       setAreaDetails(response.data);
     } catch (error) {
       showToast("Failed to load area details.", "error");
@@ -3549,10 +3911,10 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     if (!docToDelete) return;
     setIsDeleting(true);
     try {
-      await apiClient.delete(`/documents/${encodeURIComponent(docToDelete)}`);
+      await apiClient.delete(`/accreditation/evidence/${docToDelete.evidence_id}`);
       await refreshData();
       setShowDeleteModal(false); setDocToDelete(null);
-      showToast("Document archived successfully!", "success");
+      showToast("Evidence archived from the current accreditation cycle.", "success");
     } catch (error) {
       showToast("Failed to archive document.", "error");
     } finally {
@@ -3567,11 +3929,35 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     window.open(fileUrl, "_blank");
   };
 
-  const handleAdminReview = async (docName: string, status: "Approved" | "Needs Revision", feedbackText: string = "") => {
+  const handleOpenAaccupEvidence = async (evidence: any) => {
+    if (evidence?.direct_url) {
+      handleViewDocument(evidence.direct_url, evidence.name || "Accreditation certificate");
+      return;
+    }
+    const previewWindow = window.open("", "_blank");
+    try {
+      const response = await apiClient.get(`/accreditation/evidence/${evidence.evidence_id}/access-url`);
+      const freshUrl = response.data?.file_url;
+      if (!freshUrl) throw new Error("No evidence URL returned");
+      apiClient.post("/audit/access", {
+        document_name: evidence.name,
+        action_type: "View",
+        user_email: sessionStorage.getItem("userEmail"),
+        user_role: userRole,
+      }).catch(() => {});
+      if (previewWindow) previewWindow.location.href = freshUrl;
+      else window.open(freshUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      previewWindow?.close();
+      showToast("Unable to open this accreditation evidence. Please try again.", "error");
+    }
+  };
+
+  const handleAdminReview = async (evidenceId: string, status: "Approved" | "Needs Revision", feedbackText: string = "") => {
     setIsReviewing(true);
     try {
       await apiClient.post("/admin/accreditation-review", {
-        document_name: docName,
+        evidence_id: evidenceId,
         status: status,
         feedback: feedbackText
       });
@@ -4031,7 +4417,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       await apiClient.put(`/iso/schedule/GLOBAL`, iqaFormData);
       showToast("IQA Audit Schedule updated for upcoming cycle!", "success");
       setShowEditIqaModal(false);
-      fetchIqaSchedule();
+      setIqaSchedule(iqaFormData);
     } catch (error) {
       showToast("Failed to update IQA schedule.", "error");
     } finally {
@@ -4194,6 +4580,19 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     ...combinedIsoPendingDocs
   ];
 
+  const accreditationCycles = [...(programAccreditation?.cycles || [])].sort((left: any, right: any) => {
+    if (left.status === "ACTIVE" && right.status !== "ACTIVE") return -1;
+    if (right.status === "ACTIVE" && left.status !== "ACTIVE") return 1;
+    return String(right.opened_at || "").localeCompare(String(left.opened_at || ""));
+  });
+  const selectedAccreditationCycle = accreditationCycles.find((cycle: any) => cycle.id === selectedAccreditationCycleId)
+    || programAccreditation?.active_cycle
+    || accreditationCycles[0];
+  const isHistoricalCycle = selectedAccreditationCycle?.status === "CLOSED";
+  const selectedCycleCertificate = (programAccreditation?.history || []).find(
+    (history: any) => history.cycle_id === selectedAccreditationCycle?.id && history.certificate_url
+  );
+
   if (isLoading && currentData.areas.length === 0) {
     return <div className="flex justify-center items-center h-64 text-gray-500"><Loader2 className="h-8 w-8 animate-spin text-[#DD7230]" /></div>;
   }
@@ -4300,7 +4699,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
 
                         <div className="flex items-center gap-2 pt-1">
                           <button
-                            onClick={() => handleViewDocument(doc.url, doc.name)}
+                            onClick={() => doc.type === "AACCUP" ? handleOpenAaccupEvidence(doc) : handleViewDocument(doc.url, doc.name)}
                             className="px-2.5 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-gray-900 text-xs font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
                             title="View Document"
                           >
@@ -4398,17 +4797,17 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
         <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4">
           <div>
             <h2 className="text-base font-semibold text-gray-900">
-              {activeTab === 'iso' ? 'Institutional QMS' : 'Program Evaluation'}
+              {activeTab === 'iso' ? 'Institutional QMS' : activeTab === 'results' ? 'Quality Assurance Results' : 'Program Evaluation'}
             </h2>
             <p className="text-xs text-gray-500 hidden sm:block">
-              {activeTab === 'iso' ? 'Campus-wide ISO 9001:2015 QMS (CTU Argao Campus).' : 'Tracking compliance templates per degree program.'}
+              {activeTab === 'iso' ? 'Campus-wide ISO quality management workflow for CTU Argao Campus.' : activeTab === 'results' ? 'Historical AACCUP program outcomes and campus-wide ISO audit results.' : 'Tracking compliance templates per degree program.'}
             </p>
           </div>
           
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <div className="relative w-full sm:w-80">
-              {activeTab === 'iso' ? (
-                <div className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 flex items-center justify-between cursor-not-allowed opacity-85 select-none" title="Disabled: ISO 9001:2015 is an Institutional Campus-Wide QMS and does not depend on degree programs.">
+              {activeTab === 'iso' || (activeTab === 'results' && resultsView === 'iso') ? (
+                <div className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 flex items-center justify-between cursor-not-allowed opacity-85 select-none" title="Institutional ISO records are campus-wide and do not depend on degree programs.">
                   <div className="flex items-center gap-2">
                     <Lock className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                     <span className="truncate">CTU Argao Institutional Campus-Wide</span>
@@ -4436,14 +4835,14 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
               )}
             </div>
 
-            {activeTab !== 'iso' && (
+            {activeTab !== 'iso' && !(activeTab === 'results' && resultsView === 'iso') && (
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <div className="flex items-center gap-1.5 px-3.5 py-2 bg-[#DD7230] text-white rounded-lg shadow-2xs w-full sm:w-auto justify-center">
                   <span className="font-semibold uppercase text-xs tracking-wide">
                     {programAccreditation?.current_level || currentData.level || "Candidate Status"}
                   </span>
                 </div>
-                {hasCapability("governance.manage") && (
+                {hasCapability("governance.cross_office") && !(activeTab === "aaccup" && isHistoricalCycle) && (
                   <button
                     onClick={() => {
                       setEditStandingForm({
@@ -4464,7 +4863,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
         </div>
 
         <TabsContent value="aaccup" forceMount className={activeTab === 'aaccup' ? 'space-y-6 mt-6' : 'hidden'}>
-          <AaccupTabContent
+          {!hasProgramAssignment ? <ProgramAssignmentRequired /> : <AaccupTabContent
             currentData={currentData}
             filteredAreas={filteredAreas}
             selectedProgram={selectedProgram}
@@ -4499,11 +4898,18 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             setShowEditAaccupReqModal={setShowEditAaccupReqModal}
             setAaccupReqToDelete={setAaccupReqToDelete}
             setShowDeleteAaccupReqModal={setShowDeleteAaccupReqModal}
-          />
+            accreditationCycles={accreditationCycles}
+            selectedAccreditationCycleId={selectedAccreditationCycle?.id || ""}
+            onAccreditationCycleChange={handleAccreditationCycleChange}
+            selectedAccreditationCycle={selectedAccreditationCycle}
+            isHistoricalCycle={isHistoricalCycle}
+            selectedCycleCertificate={selectedCycleCertificate}
+            handleOpenAaccupEvidence={handleOpenAaccupEvidence}
+          />}
         </TabsContent>
 
         <TabsContent value="ched" forceMount className={activeTab === 'ched' ? 'mt-6 space-y-6' : 'hidden'}>
-          <ChedTabContent
+          {!hasProgramAssignment ? <ProgramAssignmentRequired /> : <ChedTabContent
             chedRequirements={chedRequirements}
             isLoadingChed={isLoadingChed}
             selectedProgram={selectedProgram}
@@ -4521,7 +4927,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             handleOpenChedEvidence={handleOpenChedEvidence}
             handleReviewChedEvidence={handleReviewChedEvidence}
             isReviewing={isReviewing}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="iso" forceMount className={activeTab === 'iso' ? 'mt-6 space-y-6' : 'hidden'}>
@@ -4642,6 +5048,9 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             setTargetHistoryId={setTargetHistoryId}
             setShowCertModal={setShowCertModal}
             handleViewDocument={handleViewDocument}
+            hasProgramAssignment={hasProgramAssignment}
+            resultsView={resultsView}
+            setResultsView={setResultsView}
           />
         </TabsContent>
       </Tabs>
@@ -5043,7 +5452,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                 Cancel
               </button>
               <button 
-                onClick={() => handleAdminReview(feedbackDoc.name, "Needs Revision", feedbackText)} 
+                onClick={() => handleAdminReview(feedbackDoc.evidence_id, "Needs Revision", feedbackText)}
                 disabled={isReviewing || !feedbackText.trim()}
                 className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-red-600 hover:bg-red-700 transition-all disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer uppercase tracking-widest"
               >
@@ -5165,18 +5574,18 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
         onClose={() => setShowDeleteModal(false)}
         onConfirm={executeDelete}
         isProcessing={isDeleting}
-        title="Delete Evidence"
-        confirmText="Yes, Delete"
+        title="Archive Evidence"
+        confirmText="Archive Evidence"
         icon={Trash2}
         description={
           <>
             <p className="text-sm text-gray-700 leading-relaxed">
-              Are you sure you want to remove this attached evidence?
+              Archive this evidence from the current accreditation cycle? The stored file and audit history will be retained.
             </p>
             {docToDelete && (
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2 flex items-center gap-2">
                 <FileText className="h-4 w-4 text-[#DD7230] shrink-0" />
-                <span className="font-semibold text-gray-900">{docToDelete}</span>
+                <span className="font-semibold text-gray-900">{docToDelete.name}</span>
               </div>
             )}
           </>
@@ -5199,7 +5608,14 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             </p>
             {chedReqToDelete && (
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 font-medium mt-2">
-                <span className="font-semibold text-gray-900">{chedReqToDelete.indicator}: {chedReqToDelete.title}</span>
+                <span className="font-semibold text-gray-900">
+                  {(() => {
+                    const requirement = chedRequirements.find((item: any) => String(item.id) === String(chedReqToDelete));
+                    return requirement
+                      ? `${requirement.indicator}: ${requirement.title}`
+                      : "Selected CHED requirement";
+                  })()}
+                </span>
               </div>
             )}
           </>
@@ -5921,7 +6337,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
               <button onClick={() => { setShowAaccupApproveModal(false); setPendingAaccupApprove(null); }} disabled={isReviewing} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                 Cancel
               </button>
-              <button onClick={async () => { await handleAdminReview(pendingAaccupApprove.name, "Approved"); setShowAaccupApproveModal(false); setPendingAaccupApprove(null); }} disabled={isReviewing} className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-[#006837] hover:bg-green-800 transition-all disabled:opacity-50 flex justify-center items-center gap-2 uppercase tracking-widest shadow-md cursor-pointer">
+              <button onClick={async () => { await handleAdminReview(pendingAaccupApprove.evidence_id, "Approved"); setShowAaccupApproveModal(false); setPendingAaccupApprove(null); }} disabled={isReviewing} className="px-5 py-2.5 text-xs font-bold text-white rounded-xl bg-[#006837] hover:bg-green-800 transition-all disabled:opacity-50 flex justify-center items-center gap-2 uppercase tracking-widest shadow-md cursor-pointer">
                 {isReviewing ? <><Loader2 className="h-4 w-4 animate-spin"/> Approving...</> : <><Check className="h-4 w-4" /> Yes, Approve</>}
               </button>
             </div>
@@ -6977,7 +7393,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   <Award className="w-6 h-6 text-[#DD7230]" /> Officially Upgrade Accreditation Level
                 </h2>
                 <p className="text-xs text-gray-600 mt-1">
-                  Grant new official standing for <strong>{selectedProgram}</strong> & archive milestones to historical records
+                  Close the current cycle for <strong>{selectedProgram}</strong> and open a new cycle for the official level
                 </p>
               </div>
               <button onClick={() => setShowUpgradeModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer text-gray-500">
@@ -7077,7 +7493,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   <Edit className="w-5 h-5 text-[#DD7230]" /> Edit Current Program Standing
                 </h2>
                 <p className="text-xs text-gray-600 mt-1">
-                  Directly calibrate the baseline accreditation level for <strong>{selectedProgram}</strong> without recording an audit hop
+                  Correct the baseline for <strong>{selectedProgram}</strong>. A level change closes the current cycle and opens a new administrative baseline.
                 </p>
               </div>
               <button onClick={() => setShowEditStandingModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">

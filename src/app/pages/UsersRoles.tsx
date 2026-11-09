@@ -1,1090 +1,193 @@
-import { useState, useEffect } from "react";
-import { Search, UserPlus, Ban, UserX, CheckCircle, Clock, XCircle, AlertCircle, X, ShieldAlert, ShieldCheck, Unlock, Loader2, Award, GraduationCap, Building2, Eye, EyeOff } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Ban, CheckCircle, Loader2, Pencil, Plus, Search, Trash2, UserPlus, X } from "lucide-react";
 import apiClient from "../api/client";
-import { CAMPUS_COLLEGES, CAMPUS_PROGRAMS, roleLabel } from "../constants/academicScopes";
+import {
+  ASSIGNMENT_SCOPE, CAMPUS_COLLEGES, CAMPUS_PROGRAMS, PERSONNEL_ASSIGNMENT_TYPES,
+  assignmentLabel, roleLabel,
+} from "../constants/academicScopes";
 
 export { CAMPUS_COLLEGES, CAMPUS_PROGRAMS } from "../constants/academicScopes";
 
+// These are ISO/QMS process groups, not the campus organizational office directory.
 export const ISO_OFFICES_16 = [
-  "Campus Director",
-  "Academic Affairs",
-  "Student Affairs & Services",
-  "Administrative & Finance",
-  "Research & Development",
-  "Extension & Community Services",
-  "Production & Resource Generation",
-  "Quality Assurance & Management (QAU)",
-  "Registrar's Office",
-  "Guidance & Placement",
-  "University Library",
-  "Medical & Dental Clinic",
-  "Supply & Property Unit",
-  "HR & Records Management",
-  "MIS & Information Technology Unit",
-  "Security & Physical Plant Unit"
+  "Campus Director", "Academic Affairs", "Student Affairs & Services", "Administrative & Finance",
+  "Research & Development", "Extension & Community Services", "Production & Resource Generation",
+  "Quality Assurance & Management (QAU)", "Registrar's Office", "Guidance & Placement",
+  "University Library", "Medical & Dental Clinic", "Supply & Property Unit", "HR & Records Management",
+  "MIS & Information Technology Unit", "Security & Physical Plant Unit",
 ];
+
+type Scope = { id: string; code: string; name: string; college_unit_id?: string };
+type Assignment = {
+  id?: string; assignment_type: string; scope_type: string; scope_id: string | null;
+  scope_code?: string; scope_name?: string; is_primary: boolean;
+};
+type ReferenceData = { offices: Scope[]; colleges: Scope[]; programs: Scope[]; assignment_types: string[] };
+
+const emptyReferences: ReferenceData = { offices: [], colleges: [], programs: [], assignment_types: [] };
+const emptyForm = { full_name: "", email: "", role: "PERSONNEL", password: "", assignments: [] as Assignment[] };
+
+function defaultAssignment(type: string, refs: ReferenceData): Assignment {
+  const scopeType = ASSIGNMENT_SCOPE[type] || "CAMPUS";
+  const choices = scopeType === "OFFICE" ? refs.offices : scopeType === "COLLEGE" ? refs.colleges : scopeType === "PROGRAM" ? refs.programs : [];
+  return { assignment_type: type, scope_type: scopeType, scope_id: choices[0]?.id || null, is_primary: false };
+}
+
+function scopeChoices(scopeType: string, refs: ReferenceData) {
+  if (scopeType === "OFFICE") return refs.offices;
+  if (scopeType === "COLLEGE") return refs.colleges;
+  if (scopeType === "PROGRAM") return refs.programs;
+  return [];
+}
+
+function AssignmentEditor({ value, onChange, refs }: { value: Assignment[]; onChange: (value: Assignment[]) => void; refs: ReferenceData }) {
+  const add = () => onChange([...value, defaultAssignment("FACULTY_MEMBER", refs)]);
+  const update = (index: number, patch: Partial<Assignment>) => onChange(value.map((item, i) => i === index ? { ...item, ...patch } : item));
+  const remove = (index: number) => onChange(value.filter((_, i) => i !== index));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold text-gray-800">Personnel assignments</p>
+          <p className="text-[11px] text-gray-500">Add every position this person currently holds.</p>
+        </div>
+        <button type="button" onClick={add} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+          <Plus className="h-3.5 w-3.5" /> Add assignment
+        </button>
+      </div>
+      {value.length === 0 && <div className="rounded-lg border border-dashed border-gray-300 px-4 py-5 text-center text-xs text-gray-500">No assignment added yet.</div>}
+      {value.map((assignment, index) => {
+        const flexibleScope = ["IQA_AUDITOR", "SURVEY_ANALYST"].includes(assignment.assignment_type);
+        const choices = scopeChoices(assignment.scope_type, refs);
+        return (
+          <div key={`${assignment.assignment_type}-${index}`} className={`grid gap-2 rounded-lg border border-gray-200 bg-gray-50/60 p-3 ${flexibleScope ? "sm:grid-cols-[1.2fr_.8fr_1.35fr_auto]" : "sm:grid-cols-[1.2fr_1.5fr_auto]"}`}>
+            <select value={assignment.assignment_type} onChange={(event) => {
+              const next = defaultAssignment(event.target.value, refs);
+              update(index, { ...next, is_primary: assignment.is_primary });
+            }} className="h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs">
+              {PERSONNEL_ASSIGNMENT_TYPES.map((type) => <option key={type} value={type}>{assignmentLabel(type)}</option>)}
+            </select>
+            {flexibleScope && <select value={assignment.scope_type} onChange={(event) => {
+              const scopeType = event.target.value;
+              const first = scopeChoices(scopeType, refs)[0];
+              update(index, { scope_type: scopeType, scope_id: scopeType === "CAMPUS" ? null : first?.id || null });
+            }} className="h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs">
+              <option value="CAMPUS">Campus-wide</option><option value="OFFICE">Specific office</option>
+            </select>}
+            {assignment.scope_type === "CAMPUS" ? (
+              <div className="flex h-9 items-center rounded-lg border border-gray-200 bg-gray-100 px-3 text-xs text-gray-600">CTU Argao Campus</div>
+            ) : (
+              <select value={assignment.scope_id || ""} onChange={(event) => update(index, { scope_id: event.target.value })} className="h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs">
+                <option value="" disabled>Select {assignment.scope_type.toLowerCase()}</option>
+                {choices.map((scope) => <option key={scope.id} value={scope.id}>{scope.name}</option>)}
+              </select>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <label className="flex items-center gap-1 text-[11px] text-gray-600"><input type="radio" name="primary-assignment" checked={assignment.is_primary} onChange={() => onChange(value.map((item, i) => ({ ...item, is_primary: i === index })))} /> Primary</label>
+              <button type="button" onClick={() => remove(index)} className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove assignment"><Trash2 className="h-4 w-4" /></button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function UsersRoles() {
   const [users, setUsers] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Filters
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRole, setSelectedRole] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all");
-  const [showMobileMetrics, setShowMobileMetrics] = useState(false);
+  const [refs, setRefs] = useState<ReferenceData>(emptyReferences);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [modal, setModal] = useState<"create" | "edit" | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [toast, setToast] = useState<{ message: string; error?: boolean } | null>(null);
 
-  // --- TOAST NOTIFICATIONS ---
-  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  // --- MODAL STATES ---
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [addUserData, setAddUserData] = useState({ 
-    name: "", 
-    email: "", 
-    role: "FACULTY", 
-    password: "", 
-    administrative_office: "", 
-    is_iqa_auditor: false,
-    designation: "Faculty Member",
-    designation_entity: "BSIT"
-  });
-
-  // Edit User State
-  const [showEditUserModal, setShowEditUserModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
-
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [userToReject, setUserToReject] = useState<any>(null);
-  const [isRejecting, setIsRejecting] = useState(false);
-
-  // Disable State
-  const [showDisableModal, setShowDisableModal] = useState(false);
-  const [userToDisable, setUserToDisable] = useState<any>(null);
-  const [isDisabling, setIsDisabling] = useState(false);
-
-  // Enable State
-  const [showEnableModal, setShowEnableModal] = useState(false);
-  const [userToEnable, setUserToEnable] = useState<any>(null);
-  const [isEnabling, setIsEnabling] = useState(false);
-
-  // Officer Confirmation Modal State
-  const [showOfficerModal, setShowOfficerModal] = useState(false);
-  const [userForOfficerToggle, setUserForOfficerToggle] = useState<any>(null);
-  const [isTogglingOfficer, setIsTogglingOfficer] = useState(false);
-
-  const fetchUsers = async () => {
+  const notify = (message: string, error = false) => { setToast({ message, error }); window.setTimeout(() => setToast(null), 3200); };
+  const load = async () => {
+    setLoading(true);
     try {
-      const response = await apiClient.get("/users");
-      setUsers(response.data);
-    } catch (error) {
-      console.error("Failed to fetch users:", error);
-      showToast("Failed to load users from database.", "error");
-    } finally {
-      setIsLoading(false);
-    }
+      const [usersResponse, referenceResponse] = await Promise.all([
+        apiClient.get("/users"), apiClient.get("/authorization/reference-data"),
+      ]);
+      setUsers(usersResponse.data || []);
+      setRefs(referenceResponse.data || emptyReferences);
+    } catch { notify("Unable to load users and authorization data.", true); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const filtered = useMemo(() => users.filter((user) => {
+    const search = query.trim().toLowerCase();
+    return (roleFilter === "ALL" || user.role === roleFilter)
+      && (!search || `${user.full_name} ${user.email} ${user.role} ${(user.assignments || []).map((a: Assignment) => `${a.assignment_type} ${a.scope_name}`).join(" ")}`.toLowerCase().includes(search));
+  }), [users, query, roleFilter]);
+
+  const openCreate = () => { setEditingId(null); setForm({ ...emptyForm, assignments: [] }); setModal("create"); };
+  const openEdit = (user: any) => {
+    setEditingId(user.id);
+    setForm({ full_name: user.full_name || "", email: user.email, role: user.role, password: "", assignments: (user.assignments || []).map((a: Assignment) => ({ ...a })) });
+    setModal("edit");
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const handleApprove = async (userId: string) => {
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!form.full_name.trim() || !form.email.trim() || (modal === "create" && form.password.length < 8)) {
+      notify("Complete the required fields. New passwords must contain at least 8 characters.", true); return;
+    }
+    if (form.role === "PERSONNEL" && form.assignments.some((a) => a.scope_type !== "CAMPUS" && !a.scope_id)) {
+      notify("Select a scope for every personnel assignment.", true); return;
+    }
+    setSaving(true);
+    const payload: any = { full_name: form.full_name.trim(), email: form.email.trim(), role: form.role, assignments: form.role === "PERSONNEL" ? form.assignments.map(({ assignment_type, scope_type, scope_id, is_primary }) => ({ assignment_type, scope_type, scope_id, is_primary })) : [] };
+    if (modal === "create") payload.password = form.password;
     try {
-      await apiClient.put(`/users/${userId}/verify`);
-      fetchUsers();
-      showToast("Faculty account approved successfully!", "success");
-    } catch (error) {
-      showToast("Failed to approve faculty account.", "error");
-    }
+      if (modal === "create") await apiClient.post("/users", payload);
+      else await apiClient.put(`/users/${editingId}/details`, payload);
+      setModal(null); await load(); notify(modal === "create" ? "Account created." : "User and assignments updated.");
+    } catch (error: any) { notify(error?.response?.data?.detail || "Unable to save the account.", true); }
+    finally { setSaving(false); }
   };
 
-  const executeReject = async () => {
-    if (!userToReject) return;
-    setIsRejecting(true);
-    try {
-      await apiClient.delete(`/users/${userToReject.id}`);
-      fetchUsers();
-      setShowRejectModal(false);
-      setUserToReject(null);
-      showToast("Pending request rejected and removed.", "success");
-    } catch (error) {
-      showToast("Failed to reject faculty account.", "error");
-    } finally {
-      setIsRejecting(false);
-    }
+  const toggleStatus = async (user: any) => {
+    try { await apiClient.put(`/users/${user.id}/${user.status === "Disabled" ? "enable" : "disable"}`); await load(); notify(`Account ${user.status === "Disabled" ? "enabled" : "disabled"}.`); }
+    catch (error: any) { notify(error?.response?.data?.detail || "Unable to update account status.", true); }
   };
-
-  const executeDisable = async () => {
-    if (!userToDisable) return;
-    setIsDisabling(true);
-    try {
-      await apiClient.put(`/users/${userToDisable.id}/disable`);
-      fetchUsers();
-      setShowDisableModal(false);
-      setUserToDisable(null);
-      showToast("User account has been disabled.", "success");
-    } catch (error) {
-      showToast("Failed to disable user account.", "error");
-    } finally {
-      setIsDisabling(false);
-    }
-  };
-
-  const executeEnable = async () => {
-    if (!userToEnable) return;
-    setIsEnabling(true);
-    try {
-      await apiClient.put(`/users/${userToEnable.id}/enable`);
-      fetchUsers();
-      setShowEnableModal(false);
-      setUserToEnable(null);
-      showToast("User account has been re-enabled.", "success");
-    } catch (error) {
-      showToast("Failed to re-enable user account.", "error");
-    } finally {
-      setIsEnabling(false);
-    }
-  };
-
-  const handleAddUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const value = e.target.value;
-    const roleDefaults = e.target.name === "role" ? {
-      designation_entity: ["COLLEGE_DEAN", "COLLEGE_SECRETARY"].includes(value)
-        ? CAMPUS_COLLEGES[0]
-        : ["PROGRAM_CHAIR", "FACULTY"].includes(value) ? CAMPUS_PROGRAMS[0].code : "",
-      administrative_office: value === "DOCUMENT_CONTROLLER" ? "Document Control Office" : "",
-      is_iqa_auditor: false,
-    } : {};
-    setAddUserData({
-      ...addUserData,
-      [e.target.name]: value,
-      ...roleDefaults,
-    });
-  };
-
-  const handleAddUserSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!addUserData.name || !addUserData.email || !addUserData.role || !addUserData.password) {
-      showToast("Please fill out all required fields.", "error");
-      return;
-    }
-    setIsCreating(true);
-    try {
-      await apiClient.post("/users", {
-        full_name: addUserData.name,
-        email: addUserData.email,
-        role: addUserData.role,
-        password: addUserData.password,
-        department: addUserData.role === "DOCUMENT_CONTROLLER" ? null : addUserData.designation_entity || null,
-        administrative_office: addUserData.administrative_office || null,
-        is_iqa_auditor: addUserData.is_iqa_auditor
-      });
-
-      showToast(`${addUserData.role} ${addUserData.name} created successfully!`, "success");
-      setShowAddUserModal(false);
-      setAddUserData({ name: "", email: "", role: "FACULTY", password: "", administrative_office: "", is_iqa_auditor: false, designation: "Faculty Member", designation_entity: "BEED" });
-      fetchUsers();
-    } catch (error: any) {
-      showToast(error.response?.data?.detail || "Failed to create user.", "error");
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleEditUserSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingUser || !editingUser.full_name) {
-      showToast("Please fill out all required fields.", "error");
-      return;
-    }
-    setIsUpdatingUser(true);
-    try {
-      const assignedEntity = editingUser.designation_entity ?? editingUser.department ?? "";
-      if (editingUser.id) {
-        await apiClient.put(`/users/${editingUser.id}/details`, {
-          administrative_office: editingUser.administrative_office || null,
-          role: editingUser.role,
-          is_iqa_auditor: Boolean(editingUser.is_iqa_auditor),
-          designation: editingUser.designation || "Faculty Member",
-          designation_entity: assignedEntity,
-          email: editingUser.email,
-          full_name: editingUser.full_name
-        });
-      }
-
-      showToast(`User ${editingUser.full_name} updated successfully!`, "success");
-      setShowEditUserModal(false);
-      setEditingUser(null);
-      fetchUsers();
-    } catch (error: any) {
-      showToast(error.response?.data?.detail || "Failed to update user.", "error");
-    } finally {
-      setIsUpdatingUser(false);
-    }
-  };
-
-  const openOfficerModal = (user: any) => {
-    setUserForOfficerToggle(user);
-    setShowOfficerModal(true);
-  };
-
-  const executeToggleOfficer = async () => {
-    if (!userForOfficerToggle) return;
-    setIsTogglingOfficer(true);
-    try {
-      const newStatus = !userForOfficerToggle.is_iqa_auditor;
-      await apiClient.put(`/users/${userForOfficerToggle.id}/details`, {
-        administrative_office: userForOfficerToggle.administrative_office || null,
-        is_iqa_auditor: newStatus,
-        designation: userForOfficerToggle.designation,
-        designation_entity: userForOfficerToggle.department
-      });
-
-      showToast(`Audit Officer status ${newStatus ? 'granted to' : 'revoked from'} ${userForOfficerToggle.full_name || userForOfficerToggle.email}.`, "success");
-      fetchUsers();
-      setShowOfficerModal(false);
-      setUserForOfficerToggle(null);
-    } catch (error: any) {
-      showToast(error.response?.data?.detail || "Failed to update Audit Officer status.", "error");
-    } finally {
-      setIsTogglingOfficer(false);
-    }
-  };
-
-  const pendingFaculty = users.filter(u => u.role === "FACULTY" && !u.is_verified);
-  const registeredUsers = users.filter(u => u.is_verified || u.role === "SYSTEM_ADMIN");
-
-  const filteredUsers = registeredUsers.filter(user => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesName = user.full_name?.toLowerCase().includes(searchLower) || false;
-    const matchesEmail = user.email?.toLowerCase().includes(searchLower) || false;
-    const matchesDesignation = user.designation?.toLowerCase().includes(searchLower) || false;
-    const matchesSearch = matchesName || matchesEmail || matchesDesignation;
-    
-    const matchesRole = 
-      selectedRole === "all" 
-        ? true 
-        : selectedRole === "IQA_AUDITOR" 
-          ? Boolean(user.is_iqa_auditor) 
-          : user.role === selectedRole;
-    
-    const userStatus = user.status || "Active";
-    const matchesStatus = selectedStatus === "all" || userStatus === selectedStatus;
-
-    return matchesSearch && matchesRole && matchesStatus;
-  });
-
-  const roleStats = [
-    { role: "System Administrator", userCount: users.filter(u => u.role === "SYSTEM_ADMIN").length, color: "#DD7230", filterRole: "SYSTEM_ADMIN" },
-    { role: "College Leadership", userCount: users.filter(u => ["COLLEGE_DEAN", "COLLEGE_SECRETARY"].includes(u.role)).length, color: "#7C3AED", filterRole: "COLLEGE_DEAN" },
-    { role: "Program Chairs", userCount: users.filter(u => u.role === "PROGRAM_CHAIR").length, color: "#2563EB", filterRole: "PROGRAM_CHAIR" },
-    { role: "Faculty", userCount: users.filter(u => u.role === "FACULTY").length, color: "#FDB913", filterRole: "FACULTY" },
-    { role: "Office Heads", userCount: users.filter(u => u.role === "OFFICE_HEAD").length, color: "#059669", filterRole: "OFFICE_HEAD" },
-    { role: "Document Controller", userCount: users.filter(u => u.role === "DOCUMENT_CONTROLLER").length, color: "#0D9488", filterRole: "DOCUMENT_CONTROLLER" },
-    { role: "Lead Audit Officers", userCount: users.filter(u => u.is_iqa_auditor).length, color: "#EA580C", filterRole: "IQA_AUDITOR" },
-    { role: "Students", userCount: users.filter(u => u.role === "STUDENT").length, color: "#6366F1", filterRole: "STUDENT" },
-  ];
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-[#DD7230]" />
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 pb-10">
-      
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-8 right-8 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold animate-in slide-in-from-bottom-5 duration-200 ${
-          toast.type === 'success' 
-            ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-            : 'bg-rose-50 text-rose-800 border-rose-200'
-        }`}>
-          {toast.type === 'success' ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-rose-600" />}
-          {toast.message}
-        </div>
-      )}
-
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Users & Roles Management</h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Manage user directories, college leadership, program chairs, and ISO office matrix</p>
-        </div>
-        <button 
-          onClick={() => setShowAddUserModal(true)} 
-          className="flex items-center gap-2 px-4 py-2 bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors text-xs font-semibold cursor-pointer shadow-2xs self-start sm:self-auto"
-        >
-          <UserPlus className="h-4 w-4" />
-          <span>Add New User</span>
-        </button>
+    <div className="space-y-5">
+      {toast && <div className={`fixed right-5 top-5 z-[100] rounded-lg border px-4 py-3 text-sm shadow-lg ${toast.error ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>{toast.message}</div>}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div><h1 className="text-2xl font-bold text-gray-900">Users & Roles</h1><p className="mt-1 text-sm text-gray-500">Manage base roles and multiple scoped personnel assignments.</p></div>
+        <button onClick={openCreate} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#DD7230] px-4 text-sm font-semibold text-white hover:bg-[#c9662b]"><UserPlus className="h-4 w-4" /> Add user</button>
+      </div>
+      <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-[1fr_210px]">
+        <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search users, assignments, or scopes" className="h-10 w-full rounded-lg border border-gray-200 pl-9 pr-3 text-sm outline-none focus:border-[#DD7230]" /></div>
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="h-10 rounded-lg border border-gray-200 px-3 text-sm"><option value="ALL">All base roles</option><option value="SYSTEM_ADMIN">System Administrator</option><option value="PERSONNEL">Personnel</option><option value="STUDENT">Student</option></select>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-x-auto"><table className="min-w-full"><thead className="border-b border-gray-200 bg-gray-50"><tr>{["User", "Base role", "Assignments", "Status", "Actions"].map((label) => <th key={label} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</th>)}</tr></thead>
+          <tbody className="divide-y divide-gray-100">{loading ? <tr><td colSpan={5} className="py-14 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#DD7230]" /></td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="py-14 text-center text-sm text-gray-500">No users found.</td></tr> : filtered.map((user) => <tr key={user.id} className="align-top hover:bg-gray-50/60">
+            <td className="px-4 py-3"><p className="text-sm font-semibold text-gray-900">{user.full_name || "Unnamed user"}</p><p className="text-xs text-gray-500">{user.email}</p></td>
+            <td className="px-4 py-3"><span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700">{roleLabel(user.role)}</span></td>
+            <td className="max-w-xl px-4 py-3"><div className="flex flex-wrap gap-1.5">{(user.assignments || []).length ? user.assignments.map((a: Assignment) => <span key={a.id || `${a.assignment_type}-${a.scope_id}`} className="rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] text-orange-800">{assignmentLabel(a.assignment_type)}{a.scope_name ? ` · ${a.scope_name}` : ""}</span>) : <span className="text-xs text-gray-400">No scoped assignment</span>}</div></td>
+            <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${user.status === "Disabled" ? "bg-red-50 text-red-700" : user.is_verified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{user.status === "Disabled" ? <Ban className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}{user.status === "Disabled" ? "Disabled" : user.is_verified ? "Active" : "Pending"}</span></td>
+            <td className="px-4 py-3"><div className="flex items-center gap-1"><button onClick={() => openEdit(user)} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800" title="Edit"><Pencil className="h-4 w-4" /></button><button onClick={() => toggleStatus(user)} className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800" title={user.status === "Disabled" ? "Enable" : "Disable"}>{user.status === "Disabled" ? <CheckCircle className="h-4 w-4" /> : <Ban className="h-4 w-4" />}</button>{!user.is_verified && <button onClick={async () => { await apiClient.put(`/users/${user.id}/verify`); await load(); notify("Account verified."); }} className="rounded-md px-2 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50">Verify</button>}</div></td>
+          </tr>)}</tbody></table></div>
       </div>
 
-      {/* Mobile Toggle for Metric Cards */}
-      <div className="flex sm:hidden items-center justify-between">
-        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Role Breakdown</span>
-        <button
-          type="button"
-          onClick={() => setShowMobileMetrics((prev) => !prev)}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-2xs cursor-pointer"
-        >
-          {showMobileMetrics ? (
-            <>
-              <EyeOff className="h-3.5 w-3.5 text-gray-500" />
-              <span>Hide Metrics</span>
-            </>
-          ) : (
-            <>
-              <Eye className="h-3.5 w-3.5 text-[#DD7230]" />
-              <span>Show Metrics ({roleStats.length})</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Metric Cards */}
-      <div className={`${showMobileMetrics ? 'grid' : 'hidden sm:grid'} grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 transition-all`}>
-        {roleStats.map((stat) => (
-          <div 
-            key={stat.role} 
-            onClick={() => {
-              if (stat.filterRole && stat.filterRole !== "all") {
-                setSelectedRole(selectedRole === stat.filterRole ? "all" : stat.filterRole);
-              }
-            }}
-            className={`p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-              selectedRole === stat.filterRole 
-                ? 'border-gray-400 shadow-xs bg-gray-50/60' 
-                : 'border-gray-200/80 bg-white shadow-2xs hover:border-gray-400 hover:shadow-xs hover:bg-gray-50/30'
-            }`}
-            title={`Click to filter by ${stat.role}`}
-          >
-            <div>
-              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">{stat.role}</p>
-              <h3 className="text-2xl font-bold text-gray-900 mt-1">{stat.userCount}</h3>
-            </div>
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${stat.color}15` }}>
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stat.color }}></span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Pending Approvals Table */}
-      {pendingFaculty.length > 0 && (
-        <div className="bg-white rounded-xl border border-amber-200 shadow-2xs overflow-hidden">
-          <div className="p-4 border-b border-amber-100 bg-amber-50/50 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[#DD7230]" />
-            <h2 className="text-xs font-bold text-amber-900 uppercase tracking-wider">Pending Faculty Registrations ({pendingFaculty.length})</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-amber-50/20 border-b border-amber-100 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-2.5">Name</th>
-                  <th className="px-4 py-2.5">Email</th>
-                  <th className="px-4 py-2.5">Academic Department</th>
-                  <th className="px-4 py-2.5 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-amber-100/60">
-                {pendingFaculty.map((user) => (
-                  <tr key={user.id} className="hover:bg-amber-50/30 transition-colors">
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-900">{user.full_name || "N/A"}</td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{user.email}</td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{user.department || "Academic Unit"}</td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button 
-                          onClick={() => handleApprove(user.id)} 
-                          className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium transition-colors cursor-pointer shadow-2xs"
-                        >
-                          Approve
-                        </button>
-                        <button 
-                          onClick={() => { setUserToReject(user); setShowRejectModal(true); }} 
-                          className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 text-xs font-medium transition-colors cursor-pointer"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Main Users Table */}
-      <div className="space-y-4">
-        {/* Search and Filters Bar */}
-        <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-2xs">
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              <input 
-                type="text" 
-                placeholder="Search by name, email, or designation..." 
-                value={searchQuery} 
-                onChange={(e) => setSearchQuery(e.target.value)} 
-                className="w-full pl-9 pr-8 py-2 bg-gray-50/50 border border-gray-200/80 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:border-gray-400 focus:shadow-xs focus:bg-white transition-all" 
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
-                  title="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2.5 w-full sm:w-auto">
-              <select 
-                value={selectedRole} 
-                onChange={(e) => setSelectedRole(e.target.value)} 
-                className="w-full sm:w-40 px-3 py-2 bg-gray-50/50 border border-gray-200/80 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:border-gray-400 focus:shadow-xs focus:bg-white text-gray-700 cursor-pointer transition-all"
-              >
-                <option value="all">All Roles</option>
-                <option value="SYSTEM_ADMIN">System Administrator</option>
-                <option value="OFFICE_HEAD">Office Head</option>
-                <option value="COLLEGE_DEAN">College Dean</option>
-                <option value="PROGRAM_CHAIR">Program Chair</option>
-                <option value="COLLEGE_SECRETARY">College Secretary</option>
-                <option value="DOCUMENT_CONTROLLER">Document Controller</option>
-                <option value="FACULTY">Faculty</option>
-                <option value="STUDENT">Student</option>
-                <option value="IQA_AUDITOR">Lead Audit Officers</option>
-              </select>
-
-              <select 
-                value={selectedStatus} 
-                onChange={(e) => setSelectedStatus(e.target.value)} 
-                className="w-full sm:w-40 px-3 py-2 bg-gray-50/50 border border-gray-200/80 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:border-gray-400 focus:shadow-xs focus:bg-white text-gray-700 cursor-pointer transition-all"
-              >
-                <option value="all">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Disabled">Disabled</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Role & Designation</th>
-                  <th className="px-4 py-3">ISO Admin Office</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200/70">
-                {filteredUsers.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-xs text-gray-400">No users found matching your filters.</td></tr>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-4 py-3 text-xs font-semibold text-gray-900">{user.full_name || "N/A"}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600">{user.email}</td>
-                      <td className="px-4 py-3">
-                        {['COLLEGE_DEAN', 'PROGRAM_CHAIR', 'COLLEGE_SECRETARY', 'FACULTY'].includes(user.role) ? (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-md border bg-blue-50 text-blue-700 border-blue-200">
-                              {roleLabel(user.role)}{user.department ? ` • ${user.department}` : ''}
-                            </span>
-                            {user.is_iqa_auditor && (
-                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-orange-100 text-[#DD7230] rounded-md border border-orange-200">
-                                IQA Auditor
-                              </span>
-                            )}
-                          </div>
-                        ) : user.role === 'SYSTEM_ADMIN' ? (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-md border bg-orange-50 text-[#DD7230] border-[#DD7230]/30">
-                              SYSTEM ADMIN
-                            </span>
-                            {user.is_iqa_auditor && (
-                              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-orange-100 text-[#DD7230] rounded-md border border-orange-200">
-                                Audit Officer
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="px-2 py-0.5 text-[10px] font-medium rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200/60">
-                            {roleLabel(user.role)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {user.role === 'STUDENT' ? (
-                          <span className="text-xs text-gray-400">—</span>
-                        ) : (
-                          <span className={`px-2 py-0.5 text-[10px] font-medium rounded-md border ${
-                            user.administrative_office 
-                              ? 'bg-slate-50 text-slate-700 border-slate-200'
-                              : 'bg-gray-100 text-gray-400 border-gray-200'
-                          }`}>
-                            {user.administrative_office || "Academic Only"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
-                          (user.status || 'Active') === 'Active' 
-                          ? 'bg-emerald-50 border-emerald-200/60 text-emerald-700' 
-                          : 'bg-gray-100 border-gray-200 text-gray-500'
-                        }`}>
-                          {user.status || "Active"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => { setEditingUser({ ...user }); setShowEditUserModal(true); }}
-                              className="px-2.5 py-1 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              title="Edit User Details & Designations"
-                            >
-                              Edit Profile
-                            </button>
-                          {(user.role === 'SYSTEM_ADMIN' || ['OFFICE_HEAD', 'FACULTY', 'COLLEGE_DEAN', 'PROGRAM_CHAIR', 'COLLEGE_SECRETARY'].includes(user.role)) && user.role !== 'STUDENT' && (
-                            <button
-                              onClick={() => openOfficerModal(user)}
-                              className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
-                                user.is_iqa_auditor 
-                                  ? 'bg-orange-50 text-[#DD7230] border-[#DD7230]/40 hover:bg-orange-100' 
-                                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                              }`}
-                              title={user.is_iqa_auditor ? "Revoke Lead Audit Officer Designation" : "Designate as Lead Audit Officer"}
-                            >
-                              {user.is_iqa_auditor ? "Audit Officer: Active" : "+ Audit Officer"}
-                            </button>
-                          )}
-                          {user.role !== 'SYSTEM_ADMIN' && (
-                            (user.status || 'Active') === 'Active' ? (
-                              <button 
-                                onClick={() => { setUserToDisable(user); setShowDisableModal(true); }} 
-                                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" 
-                                title="Disable Account"
-                              >
-                                <Ban className="h-3.5 w-3.5" />
-                              </button>
-                            ) : (
-                              <button 
-                                onClick={() => { setUserToEnable(user); setShowEnableModal(true); }} 
-                                className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer" 
-                                title="Re-enable Account"
-                              >
-                                <Unlock className="h-3.5 w-3.5" />
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* --- ADD USER MODAL --- */}
-      {showAddUserModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-gray-200 overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50 shrink-0">
-              <div>
-                <h2 className="text-xs font-semibold text-gray-900">Create New System Account</h2>
-                <p className="text-[11px] text-gray-500">Add faculty, student, or administrative user</p>
-              </div>
-              <button onClick={() => setShowAddUserModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleAddUserSubmit} className="p-5 space-y-3.5 overflow-y-auto flex-1 custom-scrollbar">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Full Name <span className="text-rose-500">*</span></label>
-                <input type="text" name="name" required value={addUserData.name} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" placeholder="e.g., Dr. Jane Doe" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Email Address <span className="text-rose-500">*</span></label>
-                <input type="email" name="email" required value={addUserData.email} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" placeholder="jane.doe@ctu.edu.ph" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">System Role <span className="text-rose-500">*</span></label>
-                <select name="role" value={addUserData.role} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                  <option value="SYSTEM_ADMIN">System Administrator</option>
-                  <option value="OFFICE_HEAD">Office Head</option>
-                  <option value="COLLEGE_DEAN">College Dean</option>
-                  <option value="PROGRAM_CHAIR">Program Chair</option>
-                  <option value="COLLEGE_SECRETARY">College Secretary</option>
-                  <option value="DOCUMENT_CONTROLLER" disabled={users.some((u) => u.role === "DOCUMENT_CONTROLLER")}>Document Controller (one campus account)</option>
-                  <option value="FACULTY">Faculty</option>
-                  <option value="STUDENT">Student</option>
-                </select>
-              </div>
-
-              {addUserData.role === "OFFICE_HEAD" && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Assigned academic program (optional)</label>
-                  <select value={addUserData.designation_entity || ""}
-                    onChange={(e) => setAddUserData({ ...addUserData, designation_entity: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs">
-                    <option value="">No program assignment</option>
-                    {CAMPUS_PROGRAMS.map((program) => <option key={program.code} value={program.code}>{program.label}</option>)}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Controls access to CHED and AACCUP records. Office access is assigned separately below.</p>
-                </div>
-              )}
-
-              {(["PROGRAM_CHAIR", "FACULTY"].includes(addUserData.role)) && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Assigned Academic Program</label>
-                  <select value={addUserData.designation_entity} onChange={(e) => setAddUserData({ ...addUserData, designation_entity: e.target.value })} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs">
-                    {CAMPUS_PROGRAMS.map((program) => <option key={program.code} value={program.code}>{program.label}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {(["COLLEGE_DEAN", "COLLEGE_SECRETARY"].includes(addUserData.role)) && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Assigned College</label>
-                  <select value={addUserData.designation_entity || CAMPUS_COLLEGES[0]} onChange={(e) => setAddUserData({ ...addUserData, designation_entity: e.target.value })} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs">
-                    {CAMPUS_COLLEGES.map((college) => <option key={college} value={college}>{college}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {addUserData.role !== "STUDENT" && addUserData.role !== "DOCUMENT_CONTROLLER" && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Administrative Office (governance scope)</label>
-                  <select 
-                    name="administrative_office" 
-                    required={addUserData.role === "OFFICE_HEAD"}
-                    value={addUserData.administrative_office} 
-                    onChange={handleAddUserChange} 
-                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
-                  >
-                    <option value="">None / Unassigned (Academic Only)</option>
-                    {ISO_OFFICES_16.map((off) => (
-                      <option key={off} value={off}>{off}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {addUserData.role === "DOCUMENT_CONTROLLER" && (
-                <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 text-xs text-blue-800">
-                  This sole campus role is assigned to the Document Control Office and has exclusive authority to modify Paper Trail records.
-                </div>
-              )}
-
-              {(["OFFICE_HEAD", "FACULTY", "COLLEGE_DEAN", "PROGRAM_CHAIR", "COLLEGE_SECRETARY"].includes(addUserData.role)) && (
-                <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#DD7230]/30 rounded-lg">
-                  <input
-                    type="checkbox"
-                    id="add_is_iqa_auditor"
-                    checked={addUserData.is_iqa_auditor}
-                    onChange={(e) => setAddUserData({ ...addUserData, is_iqa_auditor: e.target.checked })}
-                    className="h-3.5 w-3.5 mt-0.5 text-[#DD7230] focus:ring-[#DD7230] border-gray-300 rounded cursor-pointer"
-                  />
-                  <label htmlFor="add_is_iqa_auditor" className="text-xs text-gray-700 font-medium cursor-pointer">
-                    Designate as Lead Audit Officer / Internal Quality Auditor (IQA Auditor)
-                  </label>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Temporary Password <span className="text-rose-500">*</span></label>
-                <input type="password" name="password" required value={addUserData.password} onChange={handleAddUserChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" placeholder="Enter secure password" />
-              </div>
-            
-              <div className="pt-2 flex gap-2 justify-end border-t border-gray-200 shrink-0">
-                <button type="button" onClick={() => setShowAddUserModal(false)} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                  Cancel
-                </button>
-                <button type="submit" disabled={isCreating || !addUserData.name.trim() || !addUserData.email.trim() || !addUserData.password.trim()} className="px-4 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
-                   {isCreating ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Creating...</> : "Create Account"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- EDIT USER & OFFICE ASSIGNMENT MODAL --- */}
-      {showEditUserModal && editingUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-gray-200 overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50 shrink-0">
-              <div>
-                <h2 className="text-xs font-semibold text-gray-900">Edit User Details & Roles</h2>
-                <p className="text-[11px] text-gray-500">Update user profile and academic designations</p>
-              </div>
-              <button onClick={() => setShowEditUserModal(false)} className="p-1 hover:bg-gray-200 rounded-md transition-colors cursor-pointer text-gray-500">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleEditUserSubmit} className="p-5 space-y-3.5 overflow-y-auto flex-1 custom-scrollbar">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Full Name</label>
-                <input 
-                  type="text" 
-                  value={editingUser.full_name || ""} 
-                  onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })} 
-                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Email Address</label>
-                <input 
-                  type="email" 
-                  value={editingUser.email || ""}
-                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })} 
-                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">System Role</label>
-                <select
-                  value={editingUser.role || "FACULTY"}
-                  onChange={(e) => setEditingUser({
-                    ...editingUser,
-                    role: e.target.value,
-                    designation_entity: ["COLLEGE_DEAN", "COLLEGE_SECRETARY"].includes(e.target.value)
-                      ? CAMPUS_COLLEGES[0]
-                      : ["PROGRAM_CHAIR", "FACULTY"].includes(e.target.value) ? CAMPUS_PROGRAMS[0].code : "",
-                    administrative_office: e.target.value === "DOCUMENT_CONTROLLER" ? "Document Control Office" : "",
-                    is_iqa_auditor: false,
-                  })}
-                  className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
-                >
-                  <option value="SYSTEM_ADMIN">System Administrator</option>
-                  <option value="OFFICE_HEAD">Office Head</option>
-                  <option value="COLLEGE_DEAN">College Dean</option>
-                  <option value="PROGRAM_CHAIR">Program Chair</option>
-                  <option value="COLLEGE_SECRETARY">College Secretary</option>
-                  <option value="DOCUMENT_CONTROLLER" disabled={users.some((u) => u.role === "DOCUMENT_CONTROLLER" && u.id !== editingUser.id)}>Document Controller (one campus account)</option>
-                  <option value="FACULTY">Faculty</option>
-                  <option value="STUDENT">Student</option>
-                </select>
-              </div>
-
-              {editingUser.role === "OFFICE_HEAD" && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Assigned academic program (optional)</label>
-                  <select value={editingUser.designation_entity || editingUser.department || ""}
-                    onChange={(e) => setEditingUser({ ...editingUser, designation_entity: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs">
-                    <option value="">No program assignment</option>
-                    {CAMPUS_PROGRAMS.map((program) => <option key={program.code} value={program.code}>{program.label}</option>)}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Controls access to CHED and AACCUP records. Office access is assigned separately below.</p>
-                </div>
-              )}
-
-              {(["PROGRAM_CHAIR", "FACULTY"].includes(editingUser.role)) && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Assigned Academic Program</label>
-                  <select value={editingUser.designation_entity || editingUser.department || CAMPUS_PROGRAMS[0].code} onChange={(e) => setEditingUser({ ...editingUser, designation_entity: e.target.value })} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs">
-                    {CAMPUS_PROGRAMS.map((program) => <option key={program.code} value={program.code}>{program.label}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {(["COLLEGE_DEAN", "COLLEGE_SECRETARY"].includes(editingUser.role)) && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Assigned College</label>
-                  <select value={editingUser.designation_entity || editingUser.department || CAMPUS_COLLEGES[0]} onChange={(e) => setEditingUser({ ...editingUser, designation_entity: e.target.value })} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs">
-                    {CAMPUS_COLLEGES.map((college) => <option key={college} value={college}>{college}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {editingUser.role !== "STUDENT" && editingUser.role !== "DOCUMENT_CONTROLLER" && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Administrative Office (governance scope)</label>
-                  <select 
-                    required={editingUser.role === "OFFICE_HEAD"}
-                    value={editingUser.administrative_office || ""} 
-                    onChange={(e) => setEditingUser({ ...editingUser, administrative_office: e.target.value })} 
-                    className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
-                  >
-                    <option value="">None / Unassigned (Academic Only)</option>
-                    {ISO_OFFICES_16.map((off) => (
-                      <option key={off} value={off}>{off}</option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-gray-400 mt-1">Assigning an office scopes ISO audit dashboards to that unit.</p>
-                </div>
-              )}
-
-              {editingUser.role === "DOCUMENT_CONTROLLER" && (
-                <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 text-xs text-blue-800">
-                  Assigned to Document Control Office. This user alone can register, attach, route, return, and close Paper Trail records.
-                </div>
-              )}
-
-              {(["OFFICE_HEAD", "FACULTY", "COLLEGE_DEAN", "PROGRAM_CHAIR", "COLLEGE_SECRETARY"].includes(editingUser.role)) && (
-                <div className="flex items-start gap-2.5 p-2.5 bg-orange-50/50 border border-[#DD7230]/30 rounded-lg">
-                  <input
-                    type="checkbox"
-                    id="edit_is_iqa_auditor"
-                    checked={Boolean(editingUser.is_iqa_auditor)}
-                    onChange={(e) => setEditingUser({ ...editingUser, is_iqa_auditor: e.target.checked })}
-                    className="h-3.5 w-3.5 mt-0.5 text-[#DD7230] focus:ring-[#DD7230] border-gray-300 rounded cursor-pointer"
-                  />
-                  <label htmlFor="edit_is_iqa_auditor" className="text-xs text-gray-700 font-medium cursor-pointer">
-                    Designate as Lead Audit Officer / Internal Quality Auditor (IQA Auditor) — Campus-wide audit access
-                  </label>
-                </div>
-              )}
-            
-              <div className="pt-2 flex gap-2 justify-end border-t border-gray-200 shrink-0">
-                <button type="button" onClick={() => setShowEditUserModal(false)} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                  Cancel
-                </button>
-                <button type="submit" disabled={isUpdatingUser || !editingUser?.full_name?.trim()} className="px-4 py-1.5 text-xs font-semibold bg-[#DD7230] text-white rounded-lg hover:bg-[#DD7230] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
-                   {isUpdatingUser ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Saving...</> : "Save Assignment"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- DISABLE ACCOUNT MODAL --- */}
-      {showDisableModal && userToDisable && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full shadow-xl border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 bg-rose-50/50 flex justify-between items-center">
-              <div className="flex items-center gap-2 text-rose-700">
-                <ShieldAlert className="h-4 w-4" />
-                <h2 className="text-xs font-semibold">Disable Account</h2>
-              </div>
-              <button onClick={() => setShowDisableModal(false)} className="p-1 hover:bg-rose-100 rounded-md transition-colors cursor-pointer text-rose-700">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-3">
-              <p className="text-xs text-gray-600 leading-relaxed">
-                You are about to disable the account for <span className="font-semibold text-gray-900">{userToDisable.full_name} ({userToDisable.email})</span>.
-              </p>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                They will lose login access, but previously uploaded records will remain intact.
-              </p>
-            </div>
-
-            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
-              <button onClick={() => setShowDisableModal(false)} disabled={isDisabling} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                Cancel
-              </button>
-              <button onClick={executeDisable} disabled={isDisabling} className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-rose-600 hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
-                {isDisabling ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Disabling...</> : "Disable Account"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- ENABLE ACCOUNT MODAL --- */}
-      {showEnableModal && userToEnable && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full shadow-xl border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 bg-emerald-50/50 flex justify-between items-center">
-              <div className="flex items-center gap-2 text-emerald-700">
-                <Unlock className="h-4 w-4" />
-                <h2 className="text-xs font-semibold">Re-enable Account</h2>
-              </div>
-              <button onClick={() => setShowEnableModal(false)} className="p-1 hover:bg-emerald-100 rounded-md transition-colors cursor-pointer text-emerald-700">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-3">
-              <p className="text-xs text-gray-600 leading-relaxed">
-                Restore login access for <span className="font-semibold text-gray-900">{userToEnable.full_name} ({userToEnable.email})</span>.
-              </p>
-            </div>
-
-            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
-              <button onClick={() => setShowEnableModal(false)} disabled={isEnabling} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                Cancel
-              </button>
-              <button onClick={executeEnable} disabled={isEnabling} className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
-                {isEnabling ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Enabling...</> : "Re-enable Account"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- REJECT PENDING ACCOUNT MODAL --- */}
-      {showRejectModal && userToReject && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full shadow-xl border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 bg-rose-50/50 flex justify-between items-center">
-              <div className="flex items-center gap-2 text-rose-700">
-                <UserX className="h-4 w-4" />
-                <h2 className="text-xs font-semibold">Reject Registration</h2>
-              </div>
-              <button onClick={() => setShowRejectModal(false)} className="p-1 hover:bg-rose-100 rounded-md transition-colors cursor-pointer text-rose-700">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-3">
-              <p className="text-xs text-gray-600 leading-relaxed">
-                Are you sure you want to reject the faculty registration for <span className="font-semibold text-gray-900">{userToReject.email}</span>?
-              </p>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                This will permanently delete their pending request.
-              </p>
-            </div>
-
-            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
-              <button onClick={() => setShowRejectModal(false)} disabled={isRejecting} className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                Cancel
-              </button>
-              <button onClick={executeReject} disabled={isRejecting} className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-rose-600 hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs">
-                {isRejecting ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Rejecting...</> : "Reject Request"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- AUDIT OFFICER CONFIRMATION MODAL (GRANT / REVOKE) --- */}
-      {showOfficerModal && userForOfficerToggle && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl max-w-md w-full shadow-xl border border-gray-200 overflow-hidden">
-            {userForOfficerToggle.is_iqa_auditor ? (
-              // REVOKE CONFIRMATION
-              <>
-                <div className="p-4 border-b border-gray-200 bg-rose-50/50 flex justify-between items-center">
-                  <div className="flex items-center gap-2 text-rose-700">
-                    <ShieldAlert className="h-4 w-4" />
-                    <h2 className="text-xs font-semibold">Revoke Lead Audit Officer Designation</h2>
-                  </div>
-                  <button 
-                    onClick={() => { setShowOfficerModal(false); setUserForOfficerToggle(null); }} 
-                    disabled={isTogglingOfficer}
-                    className="p-1 hover:bg-rose-100 rounded-md transition-colors cursor-pointer text-rose-700"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                
-                <div className="p-5 space-y-3">
-                  <p className="text-xs text-gray-700 leading-relaxed">
-                    You are about to revoke the <strong>Lead Audit Officer / Internal Quality Auditor (IQA)</strong> designation for{" "}
-                    <span className="font-semibold text-gray-900">{userForOfficerToggle.full_name || userForOfficerToggle.email}</span>.
-                  </p>
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1">
-                    <p className="font-semibold">⚠️ Access Impact:</p>
-                    <p className="text-[11px] text-amber-700">
-                      This user will immediately lose campus-wide audit review privileges, IQA assessment capabilities, and unrestricted access to cross-office CAR audit cycles.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
-                  <button 
-                    onClick={() => { setShowOfficerModal(false); setUserForOfficerToggle(null); }} 
-                    disabled={isTogglingOfficer} 
-                    className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={executeToggleOfficer} 
-                    disabled={isTogglingOfficer} 
-                    className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-rose-600 hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    {isTogglingOfficer ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Revoking...</> : "Revoke Officer Status"}
-                  </button>
-                </div>
-              </>
-            ) : (
-              // GRANT CONFIRMATION
-              <>
-                <div className="p-4 border-b border-gray-200 bg-orange-50/50 flex justify-between items-center">
-                  <div className="flex items-center gap-2 text-[#DD7230]">
-                    <ShieldCheck className="h-4 w-4" />
-                    <h2 className="text-xs font-semibold">Grant Lead Audit Officer Designation</h2>
-                  </div>
-                  <button 
-                    onClick={() => { setShowOfficerModal(false); setUserForOfficerToggle(null); }} 
-                    disabled={isTogglingOfficer}
-                    className="p-1 hover:bg-orange-100 rounded-md transition-colors cursor-pointer text-[#DD7230]"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                
-                <div className="p-5 space-y-3">
-                  <p className="text-xs text-gray-700 leading-relaxed">
-                    You are about to designate{" "}
-                    <span className="font-semibold text-gray-900">{userForOfficerToggle.full_name || userForOfficerToggle.email}</span>{" "}
-                    as a <strong>Lead Audit Officer / Internal Quality Auditor (IQA Auditor)</strong>.
-                  </p>
-                  <div className="p-3 bg-orange-50/60 border border-[#DD7230]/30 rounded-lg text-xs text-gray-700 space-y-1">
-                    <p className="font-semibold text-[#DD7230]">✨ Privileges Granted:</p>
-                    <p className="text-[11px] text-gray-600">
-                      Grants campus-wide audit review permissions, internal quality audit assessment rights, and access to evaluate ISO non-conformities across all campus offices.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end gap-2">
-                  <button 
-                    onClick={() => { setShowOfficerModal(false); setUserForOfficerToggle(null); }} 
-                    disabled={isTogglingOfficer} 
-                    className="px-3.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={executeToggleOfficer} 
-                    disabled={isTogglingOfficer} 
-                    className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-[#DD7230] hover:bg-[#c66224] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    {isTogglingOfficer ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/> Granting...</> : "Grant Officer Status"}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
+      {modal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"><div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4"><div><h2 className="text-base font-semibold text-gray-900">{modal === "create" ? "Add user" : "Edit user"}</h2><p className="text-xs text-gray-500">Choose one base role and any applicable personnel assignments.</p></div><button onClick={() => setModal(null)} className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button></div>
+        <form onSubmit={submit} className="flex-1 space-y-4 overflow-y-auto p-5">
+          <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-gray-700">Full name<input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm" /></label><label className="text-xs font-medium text-gray-700">Email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm" /></label></div>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-gray-700">Base role<select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm"><option value="SYSTEM_ADMIN">System Administrator</option><option value="PERSONNEL">Personnel</option><option value="STUDENT">Student</option></select></label>{modal === "create" && <label className="text-xs font-medium text-gray-700">Temporary password<input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm" /></label>}</div>
+          {form.role === "PERSONNEL" && <AssignmentEditor value={form.assignments} onChange={(assignments) => setForm({ ...form, assignments })} refs={refs} />}
+          <div className="flex justify-end gap-2 border-t border-gray-200 pt-4"><button type="button" onClick={() => setModal(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700">Cancel</button><button disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-[#DD7230] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{modal === "create" ? "Create account" : "Save changes"}</button></div>
+        </form>
+      </div></div>}
     </div>
   );
 }

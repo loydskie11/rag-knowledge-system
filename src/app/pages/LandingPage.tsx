@@ -82,8 +82,8 @@ export function LandingPage() {
     },
     {
       icon: FileSearch,
-      title: "Governance Reference",
-      description: "Quick access to CHED memoranda, university policies, and regulatory frameworks with advanced search.",
+      title: "Document Tracking",
+      description: "Track document custody, routing, status, and accountability from one clear paper-trail view.",
       color: "#DD7230"
     },
     {

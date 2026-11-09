@@ -48,7 +48,7 @@ export function BroadcastAnnouncement() {
   const recipientOptions = [
     { value: "All Users", label: "All Users", count: userCounts.all },
     { value: "All Students", label: "All Students", count: userCounts.students },
-    { value: "All Faculty", label: "All Faculty", count: userCounts.faculty },
+    { value: "All Personnel", label: "All Personnel", count: userCounts.faculty },
   ];
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export function BroadcastAnnouncement() {
     
     let liveTotal = 0;
     if (recipientsString.includes("All Students")) liveTotal += userCounts.students;
-    if (recipientsString.includes("All Faculty")) liveTotal += userCounts.faculty;
+    if (recipientsString.includes("All Personnel")) liveTotal += userCounts.faculty;
     return liveTotal > 0 ? liveTotal : (userCounts.all || 1);
   };
 
@@ -98,7 +98,7 @@ export function BroadcastAnnouncement() {
     
     let totalTargets = 0;
     if (selections.includes("All Students")) totalTargets += userCounts.students;
-    if (selections.includes("All Faculty")) totalTargets += userCounts.faculty;
+    if (selections.includes("All Personnel")) totalTargets += userCounts.faculty;
     return totalTargets > 0 ? totalTargets : (userCounts.all || 1);
   };
 
@@ -117,8 +117,8 @@ export function BroadcastAnnouncement() {
   // Maps recipient label to the backend's target_role format
   const getTargetRole = (recipients: string[]): string => {
     if (recipients.includes("All Users")) return "ALL";
-    if (recipients.includes("All Faculty") && recipients.includes("All Students")) return "ALL";
-    if (recipients.includes("All Faculty")) return "FACULTY";
+    if (recipients.includes("All Personnel") && recipients.includes("All Students")) return "ALL";
+    if (recipients.includes("All Personnel")) return "PERSONNEL";
     if (recipients.includes("All Students")) return "STUDENT";
     return "ALL";
   };

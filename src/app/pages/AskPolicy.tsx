@@ -7,7 +7,6 @@ import axios, { type CancelTokenSource } from "axios";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "../api/client";
-import { useRole } from "../contexts/RoleContext";
 const MAX_QUESTION_LENGTH = 1000;
 
 interface Source {
@@ -106,9 +105,6 @@ const CATEGORIZED_QUESTIONS: CategoryQuestions[] = [
 const FLAT_SUGGESTIONS = CATEGORIZED_QUESTIONS.flatMap((c) => c.questions);
 
 export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
-  const { userRole } = useRole();
-  const currentRole = userRole || "STUDENT";
-
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -121,8 +117,6 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const cancelSourceRef = useRef<CancelTokenSource | null>(null);
   const isNearBottomRef = useRef(true);
-
-  const userEmail = sessionStorage.getItem("userEmail");
 
   const handleScroll = () => {
     const el = scrollContainerRef.current;
@@ -138,18 +132,11 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
   }, [messages, isLoading]);
 
   useEffect(() => {
-    if (!userEmail) {
-      setHistoryLoaded(true);
-      return;
-    }
-
     let cancelled = false;
 
     const fetchHistory = async () => {
       try {
-        const res = await apiClient.get(`/chat-history`, {
-          params: { email: userEmail },
-        });
+        const res = await apiClient.get(`/chat-history`);
 
         if (cancelled) return;
 
@@ -181,7 +168,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [userEmail]);
+  }, []);
 
   const handleSendMessage = useCallback(
     async (quickText?: string) => {
@@ -237,8 +224,6 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
           {
             question: textToSend,
             history: chatHistoryPayload,
-            user_email: userEmail || "guest@ctu.edu.ph",
-            user_role: currentRole,
           },
           // Local Ollama may need extra time on the first request while the
           // model is loading into GPU memory. The backend continues to enforce
@@ -290,7 +275,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
         textareaRef.current?.focus();
       }
     },
-    [query, isLoading, userEmail, currentRole, messages]
+    [query, isLoading, messages]
   );
 
   const handleRetry = (failedQuestion?: string) => {

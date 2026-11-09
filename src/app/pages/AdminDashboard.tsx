@@ -32,7 +32,7 @@ export function AdminDashboard() {
       setIsLoading(true);
       try {
         const [statsRes, userCountsRes, docsRes, queriesRes, versionsRes, popularRes, pendingRes] = await Promise.all([
-          apiClient.get("/system-stats?role=ADMIN"),
+          apiClient.get("/system-stats"),
           apiClient.get("/users/counts"),
           apiClient.get("/documents"),
           apiClient.get("/audit/queries"),

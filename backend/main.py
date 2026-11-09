@@ -1,4 +1,4 @@
-from permissions import (is_governance_evidence, can_read_document, can_manage_document, accessible_programs, PROGRAM_COLLEGES, ROLES, role_of, is_system_admin, is_reviewer, require_system_admin, require_reviewer, require_office, require_program, filter_office_records, can_access_office, office_key, permissions_for)
+from permissions import (is_governance_evidence, document_scope, can_read_document, can_manage_document, accessible_programs, PROGRAM_COLLEGES, ROLES, ASSIGNMENT_TYPES, ASSIGNMENT_SCOPE_TYPES, assignments_of, assigned_offices, role_of, is_system_admin, is_reviewer, require_system_admin, require_reviewer, require_campus_reviewer, require_office, require_program, can_access_program, filter_office_records, filter_survey_records, can_access_office, office_key, permissions_for)
 import base64
 import urllib.request
 from urllib.parse import unquote, urlparse
@@ -6,6 +6,7 @@ from urllib.parse import unquote, urlparse
 import os
 import io
 import json
+import hashlib
 import math
 import secrets
 import time
@@ -19,8 +20,8 @@ from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, F
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from sqlalchemy import text, or_
-from pydantic import BaseModel, EmailStr
+from sqlalchemy import text, or_, func
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from openai import OpenAI
 from groq import Groq
 from supabase import create_client, Client
@@ -54,17 +55,26 @@ STUDENT_HIDDEN_CATEGORIES = {
     "branding asset",
     "branding assets",
 }
+PRIVATE_FILE_URL_TTL_SECONDS = 15 * 60
 
 def is_student_hidden_category(category: str | None) -> bool:
     return (category or "").strip().lower() in STUDENT_HIDDEN_CATEGORIES
 
 
-def create_private_file_url(path: str, expires_in: int = 900) -> str:
+def create_private_file_url(path: str, expires_in: int = PRIVATE_FILE_URL_TTL_SECONDS) -> str:
     """Return a short-lived URL for the private documents bucket."""
-    if not supabase:
+    storage_path = get_private_storage_path(path)
+    if not supabase or not storage_path:
         return ""
-    result = supabase.storage.from_("documents").create_signed_url(path, expires_in)
-    return result.get("signedURL") or result.get("signedUrl") or ""
+    result = supabase.storage.from_("documents").create_signed_url(storage_path, expires_in)
+    if isinstance(result, dict):
+        return result.get("signedURL") or result.get("signedUrl") or result.get("signed_url") or ""
+    return (
+        getattr(result, "signed_url", None)
+        or getattr(result, "signedURL", None)
+        or getattr(result, "signedUrl", None)
+        or ""
+    )
 
 def get_private_storage_path(value: str | None) -> str:
     """Extract a documents-bucket object path from a stored path or Supabase URL."""
@@ -73,7 +83,10 @@ def get_private_storage_path(value: str | None) -> str:
 
     parsed = urlparse(value)
     if not parsed.scheme:
-        return unquote(value).lstrip("/")
+        candidate = unquote(value).split("?", 1)[0].lstrip("/")
+        if not candidate or any(part == ".." for part in candidate.split("/")):
+            return ""
+        return candidate
 
     decoded_path = unquote(parsed.path)
     for marker in (
@@ -82,8 +95,188 @@ def get_private_storage_path(value: str | None) -> str:
         "/storage/v1/object/authenticated/documents/",
     ):
         if marker in decoded_path:
-            return decoded_path.split(marker, 1)[1].lstrip("/")
+            candidate = decoded_path.split(marker, 1)[1].lstrip("/")
+            if any(part == ".." for part in candidate.split("/")):
+                return ""
+            return candidate
     return ""
+
+
+def get_fresh_private_file_url(value: str | None = None, storage_path: str | None = None) -> str:
+    """Resolve a stored object path or legacy Storage URL into a new signed URL."""
+    path = get_private_storage_path(storage_path) or get_private_storage_path(value)
+    if not path:
+        # Preserve legacy/manual links that do not point at the documents bucket.
+        return value or ""
+    return create_private_file_url(path)
+
+
+def require_private_storage_reference(value: str | None = None, storage_path: str | None = None) -> str:
+    """Accept only references that resolve to this application's private bucket."""
+    path = get_private_storage_path(storage_path) or get_private_storage_path(value)
+    if (value or storage_path) and not path:
+        raise HTTPException(status_code=400, detail="Invalid private file reference.")
+    return path
+
+
+def serialize_paper_trail_record(record) -> dict:
+    data = schemas.PaperTrailRecordResponse.model_validate(record).model_dump()
+    data["file_url"] = get_fresh_private_file_url(
+        getattr(record, "file_url", None),
+        getattr(record, "storage_path", None),
+    ) or None
+    return data
+
+
+def serialize_iso_requirement(requirement) -> dict:
+    data = schemas.ISORequirementResponse.model_validate(requirement).model_dump()
+    by_id = {str(item.id): item for item in getattr(requirement, "evidences", [])}
+    for evidence in data.get("evidences", []):
+        source = by_id.get(str(evidence.get("id")))
+        if source:
+            evidence["file_url"] = get_fresh_private_file_url(
+                getattr(source, "file_url", None),
+                getattr(source, "storage_path", None),
+            )
+    return data
+
+
+def serialize_qms_action_plan(plan) -> dict:
+    data = schemas.QMSActionPlanResponse.model_validate(plan).model_dump()
+    by_id = {str(item.id): item for item in getattr(plan, "evidences", [])}
+    for evidence in data.get("evidences", []) or []:
+        source = by_id.get(str(evidence.get("id")))
+        if source:
+            evidence["file_url"] = get_fresh_private_file_url(
+                getattr(source, "file_url", None),
+                getattr(source, "storage_path", None),
+            )
+    return data
+
+
+def serialize_program_accreditation(accreditation) -> dict:
+    data = schemas.ProgramAccreditationResponse.model_validate(accreditation).model_dump()
+    by_id = {str(item.id): item for item in getattr(accreditation, "history", [])}
+    for history in data.get("history", []):
+        source = by_id.get(str(history.get("id")))
+        if source:
+            history["certificate_url"] = get_fresh_private_file_url(
+                getattr(source, "certificate_url", None),
+                getattr(source, "certificate_storage_path", None),
+            ) or None
+    return data
+
+
+def parse_accreditation_date(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Date must use YYYY-MM-DD format.") from exc
+
+
+def get_active_accreditation_cycle(db: Session, program_id) -> Optional["models.AccreditationCycle"]:
+    return (
+        db.query(models.AccreditationCycle)
+        .filter(
+            models.AccreditationCycle.program_id == program_id,
+            models.AccreditationCycle.status == "ACTIVE",
+        )
+        .first()
+    )
+
+
+def create_accreditation_cycle(
+    db: Session,
+    accreditation: "models.ProgramAccreditation",
+    level_name: str,
+    actor_email: str,
+    source: str,
+    valid_until: Optional[datetime] = None,
+    label_prefix: Optional[str] = None,
+) -> "models.AccreditationCycle":
+    next_attempt = (
+        db.query(func.coalesce(func.max(models.AccreditationCycle.attempt_number), 0))
+        .filter(
+            models.AccreditationCycle.program_id == accreditation.id,
+            models.AccreditationCycle.level_name == level_name,
+        )
+        .scalar()
+        + 1
+    )
+    prefix = label_prefix or ("Current Cycle" if source == "LEVEL_TRANSITION" else "Administrative Baseline")
+    cycle = models.AccreditationCycle(
+        program_id=accreditation.id,
+        level_name=level_name,
+        attempt_number=next_attempt,
+        cycle_label=f"{prefix} - {level_name} (Attempt {next_attempt})",
+        status="ACTIVE",
+        source=source,
+        opened_at=datetime.utcnow(),
+        valid_until=valid_until,
+        created_by=actor_email,
+    )
+    db.add(cycle)
+    db.flush()
+    return cycle
+
+
+def ensure_active_accreditation_cycle(
+    db: Session,
+    accreditation: "models.ProgramAccreditation",
+    actor_email: str,
+) -> "models.AccreditationCycle":
+    active_cycle = get_active_accreditation_cycle(db, accreditation.id)
+    if active_cycle:
+        return active_cycle
+    return create_accreditation_cycle(
+        db,
+        accreditation,
+        accreditation.current_level or "Candidate Status",
+        actor_email,
+        "ADMINISTRATIVE_BASELINE",
+        accreditation.valid_until,
+        "Current Baseline",
+    )
+
+
+def close_accreditation_cycle(cycle: "models.AccreditationCycle", actor_email: str) -> None:
+    cycle.status = "CLOSED"
+    cycle.closed_at = datetime.utcnow()
+    cycle.closed_by = actor_email
+    cycle.updated_at = datetime.utcnow()
+
+
+def serialize_iso_audit_result(result) -> dict:
+    cycle = getattr(result, "cycle", None)
+    return {
+        "id": result.id,
+        "cycle_id": result.cycle_id,
+        "cycle_name": getattr(cycle, "name", ""),
+        "standard_version": getattr(cycle, "standard_version", "ISO 9001:2015"),
+        "result_type": result.result_type,
+        "audit_start_date": result.audit_start_date,
+        "audit_end_date": result.audit_end_date,
+        "auditor_or_certification_body": result.auditor_or_certification_body,
+        "conclusion": result.conclusion,
+        "certification_status": result.certification_status,
+        "major_nonconformities": result.major_nonconformities,
+        "minor_nonconformities": result.minor_nonconformities,
+        "observations": result.observations,
+        "opportunities_for_improvement": result.opportunities_for_improvement,
+        "summary": result.summary,
+        "report_url": get_fresh_private_file_url(storage_path=result.report_storage_path) or None,
+        "report_original_filename": result.report_original_filename,
+        "certificate_url": get_fresh_private_file_url(storage_path=result.certificate_storage_path) or None,
+        "certificate_original_filename": result.certificate_original_filename,
+        "record_status": result.record_status,
+        "created_by": result.created_by,
+        "finalized_by": result.finalized_by,
+        "finalized_at": result.finalized_at,
+        "created_at": result.created_at,
+        "updated_at": result.updated_at,
+    }
 
 def get_original_ched_file_name(evidence) -> str:
     """Return the original upload name, including for records created before file_name existed."""
@@ -100,9 +293,9 @@ def get_fresh_ched_file_url(evidence) -> str:
     if not storage_path:
         return evidence.file_url
     try:
-        return create_private_file_url(storage_path) or evidence.file_url
+        return create_private_file_url(storage_path)
     except Exception:
-        return evidence.file_url
+        return ""
 
 async def read_upload_limited(file: UploadFile) -> bytes:
     """Read an upload with a hard size limit and basic content-signature validation."""
@@ -125,6 +318,264 @@ async def read_upload_limited(file: UploadFile) -> bytes:
     if not valid_signature:
         raise HTTPException(status_code=400, detail="File content does not match its extension.")
     return contents
+
+
+def normalize_document_identity(value: str | None) -> str:
+    """Normalize user-facing names for deterministic duplicate comparisons."""
+    return re.sub(r"\s+", " ", (value or "").strip()).casefold()
+
+
+def normalize_scope_identity(value: str | None) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").casefold())
+
+
+def document_scope_key(
+    office: str | None,
+    program: str | None,
+    scope_type: str | None = None,
+    scope_code: str | None = None,
+) -> str:
+    explicit_type = str(scope_type or "").strip().upper()
+    explicit_code = str(scope_code or "").strip()
+    if explicit_type == "CAMPUS":
+        return "campus|argao"
+    if explicit_type in {"OFFICE", "PROGRAM"} and explicit_code:
+        return f"{explicit_type.casefold()}|{normalize_scope_identity(explicit_code)}"
+    return f"{normalize_document_identity(office)}|{normalize_document_identity(program or 'GLOBAL')}"
+
+
+def resolve_repository_scope(scope_type: str, scope_code: str | None) -> tuple[str, str, str, str]:
+    """Canonicalize scope fields and their legacy office/program projections."""
+    resolved_type = str(scope_type or "").strip().upper()
+    resolved_code = str(scope_code or "").strip()
+    if resolved_type == "CAMPUS":
+        return "CAMPUS", "ARGAO", "Campus-wide", "GLOBAL"
+    if resolved_type == "OFFICE" and resolved_code:
+        return "OFFICE", resolved_code, resolved_code, "GLOBAL"
+    if resolved_type == "PROGRAM" and resolved_code in PROGRAM_COLLEGES:
+        return "PROGRAM", resolved_code, PROGRAM_COLLEGES[resolved_code], resolved_code
+    raise HTTPException(400, "Select a valid campus, office, or academic program scope.")
+
+
+def require_general_repository_category(category: str) -> None:
+    if normalize_document_identity(category) == "accreditation evidence":
+        raise HTTPException(
+            400,
+            "Upload AACCUP evidence through Accreditation Support so its program, area, and requirement are recorded.",
+        )
+
+
+def authorize_repository_scope(db: Session, user, scope_type: str, scope_code: str | None) -> tuple[str, str, str, str]:
+    resolved_type, resolved_code, office, program = resolve_repository_scope(scope_type, scope_code)
+    if resolved_type == "OFFICE":
+        exists = db.query(models.OrganizationalUnit).filter(
+            models.OrganizationalUnit.unit_type == "OFFICE",
+            models.OrganizationalUnit.is_active.is_(True),
+            models.OrganizationalUnit.name == resolved_code,
+        ).first()
+        if not exists:
+            raise HTTPException(400, "The selected office is not an active campus office.")
+    elif resolved_type == "PROGRAM":
+        exists = db.query(models.AcademicProgram).filter(
+            models.AcademicProgram.code == resolved_code,
+            models.AcademicProgram.is_active.is_(True),
+        ).first()
+        if not exists:
+            raise HTTPException(400, "The selected academic program is not active.")
+
+    metadata = {"scope_type": resolved_type, "scope_code": resolved_code, "office": office, "program": program}
+    if not can_manage_document(user, metadata):
+        raise HTTPException(403, "You can only manage documents in your assigned campus, office, or academic program scope.")
+    return resolved_type, resolved_code, office, program
+
+
+def _safe_duplicate_record(row: dict | None) -> dict | None:
+    if not row:
+        return None
+    return {
+        "id": row.get("id"),
+        "document_name": row.get("document_name"),
+        "original_filename": row.get("original_filename"),
+        "office": row.get("office"),
+        "program": row.get("program") or "GLOBAL",
+        "scope_type": row.get("scope_type"),
+        "scope_code": row.get("scope_code"),
+        "version": row.get("version"),
+        "status": row.get("status"),
+        "created_at": row.get("created_at"),
+    }
+
+
+def classify_document_duplicate(
+    file_sha256: str,
+    document_name: str,
+    office: str,
+    program: str,
+    upload_mode: str = "NEW_DOCUMENT",
+    scope_type: str | None = None,
+    scope_code: str | None = None,
+) -> dict:
+    """Classify a file without exposing Storage paths or uploader identities."""
+    scope_key = document_scope_key(office, program, scope_type, scope_code)
+    hash_rows = (
+        supabase.table("document_uploads")
+        .select("id, document_name, original_filename, office, program, scope_type, scope_code, version, status, scope_key, created_at")
+        .eq("file_sha256", file_sha256)
+        .neq("status", "FAILED")
+        .order("created_at", desc=True)
+        .execute()
+    ).data or []
+
+    same_scope_hash = next((row for row in hash_rows if row.get("scope_key") == scope_key), None)
+    if same_scope_hash:
+        return {
+            "code": "EXACT_DUPLICATE",
+            "message": "This exact file has already been uploaded in the selected repository scope.",
+            "existing_document": _safe_duplicate_record(same_scope_hash),
+        }
+
+    if upload_mode == "NEW_DOCUMENT":
+        name_rows = (
+            supabase.table("document_uploads")
+            .select("id, document_name, original_filename, office, program, scope_type, scope_code, version, status, scope_key, created_at")
+            .eq("normalized_name", normalize_document_identity(document_name))
+            .eq("scope_key", scope_key)
+            .neq("status", "FAILED")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+        if name_rows:
+            return {
+                "code": "POSSIBLE_NEW_VERSION",
+                "message": "A document with this name already exists in the selected scope, but the file contents are different.",
+                "existing_document": _safe_duplicate_record(name_rows[0]),
+            }
+
+    if hash_rows:
+        return {
+            "code": "CROSS_SCOPE_DUPLICATE",
+            "message": "This exact file already exists in another office or academic scope.",
+            "existing_document": _safe_duplicate_record(hash_rows[0]),
+        }
+
+    return {"code": "NEW_DOCUMENT", "message": "No duplicate file was found.", "existing_document": None}
+
+
+def duplicate_http_exception(result: dict) -> HTTPException:
+    status_code = 409 if result.get("code") != "NEW_DOCUMENT" else 400
+    return HTTPException(status_code=status_code, detail=result)
+
+
+def duplicate_result_for_user(result: dict, user) -> dict:
+    """Do not disclose another scope's repository metadata to scoped users."""
+    if (
+        result.get("code") == "CROSS_SCOPE_DUPLICATE"
+        and not permissions_for(user).get("governance.cross_office")
+    ):
+        return {**result, "existing_document": None}
+    return result
+
+
+def reserve_document_upload(
+    *,
+    file_sha256: str,
+    file_size: int,
+    original_filename: str,
+    document_name: str,
+    category: str,
+    office: str,
+    program: str,
+    scope_type: str,
+    scope_code: str,
+    version: str,
+    upload_mode: str,
+    uploaded_by: str,
+) -> str:
+    """Create the race-safe registry reservation before writing to Storage."""
+    scope_key = document_scope_key(office, program, scope_type, scope_code)
+    payload = {
+        "file_sha256": file_sha256,
+        "file_size": file_size,
+        "original_filename": os.path.basename(original_filename),
+        "document_name": document_name.strip(),
+        "normalized_name": normalize_document_identity(document_name),
+        "category": category,
+        "office": office,
+        "program": program or "GLOBAL",
+        "scope_type": scope_type,
+        "scope_code": scope_code,
+        "scope_key": scope_key,
+        "version": version,
+        "upload_mode": upload_mode,
+        "status": "PROCESSING",
+        "uploaded_by": uploaded_by,
+    }
+    try:
+        response = supabase.table("document_uploads").insert(payload).execute()
+        if not response.data:
+            raise RuntimeError("The upload reservation was not created.")
+        return str(response.data[0]["id"])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # A concurrent request may have won the unique hash/scope race.
+        result = classify_document_duplicate(
+            file_sha256, document_name, office, program, upload_mode, scope_type, scope_code
+        )
+        if result.get("code") != "NEW_DOCUMENT":
+            raise duplicate_http_exception(result) from exc
+        raise
+
+
+def update_document_upload_registry(registry_id: str | None, status: str, **fields) -> None:
+    if not registry_id:
+        return
+    payload = {"status": status, "updated_at": datetime.utcnow().isoformat(), **fields}
+    try:
+        supabase.table("document_uploads").update(payload).eq("id", registry_id).execute()
+    except Exception:
+        _log.exception("document_upload_registry_update_failed", extra={"registry_id": registry_id, "status": status})
+
+
+def supersede_previous_document_versions(metadata: dict) -> None:
+    """Supersede only the active document in the same scope after replacement succeeds."""
+    if not metadata.get("supersede_previous_version"):
+        return
+    document_name = metadata.get("name")
+    office = metadata.get("office")
+    program = metadata.get("program") or "GLOBAL"
+    current_job_id = metadata.get("job_id")
+    rows = (
+        supabase.table("document_sections")
+        .select("id, metadata")
+        .eq("metadata->>name", document_name)
+        .execute()
+    ).data or []
+    for row in rows:
+        row_metadata = row.get("metadata") or {}
+        if row_metadata.get("job_id") == current_job_id:
+            continue
+        row_scope_type, row_scope_code = document_scope(row_metadata)
+        current_scope_type, current_scope_code = document_scope(metadata)
+        if document_scope_key(row_metadata.get("office"), row_metadata.get("program") or "GLOBAL", row_scope_type, row_scope_code) != document_scope_key(office, program, current_scope_type, current_scope_code):
+            continue
+        if row_metadata.get("status") != "Active":
+            continue
+        row_metadata["status"] = "Superseded"
+        supabase.table("document_sections").update({"metadata": row_metadata}).eq("id", row["id"]).execute()
+
+    registry_id = metadata.get("upload_registry_id")
+    query = (
+        supabase.table("document_uploads")
+        .update({"status": "SUPERSEDED", "updated_at": datetime.utcnow().isoformat()})
+        .eq("normalized_name", normalize_document_identity(document_name))
+        .eq("scope_key", document_scope_key(office, program, *document_scope(metadata)))
+        .eq("status", "ACTIVE")
+    )
+    if registry_id:
+        query = query.neq("id", registry_id)
+    query.execute()
 
 # Lazy-load PaddleOCR to avoid blocking at startup
 _ocr_instance = None
@@ -280,6 +731,7 @@ def process_document_background(
     has already been sent. Also logs audit events so the request cycle stays fast.
     """
     job_id = metadata.get("job_id") or str(uuid.uuid4())
+    registry_id = metadata.get("upload_registry_id")
     metadata["job_id"] = job_id
     _processing_status[job_id] = {"job_id": job_id, "office": metadata.get("office"), "name": metadata.get("name", filename), "status": "extracting", "message": "Reading document content.", "updated_at": datetime.utcnow().isoformat()}
     try:
@@ -306,6 +758,21 @@ def process_document_background(
             # Still log the audit event
             try:
                 from vector_store import supabase as db_supabase
+                # Non-RAG files still need one repository row so they remain
+                # visible, versionable, and linked to the upload registry.
+                existing_placeholder = (
+                    db_supabase.table("document_sections")
+                    .select("id")
+                    .eq("metadata->>job_id", job_id)
+                    .limit(1)
+                    .execute()
+                ).data or []
+                if not existing_placeholder:
+                    db_supabase.table("document_sections").insert({
+                        "content": "",
+                        "metadata": metadata,
+                        "embedding": None,
+                    }).execute()
                 event_type = "Document Upload"
                 if is_ched_evidence: event_type = "CHED Evidence Upload"
                 elif is_iso_evidence: event_type = "ISO Evidence Upload"
@@ -323,6 +790,8 @@ def process_document_background(
                 chunks=0,
                 updated_at=datetime.utcnow().isoformat(),
             )
+            supersede_previous_document_versions(metadata)
+            update_document_upload_registry(registry_id, "ACTIVE", failure_reason=None)
             return
         elif filename_lower.endswith(".pdf"):
             extracted_text = extract_pdf_text(contents)
@@ -351,6 +820,7 @@ def process_document_background(
 
         if not extracted_text.strip():
             _processing_status[job_id].update(status="failed", message="No readable text could be extracted from this file.", chunks=0, updated_at=datetime.utcnow().isoformat())
+            update_document_upload_registry(registry_id, "FAILED", failure_reason="No readable text could be extracted.")
             print(f"[BG] No text extracted from '{filename}' — skipping embedding.")
             return
 
@@ -362,8 +832,11 @@ def process_document_background(
         chunks_count = vector_store.add_to_vector_db(extracted_text, metadata)
         if not chunks_count:
             _processing_status[job_id].update(status="failed", message="Text was extracted, but no searchable chunks were created.", chunks=0, updated_at=datetime.utcnow().isoformat())
+            update_document_upload_registry(registry_id, "FAILED", failure_reason="No searchable chunks were created.")
             return
+        supersede_previous_document_versions(metadata)
         _processing_status[job_id].update(status="completed", message="Document is ready and searchable.", chunks=chunks_count, updated_at=datetime.utcnow().isoformat())
+        update_document_upload_registry(registry_id, "ACTIVE", failure_reason=None)
         print(f"[BG] '{filename}' embedded: {chunks_count} chunks.")
 
         # ── Audit log ────────────────────────────────────────────────────────
@@ -388,6 +861,7 @@ def process_document_background(
 
     except Exception as e:
         _processing_status[job_id].update(status="failed", message="Background processing failed. Check the request ID in server logs.", error=str(e), updated_at=datetime.utcnow().isoformat())
+        update_document_upload_registry(registry_id, "FAILED", failure_reason=str(e)[:1000])
         _log.exception("background_document_processing_failed", extra={"request_id": _request_id.get(), "job_id": job_id, "filename": filename})
         print(f"[BG] process_document_background error for '{filename}': {e}")
         import traceback as _tb
@@ -483,6 +957,7 @@ def _notify_role(db: Session, role: str, n_type: str, title: str, message: str) 
     role: 'STUDENT' | 'FACULTY' | 'ADMIN'
     """
     try:
+        role = "PERSONNEL" if role.upper() == "FACULTY" else role.upper()
         users = (
             db.query(models.User)
             .filter(models.User.role == role, models.User.status != "Disabled")
@@ -501,17 +976,19 @@ def _notify_office(db: Session, office_name: str, n_type: str, title: str, messa
     if not office_name:
         return
     try:
-        office_users = (
-            db.query(models.User)
-            .filter(
-                models.User.status != "Disabled",
-                (
-                    (models.User.administrative_office == office_name) |
-                    (models.User.department == office_name)
-                )
-            )
-            .all()
-        )
+        office = db.query(models.OrganizationalUnit).filter(
+            models.OrganizationalUnit.unit_type == "OFFICE",
+            models.OrganizationalUnit.name == office_name,
+        ).first()
+        assignment_user_ids = db.query(models.UserAssignment.user_id).filter(
+            models.UserAssignment.scope_type == "OFFICE",
+            models.UserAssignment.scope_id == office.id,
+            models.UserAssignment.is_active.is_(True),
+        ) if office else []
+        office_users = db.query(models.User).filter(
+            models.User.status != "Disabled",
+            or_(models.User.id.in_(assignment_user_ids), models.User.administrative_office == office_name),
+        ).all()
         for u in office_users:
             if u.email:
                 _send_notification(u.email, n_type, title, message)
@@ -528,7 +1005,7 @@ def _notify_non_admin(db: Session, n_type: str, title: str, message: str) -> Non
         users = (
             db.query(models.User)
             .filter(
-                models.User.role.in_(["FACULTY", "STUDENT"]),
+                models.User.role.in_(["PERSONNEL", "STUDENT"]),
                 models.User.status != "Disabled"
             )
             .all()
@@ -548,10 +1025,10 @@ class ChatHistoryItem(BaseModel):
     content: str
 
 class QuestionRequest(BaseModel):
-    question:   str
-    user_email: Optional[str] = "guest@ctu.edu.ph"
-    user_role:  Optional[str] = "STUDENT"
-    history:    Optional[List[ChatHistoryItem]] = []
+    model_config = ConfigDict(extra="forbid")
+
+    question: str
+    history: List[ChatHistoryItem] = Field(default_factory=list)
 
 class FeedbackRequest(BaseModel):
     response_id: int
@@ -559,12 +1036,31 @@ class FeedbackRequest(BaseModel):
 
 class UpdateDocumentRequest(BaseModel):
     old_name:         str
+    old_scope_type:   str
+    old_scope_code:   str
     new_name:         str
     category:         str
     office:           str
     program:          Optional[str] = "GLOBAL"
+    scope_type:       str
+    scope_code:       Optional[str] = None
     version:          str
     effectivity_date: str
+
+
+class DuplicateDocumentCheckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file_sha256: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
+    file_size: int = Field(ge=0, le=MAX_UPLOAD_BYTES)
+    original_filename: str = Field(min_length=1, max_length=500)
+    document_name: str = Field(min_length=1, max_length=500)
+    category: str = Field(min_length=1, max_length=255)
+    office: str = Field(min_length=1, max_length=255)
+    program: str = Field(default="GLOBAL", max_length=255)
+    scope_type: str = Field(pattern=r"^(CAMPUS|OFFICE|PROGRAM)$")
+    scope_code: Optional[str] = Field(default=None, max_length=255)
+    upload_mode: str = Field(default="NEW_DOCUMENT", pattern=r"^(NEW_DOCUMENT|NEW_VERSION)$")
 
 class AccreditationUploadRequest(BaseModel):
     document_name: str
@@ -584,6 +1080,13 @@ class VerifyPasswordResetCodeRequest(BaseModel):
     email:    EmailStr
     otp_code: str
 
+class PersonnelAssignmentRequest(BaseModel):
+    assignment_type: str
+    scope_type: str
+    scope_id: Optional[str] = None
+    is_primary: bool = False
+
+
 class UserCreateRequest(BaseModel):
     department: Optional[str] = None
     full_name: str
@@ -592,6 +1095,7 @@ class UserCreateRequest(BaseModel):
     password:  str
     administrative_office: Optional[str] = None
     is_iqa_auditor: Optional[bool] = False
+    assignments: List[PersonnelAssignmentRequest] = Field(default_factory=list)
 
 class UserUpdateRequest(BaseModel):
     role: Optional[str] = None
@@ -601,6 +1105,7 @@ class UserUpdateRequest(BaseModel):
     designation_entity: Optional[str] = None
     email: Optional[str] = None
     full_name: Optional[str] = None
+    assignments: Optional[List[PersonnelAssignmentRequest]] = None
 
 class ISOEvidenceReviewRequest(BaseModel):
     status: str
@@ -662,9 +1167,9 @@ class VerifyOTPRequest(BaseModel):
     otp_code: str
 
 class AccreditationReviewRequest(BaseModel):
-    document_name: str
-    status: str # "Approved" or "Needs Revision"
-    feedback: str = ""
+    evidence_id: uuid.UUID
+    status: str = Field(pattern=r"^(Approved|Needs Revision)$")
+    feedback: str = Field(default="", max_length=4000)
 
 
 # --- SETTINGS SCHEMAS ---
@@ -689,20 +1194,24 @@ try:
         conn.execute(text("ALTER TABLE iqa_day_schedules ADD COLUMN IF NOT EXISTS cycle_year VARCHAR(50) DEFAULT '2025 Surveillance';"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS administrative_office VARCHAR(255);"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_iqa_auditor BOOLEAN DEFAULT FALSE;"))
-        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_single_document_controller ON users (role) WHERE role = 'DOCUMENT_CONTROLLER';"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_active_document_controller ON user_assignments (assignment_type) WHERE assignment_type = 'DOCUMENT_CONTROLLER' AND is_active;"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS origin_office VARCHAR(255);"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS origin_person VARCHAR(255);"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS current_location VARCHAR(255);"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(50) DEFAULT 'Submission';"))
         conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS is_controlled_document BOOLEAN DEFAULT FALSE;"))
+        conn.execute(text("ALTER TABLE paper_trail_records ADD COLUMN IF NOT EXISTS storage_path TEXT;"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_date VARCHAR(50);"))
         conn.execute(text("ALTER TABLE qms_action_plans ADD COLUMN IF NOT EXISTS assessment_notes TEXT;"))
         conn.execute(text("ALTER TABLE iso_evidences ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Approved';"))
         conn.execute(text("ALTER TABLE iso_evidences ADD COLUMN IF NOT EXISTS admin_feedback TEXT;"))
+        conn.execute(text("ALTER TABLE iso_evidences ADD COLUMN IF NOT EXISTS storage_path TEXT;"))
+        conn.execute(text("ALTER TABLE qms_evidences ADD COLUMN IF NOT EXISTS storage_path TEXT;"))
         conn.execute(text("ALTER TABLE ched_evidences ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);"))
         conn.execute(text("ALTER TABLE ched_evidences ADD COLUMN IF NOT EXISTS storage_path TEXT;"))
         conn.execute(text("ALTER TABLE ched_evidences ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending Verification';"))
         conn.execute(text("ALTER TABLE program_accreditations ADD COLUMN IF NOT EXISTS active_areas TEXT DEFAULT 'Area I,Area II,Area III,Area IV,Area V,Area VI,Area VII,Area VIII,Area IX,Area X';"))
+        conn.execute(text("ALTER TABLE accreditation_history ADD COLUMN IF NOT EXISTS certificate_storage_path TEXT;"))
         
         # Check if aaccup_requirements is empty, then seed
         res_aaccup = conn.execute(text("SELECT COUNT(*) FROM aaccup_requirements")).scalar()
@@ -870,6 +1379,70 @@ def _get_user_by_email(email: str, db: Session):
         print(f"[Supabase REST Warning] Failed to query user by email: {sb_err}")
     return None
 
+
+def _load_effective_assignments(user, db: Session):
+    """Load assignment scopes from trusted database records for authorization."""
+    normalized = []
+    iso_processes = []
+    try:
+        rows = db.query(models.UserAssignment).filter(
+            models.UserAssignment.user_id == user.id,
+            models.UserAssignment.is_active.is_(True),
+        ).all()
+        unit_ids = {a.scope_id for a in rows if a.scope_type in {"OFFICE", "COLLEGE"} and a.scope_id}
+        program_ids = {a.scope_id for a in rows if a.scope_type == "PROGRAM" and a.scope_id}
+        units = {str(x.id): x for x in db.query(models.OrganizationalUnit).filter(models.OrganizationalUnit.id.in_(unit_ids)).all()} if unit_ids else {}
+        programs = {str(x.id): x for x in db.query(models.AcademicProgram).filter(models.AcademicProgram.id.in_(program_ids)).all()} if program_ids else {}
+        for assignment in rows:
+            scope = units.get(str(assignment.scope_id)) or programs.get(str(assignment.scope_id))
+            normalized.append({
+                "id": str(assignment.id), "assignment_type": assignment.assignment_type,
+                "scope_type": assignment.scope_type,
+                "scope_id": str(assignment.scope_id) if assignment.scope_id else None,
+                "scope_code": getattr(scope, "code", "ARGAO" if assignment.scope_type == "CAMPUS" else ""),
+                "scope_name": getattr(scope, "name", "CTU Argao Campus" if assignment.scope_type == "CAMPUS" else ""),
+                "is_primary": bool(assignment.is_primary), "is_active": bool(assignment.is_active),
+            })
+        office_scope_ids = {a.scope_id for a in rows if a.scope_type == "OFFICE" and a.scope_id}
+        if office_scope_ids:
+            mapped_processes = db.query(models.ISOProcessGroup.id, models.ISOProcessGroup.name).join(
+                models.ISOProcessUnitMapping,
+                models.ISOProcessUnitMapping.process_group_id == models.ISOProcessGroup.id,
+            ).filter(models.ISOProcessUnitMapping.organizational_unit_id.in_(office_scope_ids)).distinct().all()
+            process_ids = [item[0] for item in mapped_processes]
+            iso_processes = [item[1] for item in mapped_processes]
+            iso_processes.extend(alias for (alias,) in db.query(models.ISOProcessAlias.alias).filter(models.ISOProcessAlias.process_group_id.in_(process_ids)).all())
+    except Exception:
+        try:
+            result = supabase.table("user_assignments").select("*").eq("user_id", str(user.id)).eq("is_active", True).execute()
+            for assignment in result.data or []:
+                scope_code = "ARGAO" if assignment.get("scope_type") == "CAMPUS" else ""
+                scope_name = "CTU Argao Campus" if assignment.get("scope_type") == "CAMPUS" else ""
+                scope_id = assignment.get("scope_id")
+                if scope_id and assignment.get("scope_type") in {"OFFICE", "COLLEGE"}:
+                    scope_result = supabase.table("organizational_units").select("code,name").eq("id", scope_id).limit(1).execute()
+                    if scope_result.data:
+                        scope_code, scope_name = scope_result.data[0]["code"], scope_result.data[0]["name"]
+                elif scope_id and assignment.get("scope_type") == "PROGRAM":
+                    scope_result = supabase.table("academic_programs").select("code,name").eq("id", scope_id).limit(1).execute()
+                    if scope_result.data:
+                        scope_code, scope_name = scope_result.data[0]["code"], scope_result.data[0]["name"]
+                normalized.append({**assignment, "scope_code": scope_code, "scope_name": scope_name})
+            office_scope_ids = [a.get("scope_id") for a in normalized if a.get("scope_type") == "OFFICE" and a.get("scope_id")]
+            if office_scope_ids:
+                mapping_result = supabase.table("iso_process_unit_mappings").select("process_group_id").in_("organizational_unit_id", office_scope_ids).execute()
+                process_ids = list({row["process_group_id"] for row in (mapping_result.data or [])})
+                if process_ids:
+                    process_result = supabase.table("iso_process_groups").select("name").in_("id", process_ids).execute()
+                    iso_processes = [row["name"] for row in (process_result.data or [])]
+                    alias_result = supabase.table("iso_process_aliases").select("alias").in_("process_group_id", process_ids).execute()
+                    iso_processes.extend(row["alias"] for row in (alias_result.data or []))
+        except Exception:
+            normalized = []
+    setattr(user, "_effective_assignments", normalized if normalized else None)
+    setattr(user, "_accessible_iso_processes", iso_processes)
+    return user
+
 def get_current_user(
     request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
@@ -906,7 +1479,7 @@ def get_current_user(
     if user.status != "Active":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled.")
 
-    return user
+    return _load_effective_assignments(user, db)
 
 def get_optional_user(
     request: Request,
@@ -922,7 +1495,7 @@ def get_optional_user(
         email = payload.get("sub")
         if email:
             resolved = _get_user_by_email(email, db)
-            return resolved if resolved and resolved.status == "Active" else None
+            return _load_effective_assignments(resolved, db) if resolved and resolved.status == "Active" else None
     except Exception:
         pass
     return None
@@ -937,8 +1510,30 @@ def get_governance_manager(current_user: models.User = Depends(get_current_user)
     return current_user
 
 
+def get_governance_reader(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if not permissions_for(current_user)["governance.access"]:
+        raise HTTPException(403, "Governance access permission required.")
+    return current_user
+
+
+def get_accreditation_reader(current_user: models.User = Depends(get_current_user)) -> models.User:
+    """Allow academic assignees and campus reviewers to read AACCUP configuration."""
+    if not (
+        is_system_admin(current_user)
+        or is_reviewer(current_user)
+        or bool(accessible_programs(current_user))
+    ):
+        raise HTTPException(403, "Accreditation access permission required.")
+    return current_user
+
+
 def get_governance_reviewer(current_user: models.User = Depends(get_current_user)) -> models.User:
     require_reviewer(current_user)
+    return current_user
+
+
+def get_campus_governance_reviewer(current_user: models.User = Depends(get_current_user)) -> models.User:
+    require_campus_reviewer(current_user)
     return current_user
 
 
@@ -970,30 +1565,311 @@ def protect_last_system_admin(db, user):
         raise HTTPException(409, "Assign another active System Administrator before removing this administrator.")
 
 
-def validate_role_assignment(role, department, administrative_office=None):
-    role = str(role or "").upper()
-    assignment = str(department or "").strip()
-    if role == "OFFICE_HEAD" and not str(administrative_office or "").strip():
-        raise HTTPException(400, "An Office Head must have an assigned office.")
-    if role in {"COLLEGE_DEAN", "COLLEGE_SECRETARY"} and assignment not in set(PROGRAM_COLLEGES.values()):
-        raise HTTPException(400, "Select a valid college for this role.")
-    if role == "PROGRAM_CHAIR" and assignment not in PROGRAM_COLLEGES:
-        raise HTTPException(400, "Select a valid academic program for the Program Chair.")
+def _validate_and_normalize_assignments(db, assignments):
+    normalized = []
+    seen = set()
+    for item in assignments or []:
+        assignment_type = str(item.assignment_type or "").upper()
+        scope_type = str(item.scope_type or "").upper()
+        if assignment_type not in ASSIGNMENT_TYPES:
+            raise HTTPException(400, f"Invalid personnel assignment: {assignment_type}.")
+        if scope_type not in ASSIGNMENT_SCOPE_TYPES[assignment_type]:
+            raise HTTPException(400, f"{assignment_type.replace('_', ' ').title()} cannot use a {scope_type.lower()} scope.")
+        scope_id = None
+        if scope_type != "CAMPUS":
+            if not item.scope_id:
+                raise HTTPException(400, "Select a scope for every personnel assignment.")
+            try:
+                scope_id = uuid.UUID(str(item.scope_id))
+            except ValueError:
+                raise HTTPException(400, "Invalid assignment scope.")
+            if scope_type in {"OFFICE", "COLLEGE"}:
+                scope = db.query(models.OrganizationalUnit).filter(
+                    models.OrganizationalUnit.id == scope_id,
+                    models.OrganizationalUnit.unit_type == scope_type,
+                    models.OrganizationalUnit.is_active.is_(True),
+                ).first()
+            else:
+                scope = db.query(models.AcademicProgram).filter(
+                    models.AcademicProgram.id == scope_id,
+                    models.AcademicProgram.is_active.is_(True),
+                ).first()
+            if not scope:
+                raise HTTPException(400, "The selected assignment scope is unavailable.")
+        key = (assignment_type, scope_type, str(scope_id or "CAMPUS"))
+        if key in seen:
+            raise HTTPException(400, "Duplicate personnel assignment.")
+        seen.add(key)
+        normalized.append({
+            "assignment_type": assignment_type, "scope_type": scope_type,
+            "scope_id": scope_id, "is_primary": bool(item.is_primary),
+        })
+    if sum(1 for item in normalized if item["is_primary"]) > 1:
+        raise HTTPException(400, "Only one personnel assignment can be primary.")
+    return normalized
+
+
+def _replace_user_assignments(db, user, assignments):
+    normalized = _validate_and_normalize_assignments(db, assignments)
+    if any(item["assignment_type"] == "DOCUMENT_CONTROLLER" for item in normalized):
+        existing = db.query(models.UserAssignment).filter(
+            models.UserAssignment.assignment_type == "DOCUMENT_CONTROLLER",
+            models.UserAssignment.is_active.is_(True),
+            models.UserAssignment.user_id != user.id,
+        ).first()
+        if existing:
+            raise HTTPException(409, "A Document Controller is already assigned.")
+    db.query(models.UserAssignment).filter(models.UserAssignment.user_id == user.id).delete(synchronize_session=False)
+    has_primary = any(x["is_primary"] for x in normalized)
+    for index, item in enumerate(normalized):
+        db.add(models.UserAssignment(
+            user_id=user.id,
+            assignment_type=item["assignment_type"], scope_type=item["scope_type"], scope_id=item["scope_id"],
+            is_primary=item["is_primary"] or (index == 0 and not has_primary),
+            is_active=True,
+        ))
+    db.flush()
+    _load_effective_assignments(user, db)
+    primary_office = next((a for a in assignments_of(user) if a.get("scope_type") == "OFFICE" and a.get("is_primary")), None)
+    primary_academic = next((a for a in assignments_of(user) if a.get("scope_type") in {"PROGRAM", "COLLEGE"} and a.get("is_primary")), None)
+    user.administrative_office = (primary_office or next((a for a in assignments_of(user) if a.get("scope_type") == "OFFICE"), {})).get("scope_name") or None
+    user.department = (primary_academic or next((a for a in assignments_of(user) if a.get("scope_type") in {"PROGRAM", "COLLEGE"}), {})).get("scope_code") or None
+    user.is_iqa_auditor = any(a.get("assignment_type") == "IQA_AUDITOR" for a in assignments_of(user))
+
+
+def _serialize_user(user, db):
+    _load_effective_assignments(user, db)
+    return {
+        "id": str(user.id), "full_name": user.full_name, "email": user.email,
+        "role": role_of(user), "department": user.department,
+        "administrative_office": user.administrative_office,
+        "is_iqa_auditor": bool(user.is_iqa_auditor), "is_verified": bool(user.is_verified),
+        "created_by_admin": bool(user.created_by_admin), "email_changed": bool(user.email_changed),
+        "status": user.status, "created_at": user.created_at,
+        "assignments": assignments_of(user),
+    }
+
+
+@app.get("/authorization/reference-data")
+def get_authorization_reference_data(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    try:
+        units = db.query(models.OrganizationalUnit).filter(models.OrganizationalUnit.is_active.is_(True)).order_by(models.OrganizationalUnit.name).all()
+        programs = db.query(models.AcademicProgram).filter(models.AcademicProgram.is_active.is_(True)).order_by(models.AcademicProgram.name).all()
+    except Exception:
+        units_result = supabase.table("organizational_units").select("id,code,name,unit_type").eq("is_active", True).order("name").execute()
+        programs_result = supabase.table("academic_programs").select("id,code,name,college_unit_id").eq("is_active", True).order("name").execute()
+        from types import SimpleNamespace
+        units = [SimpleNamespace(**row) for row in (units_result.data or [])]
+        programs = [SimpleNamespace(**row) for row in (programs_result.data or [])]
+    return {
+        "offices": [{"id": str(x.id), "code": x.code, "name": x.name} for x in units if x.unit_type == "OFFICE"],
+        "colleges": [{"id": str(x.id), "code": x.code, "name": x.name} for x in units if x.unit_type == "COLLEGE"],
+        "programs": [{"id": str(x.id), "code": x.code, "name": x.name, "college_unit_id": str(x.college_unit_id)} for x in programs],
+        "assignment_types": sorted(ASSIGNMENT_TYPES),
+    }
 
 
 @app.get("/auth/me")
 def get_auth_profile(current_user: models.User = Depends(get_current_user)):
+    offices = assigned_offices(current_user)
     return {"role": role_of(current_user), "email": current_user.email,
-            "administrative_office": getattr(current_user, "administrative_office", None),
+            "full_name": getattr(current_user, "full_name", None) or "CTU User",
+            "administrative_office": offices[0] if offices else getattr(current_user, "administrative_office", None),
             "department": getattr(current_user, "department", None),
             "is_iqa_auditor": bool(getattr(current_user, "is_iqa_auditor", False)),
+            "created_by_admin": bool(getattr(current_user, "created_by_admin", False)),
+            "email_changed": bool(getattr(current_user, "email_changed", False)),
             "allowed_programs": accessible_programs(current_user),
+            "allowed_iso_processes": getattr(current_user, "_accessible_iso_processes", []),
+            "assignments": assignments_of(current_user),
             "permissions": permissions_for(current_user)}
+
+
+@app.get("/dashboard/personnel")
+def get_personnel_dashboard(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Return independently calculated, assignment-scoped Personnel dashboard modules."""
+    if role_of(current_user) != "PERSONNEL":
+        raise HTTPException(status_code=403, detail="This dashboard is available to Personnel accounts.")
+
+    user_assignments = assignments_of(current_user)
+    assignment_types = {str(item.get("assignment_type") or "").upper() for item in user_assignments}
+    permissions = permissions_for(current_user)
+    errors = []
+
+    summary = {"documents": 0, "queries": 0, "access_events": 0, "open_documents": 0}
+    recent_activity = []
+
+    try:
+        visible_documents = set()
+        page_size = 1000
+        offset = 0
+        while True:
+            docs_response = (supabase.table("document_sections").select("metadata")
+                             .range(offset, offset + page_size - 1).execute())
+            rows = docs_response.data or []
+            for row in rows:
+                metadata = row.get("metadata") or {}
+                if isinstance(metadata, str):
+                    try:
+                        metadata = json.loads(metadata)
+                    except Exception:
+                        metadata = {}
+                if not can_read_document(current_user, metadata):
+                    continue
+                if str(metadata.get("status", "Active")).lower() == "archived":
+                    continue
+                name = (metadata.get("document_name") or metadata.get("title") or
+                        metadata.get("name") or metadata.get("file_name") or metadata.get("source"))
+                if name:
+                    visible_documents.add(name)
+            if len(rows) < page_size:
+                break
+            offset += page_size
+        summary["documents"] = len(visible_documents)
+    except Exception:
+        errors.append("documents")
+
+    try:
+        query_response = (supabase.table("chat_history").select("id")
+                          .eq("user_email", current_user.email).eq("role", "user").execute())
+        summary["queries"] = len(query_response.data or [])
+    except Exception:
+        errors.append("queries")
+
+    try:
+        access_response = (supabase.table("document_access_logs").select("*")
+                           .eq("user_email", current_user.email).limit(100).execute())
+        access_rows = access_response.data or []
+        access_rows.sort(key=lambda item: item.get("accessed_at") or item.get("created_at") or "", reverse=True)
+        summary["access_events"] = len(access_rows)
+        recent_activity = [{
+            "id": str(item.get("id") or index),
+            "title": item.get("document_name") or "Institutional document",
+            "action": item.get("action_type") or "Viewed",
+            "timestamp": item.get("accessed_at") or item.get("created_at"),
+        } for index, item in enumerate(access_rows[:5])]
+    except Exception:
+        errors.append("activity")
+
+    modules = {}
+
+    academic_types = {"COLLEGE_DEAN", "COLLEGE_SECRETARY", "PROGRAM_CHAIR", "FACULTY_MEMBER"}
+    if assignment_types & academic_types:
+        program_codes = set()
+        for assignment in user_assignments:
+            kind = str(assignment.get("assignment_type") or "").upper()
+            scope_type = str(assignment.get("scope_type") or "").upper()
+            scope_code = str(assignment.get("scope_code") or "").strip()
+            scope_name = str(assignment.get("scope_name") or "").strip()
+            if kind not in academic_types:
+                continue
+            if scope_type == "PROGRAM" and scope_code in PROGRAM_COLLEGES:
+                program_codes.add(scope_code)
+            elif scope_type == "COLLEGE":
+                college_key = office_key(scope_name or scope_code)
+                program_codes.update(code for code, college in PROGRAM_COLLEGES.items()
+                                     if office_key(college) == college_key)
+
+        programs = []
+        for code in sorted(program_codes):
+            try:
+                status_data = get_accreditation_status(code, db, current_user)
+                programs.append({
+                    "code": code,
+                    "college": PROGRAM_COLLEGES.get(code),
+                    "overall": status_data.get("overall", 0),
+                    "gaps": status_data.get("gaps", 0),
+                    "evidence": status_data.get("evidence", 0),
+                    "level": status_data.get("level"),
+                })
+            except Exception:
+                programs.append({"code": code, "college": PROGRAM_COLLEGES.get(code), "unavailable": True})
+        modules["accreditation"] = {"programs": programs}
+
+    governance_types = {"OFFICE_HEAD", "OFFICE_MEMBER", "QA_HEAD", "IQA_AUDITOR"}
+    if permissions.get("governance.access") and assignment_types & governance_types:
+        try:
+            plans = filter_office_records(current_user, db.query(models.QMSActionPlan).all())
+            modules["governance"] = {
+                "offices": assigned_offices(current_user),
+                "iso_processes": list(getattr(current_user, "_accessible_iso_processes", []) or []),
+                "action_plans": len(plans),
+                "pending": sum(1 for plan in plans if str(plan.status or "").lower() not in {"completed", "closed"}),
+                "overdue": sum(1 for plan in plans if str(plan.status or "").lower() == "overdue"),
+            }
+        except Exception:
+            errors.append("governance")
+            modules["governance"] = {"unavailable": True}
+
+    survey_types = {"OFFICE_HEAD", "QA_HEAD", "IQA_AUDITOR", "SURVEY_ANALYST"}
+    if permissions.get("survey.analytics") and assignment_types & survey_types:
+        try:
+            responses = filter_survey_records(current_user, db.query(models.CssResponse).all(), "office_visited")
+            modules["survey"] = {
+                "responses": len(responses),
+                "scope": "Campus-wide" if permissions.get("survey.cross_office") else ", ".join(
+                    assigned_offices(current_user, {"OFFICE_HEAD", "SURVEY_ANALYST", "IQA_AUDITOR"})
+                ) or "Assigned office",
+            }
+        except Exception:
+            errors.append("survey")
+            modules["survey"] = {"unavailable": True}
+
+    try:
+        paper_records = [record for record in db.query(models.PaperTrailRecord).all()
+                         if _paper_trail_visible(record, current_user)]
+        open_statuses = {"pending receiving", "under review", "pending request", "needs revision"}
+        open_records = [record for record in paper_records if str(record.status or "").lower() in open_statuses]
+        summary["open_documents"] = len(open_records)
+        modules["document_tracking"] = {
+            "open": len(open_records),
+            "total": len(paper_records),
+            "controller": "DOCUMENT_CONTROLLER" in assignment_types,
+        }
+    except Exception:
+        errors.append("document_tracking")
+
+    attention = []
+    accreditation = modules.get("accreditation", {})
+    accreditation_gaps = sum(item.get("gaps", 0) for item in accreditation.get("programs", []) if not item.get("unavailable"))
+    if accreditation_gaps:
+        attention.append({"kind": "accreditation", "count": accreditation_gaps,
+                          "message": "Accreditation evidence items still need attention.",
+                          "path": "/app/accreditation-support"})
+    governance = modules.get("governance", {})
+    if governance.get("overdue"):
+        attention.append({"kind": "governance", "count": governance["overdue"],
+                          "message": "QMS action plans are overdue.", "path": "/app/accreditation-support"})
+    if summary["open_documents"]:
+        attention.append({"kind": "documents", "count": summary["open_documents"],
+                          "message": "Tracked documents are awaiting action.", "path": "/app/paper-trail"})
+    if not user_assignments:
+        attention.append({"kind": "assignment", "count": 0,
+                          "message": "No personnel assignment has been configured for this account.", "path": None})
+
+    return {
+        "profile": {
+            "full_name": current_user.full_name or "CTU Personnel",
+            "email": current_user.email,
+            "assignments": user_assignments,
+        },
+        "summary": summary,
+        "attention": attention,
+        "recent_activity": recent_activity,
+        "modules": modules,
+        "partial_errors": errors,
+    }
 
 
 def get_current_faculty_or_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
     """Enforces Faculty or Admin role requirement."""
-    if role_of(current_user) not in {"FACULTY", "OFFICE_HEAD", "COLLEGE_DEAN", "PROGRAM_CHAIR", "COLLEGE_SECRETARY", "SYSTEM_ADMIN"}:
+    if role_of(current_user) not in {"PERSONNEL", "SYSTEM_ADMIN"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access restricted to Faculty and Administrator roles."
@@ -1002,7 +1878,7 @@ def get_current_faculty_or_admin(current_user: models.User = Depends(get_current
 
 def get_current_paper_trail_reader(current_user: models.User = Depends(get_current_user)) -> models.User:
     """Allows campus personnel to view Paper Trail while reserving mutations for its custodian."""
-    if role_of(current_user) not in {"FACULTY", "OFFICE_HEAD", "COLLEGE_DEAN", "PROGRAM_CHAIR", "COLLEGE_SECRETARY", "SYSTEM_ADMIN", "DOCUMENT_CONTROLLER"}:
+    if role_of(current_user) not in {"PERSONNEL", "SYSTEM_ADMIN"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access restricted to authorized campus personnel."
@@ -1029,12 +1905,16 @@ def read_root():
     return {"message": "Welcome to the CTU Knowledge System API! The server is running perfectly."}
 
 @app.get("/test-db")
-def test_db_connection(db: Session = Depends(get_db)):
+def test_db_connection(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Administrator-only connectivity check without database details."""
     try:
-        users_count = db.query(models.User).count()
-        return {"status": "Success", "message": f"Connected to Supabase! Current users: {users_count}"}
-    except Exception as e:
-        return {"status": "Failed", "error": str(e)}
+        db.execute(text("SELECT 1"))
+        return {"status": "ok"}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database connectivity check failed.")
     
 @app.post("/auth/send-otp")
 def send_otp(request: Request, req: SendOTPRequest, db: Session = Depends(get_db)):
@@ -1085,10 +1965,11 @@ def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
 # AUTH — REGISTER
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/register", status_code=status.HTTP_201_CREATED)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # 1. Duplicate check
-    if user.role.upper() not in {"STUDENT", "FACULTY"} or user.is_iqa_auditor or user.administrative_office:
+    requested_role = "PERSONNEL" if user.role.upper() == "FACULTY" else user.role.upper()
+    if requested_role not in {"STUDENT", "PERSONNEL"} or user.is_iqa_auditor or user.administrative_office:
         raise HTTPException(403, "Privileged roles and office assignments require a System Administrator.")
     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
     if existing_user:
@@ -1096,17 +1977,14 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     # 2. Hash password — students are auto-verified, faculty require admin approval
     hashed_pwd  = utils.hash_password(user.password)
-    auto_verify = user.role.upper() == "STUDENT"
+    auto_verify = requested_role == "STUDENT"
 
     # 3. Persist user
     new_user = models.User(
         email=user.email,
         full_name=user.full_name,
         hashed_password=hashed_pwd,
-        role=user.role.upper(),
-        department=user.department,
-        administrative_office=user.administrative_office,
-        is_iqa_auditor=user.is_iqa_auditor or False,
+        role=requested_role, department=None, administrative_office=None, is_iqa_auditor=False,
         is_verified=auto_verify
     )
     db.add(new_user)
@@ -1114,7 +1992,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     # 4. Student profile
-    if user.role.upper() == "STUDENT":
+    if requested_role == "STUDENT":
         new_student_profile = models.StudentProfile(
             user_id=new_user.id,
             course=user.course,
@@ -1122,6 +2000,14 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         )
         db.add(new_student_profile)
         db.commit()
+    elif user.department:
+        program = db.query(models.AcademicProgram).filter(models.AcademicProgram.code == user.department).first()
+        if program:
+            db.add(models.UserAssignment(
+                user_id=new_user.id, assignment_type="FACULTY_MEMBER", scope_type="PROGRAM",
+                scope_id=program.id, is_primary=True, is_active=True,
+            ))
+            db.commit()
 
     # 5. Audit log
     try:
@@ -1134,16 +2020,16 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         print(f"[register] audit log failed: {exc}")
 
     # 6. Notifications — role-specific, correct recipients only
-    role_upper = new_user.role  # already uppercased above
+    role_upper = new_user.role
 
-    if role_upper == "FACULTY":
+    if role_upper == "PERSONNEL":
         # ── Tell the registering faculty member their status ──
         _send_notification(
             user_email=new_user.email,
             n_type="info",
             title="Account Pending Verification",
             message=(
-                f"Hi {new_user.full_name or 'there'}! Your faculty account has been registered "
+                f"Hi {new_user.full_name or 'there'}! Your personnel account has been registered "
                 "and is awaiting administrator verification. You'll be notified once approved."
             ),
         )
@@ -1151,9 +2037,9 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         _notify_all_admins(
             db=db,
             n_type="warning",
-            title="New Faculty Awaiting Verification",
+            title="New Personnel Account Awaiting Verification",
             message=(
-                f"{new_user.full_name} ({new_user.email}) has registered as Faculty "
+                f"{new_user.full_name} ({new_user.email}) has registered as Personnel "
                 "and is pending your verification. Go to Users & Roles to accept or decline."
             ),
         )
@@ -1179,7 +2065,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
             ),
         )
 
-    return new_user
+    return _serialize_user(new_user, db)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1214,7 +2100,7 @@ def login_user(
     if not user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your Faculty account is currently pending Admin verification."
+            detail="Your Personnel account is currently pending System Administrator verification."
         )
 
     access_token = utils.create_access_token(data={"sub": user.email, "role": user.role})
@@ -1393,25 +2279,34 @@ def verify_password_reset_code(
 # USER MANAGEMENT
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.get("/users", response_model=List[schemas.UserResponse])
+@app.get("/users")
 def get_all_users(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin)
 ):
     if _DB_IS_AVAILABLE:
         try:
-            return db.query(models.User).all()
+            return [_serialize_user(user, db) for user in db.query(models.User).order_by(models.User.created_at.desc()).all()]
         except Exception:
             pass
     try:
         res = supabase.table("users").select("*").execute()
-        return res.data or []
+        from types import SimpleNamespace
+        result = []
+        for row in res.data or []:
+            data = dict(row)
+            data.setdefault("department", None); data.setdefault("administrative_office", None)
+            data.setdefault("is_iqa_auditor", False); data.setdefault("created_by_admin", False)
+            data.setdefault("email_changed", False); data.setdefault("is_verified", False)
+            data.setdefault("status", "Active"); data.setdefault("created_at", None)
+            result.append(_serialize_user(SimpleNamespace(**data), db))
+        return result
     except Exception as sb_err:
         print(f"[Users Error]: {sb_err}")
         return []
 
 
-@app.post("/users", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/users", status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: UserCreateRequest,
     db: Session = Depends(get_db),
@@ -1423,22 +2318,23 @@ def create_user(
     requested_role = payload.role.upper()
     if requested_role not in ROLES:
         raise HTTPException(status_code=400, detail="Invalid user role.")
-    validate_role_assignment(requested_role, payload.department, payload.administrative_office)
-    if requested_role == "DOCUMENT_CONTROLLER" and db.query(models.User).filter(models.User.role == "DOCUMENT_CONTROLLER").first():
-        raise HTTPException(status_code=409, detail="A Document Controller is already assigned. Only one account may hold this role.")
+    if requested_role != "PERSONNEL" and payload.assignments:
+        raise HTTPException(400, "Only Personnel accounts can receive scoped assignments.")
+    normalized_assignments = _validate_and_normalize_assignments(db, payload.assignments) if requested_role == "PERSONNEL" else []
     user = models.User(
         full_name=payload.full_name.strip(), email=email,
         hashed_password=utils.hash_password(payload.password),
         role=requested_role,
-        department=payload.department,
-        administrative_office="Document Control Office" if requested_role == "DOCUMENT_CONTROLLER" else payload.administrative_office,
-        is_iqa_auditor=False if requested_role == "DOCUMENT_CONTROLLER" else (payload.is_iqa_auditor or False),
+        department=None, administrative_office=None, is_iqa_auditor=False,
         is_verified=True, created_by_admin=True, status="Active",
     )
     db.add(user)
+    db.flush()
+    if normalized_assignments:
+        _replace_user_assignments(db, user, payload.assignments)
     db.commit()
     db.refresh(user)
-    return user
+    return _serialize_user(user, db)
 
 
 @app.put("/users/{user_id}/verify")
@@ -1551,49 +2447,101 @@ def update_user_details(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    requested_role = (payload.role or user.role).upper()
-    requested_assignment = payload.designation_entity if payload.designation_entity is not None else user.department
-    requested_office = payload.administrative_office if payload.administrative_office is not None else user.administrative_office
-    validate_role_assignment(requested_role, requested_assignment, requested_office)
+    requested_role = (payload.role or role_of(user)).upper()
     if payload.role:
         if requested_role not in ROLES:
             raise HTTPException(status_code=400, detail="Invalid user role.")
-        if requested_role == "DOCUMENT_CONTROLLER":
-            assigned_controller = db.query(models.User).filter(
-                models.User.role == "DOCUMENT_CONTROLLER",
-                models.User.id != user_id,
-            ).first()
-            if assigned_controller:
-                raise HTTPException(status_code=409, detail="A Document Controller is already assigned. Reassign or remove that role first.")
-            user.administrative_office = "Document Control Office"
-            user.is_iqa_auditor = False
         if requested_role != "SYSTEM_ADMIN" and is_system_admin(user):
             protect_last_system_admin(db, user)
         user.role = requested_role
-    
-    if user.role == "DOCUMENT_CONTROLLER":
-        user.administrative_office = "Document Control Office"
-        user.is_iqa_auditor = False
-    else:
-        user.administrative_office = payload.administrative_office
-        user.is_iqa_auditor = bool(payload.is_iqa_auditor)
-    if payload.designation_entity is not None:
-        user.department = payload.designation_entity or None
+    if requested_role != "PERSONNEL" and payload.assignments:
+        raise HTTPException(400, "Only Personnel accounts can receive scoped assignments.")
+    if requested_role != "PERSONNEL":
+        _replace_user_assignments(db, user, [])
+    elif payload.assignments is not None:
+        _replace_user_assignments(db, user, payload.assignments if requested_role == "PERSONNEL" else [])
     if payload.email:
         existing = db.query(models.User).filter(models.User.email == payload.email, models.User.id != user_id).first()
         if existing:
             raise HTTPException(status_code=400, detail="Email already in use by another account.")
         user.email = payload.email
-    if payload.full_name:
-        user.full_name = payload.full_name
+    if payload.full_name is not None:
+        full_name = payload.full_name.strip()
+        if not full_name:
+            raise HTTPException(status_code=400, detail="Full name cannot be empty.")
+        user.full_name = full_name
     db.commit()
     db.refresh(user)
-    return {"message": "User administrative details updated successfully!"}
+    return {
+        "message": "User administrative details updated successfully!",
+        "user": {
+            "id": str(user.id),
+            "full_name": user.full_name,
+            "email": user.email,
+            "role": role_of(user),
+            "department": user.department, "administrative_office": user.administrative_office,
+            "is_iqa_auditor": bool(user.is_iqa_auditor), "assignments": assignments_of(_load_effective_assignments(user, db)),
+        },
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DOCUMENTS — UPLOAD
 # ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/documents/check-duplicate")
+def check_document_duplicate(
+    request: DuplicateDocumentCheckRequest,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_document_manager),
+):
+    require_general_repository_category(request.category)
+    scope_type, scope_code, office, program = authorize_repository_scope(
+        db, admin, request.scope_type, request.scope_code
+    )
+    result = classify_document_duplicate(
+        request.file_sha256.lower(),
+        request.document_name,
+        office,
+        program,
+        request.upload_mode,
+        scope_type,
+        scope_code,
+    )
+    return duplicate_result_for_user(result, admin)
+
+
+@app.post("/documents/check-duplicate-file")
+async def check_document_duplicate_file(
+    file: UploadFile = File(...),
+    document_name: str = Form(...),
+    category: str = Form(...),
+    office: str = Form(...),
+    program: str = Form("GLOBAL"),
+    scope_type: str = Form(...),
+    scope_code: Optional[str] = Form(None),
+    upload_mode: str = Form("NEW_DOCUMENT"),
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_document_manager),
+):
+    """Fallback preflight for browsers where Web Crypto is unavailable."""
+    if upload_mode not in {"NEW_DOCUMENT", "NEW_VERSION"}:
+        raise HTTPException(400, "Invalid upload mode.")
+    require_general_repository_category(category)
+    resolved_type, resolved_code, resolved_office, resolved_program = authorize_repository_scope(
+        db, admin, scope_type, scope_code
+    )
+    contents = await read_upload_limited(file)
+    result = classify_document_duplicate(
+        hashlib.sha256(contents).hexdigest(),
+        document_name,
+        resolved_office,
+        resolved_program,
+        upload_mode,
+        resolved_type,
+        resolved_code,
+    )
+    return duplicate_result_for_user(result, admin)
 
 @app.post("/upload-document")
 async def upload_document(
@@ -1603,16 +2551,23 @@ async def upload_document(
     category:         str = Form(...),
     office:           str = Form(...),
     program:          str = Form("GLOBAL"),
+    scope_type:       str = Form(...),
+    scope_code:       Optional[str] = Form(None),
     version:          str = Form(...),
     effectivity_date: str = Form(...),
+    allow_cross_scope_duplicate: bool = Form(False),
     uploaded_by:      str = Form(None),   # pass userEmail from the frontend
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_document_manager),
 ):
-    candidate_metadata = {"category": category, "office": office, "program": program or "GLOBAL"}
-    if not can_manage_document(admin, candidate_metadata):
-        raise HTTPException(403, "You can only upload documents for your assigned office, college, or program.")
+    require_general_repository_category(category)
+    scope_type, scope_code, office, program = authorize_repository_scope(
+        db, admin, scope_type, scope_code
+    )
     uploaded_by = admin.email
+    registry_id = None
+    stored_file_reference = None
+    processing_queued = False
     try:
         # Validate file type early (before reading)
         filename_lower = file.filename.lower()
@@ -1621,32 +2576,69 @@ async def upload_document(
 
         contents = await read_upload_limited(file)
 
+        file_sha256 = hashlib.sha256(contents).hexdigest()
+        duplicate = classify_document_duplicate(
+            file_sha256, name, office, program, "NEW_DOCUMENT", scope_type, scope_code
+        )
+        if duplicate["code"] in {"EXACT_DUPLICATE", "POSSIBLE_NEW_VERSION"}:
+            raise duplicate_http_exception(duplicate_result_for_user(duplicate, admin))
+        if duplicate["code"] == "CROSS_SCOPE_DUPLICATE" and not allow_cross_scope_duplicate:
+            raise duplicate_http_exception(duplicate_result_for_user(duplicate, admin))
+
+        registry_id = reserve_document_upload(
+            file_sha256=file_sha256,
+            file_size=len(contents),
+            original_filename=file.filename,
+            document_name=name,
+            category=category,
+            office=office,
+            program=program,
+            scope_type=scope_type,
+            scope_code=scope_code,
+            version=version,
+            upload_mode="NEW_DOCUMENT",
+            uploaded_by=uploaded_by,
+        )
+
         # ── 1. Upload file to Supabase Storage immediately (synchronous) ──
-        safe_filename   = file.filename.replace(" ", "_")
-        unique_filename = f"{int(time.time())}_{safe_filename}"
+        safe_filename = re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(file.filename))
+        unique_filename = f"repository/{uuid.uuid4()}_{safe_filename}"
 
         supabase.storage.from_("documents").upload(
             file=contents,
             path=unique_filename,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = create_private_file_url(unique_filename)
+        stored_file_reference = unique_filename
+        evidence_id = uuid.uuid4()
 
         metadata = {
             "name":             name,
             "category":         category,
             "office":           office,
             "program":          program or "GLOBAL",
+            "scope_type":       scope_type,
+            "scope_code":       scope_code,
             "version":          version,
             "effectivity_date": effectivity_date,
             "upload_date":      datetime.now().isoformat(),
             "storage_path":     unique_filename,
-            "file_url":         public_url,
+            "file_url":         stored_file_reference,
             "status":           "Active",
             "uploaded_by":      uploaded_by or "Unknown",
+            "file_sha256":      file_sha256,
+            "file_size":        len(contents),
+            "original_filename": os.path.basename(file.filename),
+            "upload_registry_id": registry_id,
         }
         job_id = str(uuid.uuid4())
         metadata["job_id"] = job_id
+        update_document_upload_registry(
+            registry_id,
+            "PROCESSING",
+            storage_path=stored_file_reference,
+            job_id=job_id,
+        )
         _processing_status[job_id] = {"job_id": job_id, "office": office, "name": name, "status": "queued", "message": "Upload queued for background processing.", "updated_at": datetime.utcnow().isoformat()}
 
         # ── 2. Defer OCR + vector embedding to dedicated worker pool ─────
@@ -1657,6 +2649,7 @@ async def upload_document(
             content_type=file.content_type or "application/pdf",
             metadata=metadata,
         )
+        processing_queued = True
 
         # ── 3. Send notifications synchronously (fast DB writes) ──────────
         _notify_all_admins(
@@ -1685,8 +2678,22 @@ async def upload_document(
         }
 
     except HTTPException:
+        if registry_id and not processing_queued:
+            update_document_upload_registry(registry_id, "FAILED", failure_reason="Upload was not completed.")
+            if stored_file_reference:
+                try:
+                    supabase.storage.from_("documents").remove([stored_file_reference])
+                except Exception:
+                    _log.exception("duplicate_upload_storage_cleanup_failed", extra={"storage_path": stored_file_reference})
         raise
     except Exception as e:
+        if registry_id and not processing_queued:
+            update_document_upload_registry(registry_id, "FAILED", failure_reason="Storage upload or queueing failed.")
+            if stored_file_reference:
+                try:
+                    supabase.storage.from_("documents").remove([stored_file_reference])
+                except Exception:
+                    _log.exception("document_upload_storage_cleanup_failed", extra={"storage_path": stored_file_reference})
         _log.exception("document_upload_failed", extra={"request_id": _request_id.get(), "filename": file.filename, "name": name})
         raise HTTPException(status_code=500, detail=f"Document upload failed. Request ID: {_request_id.get()}") from e
 
@@ -1720,11 +2727,17 @@ async def upload_new_version(
     old_document_name:    str = Form(...),
     new_version:          str = Form(...),
     new_effectivity_date: str = Form(...),
+    office:               Optional[str] = Form(None),
+    program:              Optional[str] = Form(None),
+    allow_cross_scope_duplicate: bool = Form(False),
     uploaded_by:          str = Form(None),
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_document_manager),
 ):
     uploaded_by = admin.email
+    registry_id = None
+    stored_file_reference = None
+    processing_queued = False
     require_document_name_access(admin, old_document_name)
     try:
         # ── 1. Validate file type early ───────────────────────────────────
@@ -1732,51 +2745,108 @@ async def upload_new_version(
         if not filename_lower.endswith((".pdf", ".png", ".jpg", ".jpeg", ".txt", ".docx", ".html")):
             raise HTTPException(status_code=400, detail="Unsupported file format.")
 
-        # ── 2. Lookup old document metadata (synchronous — fast Supabase query) ──
-        res = supabase.table("document_sections").select("metadata").eq("metadata->>name", old_document_name).limit(1).execute()
-        if not res.data:
+        # ── 2. Resolve the active document in the requested scope ─────────
+        rows = (
+            supabase.table("document_sections")
+            .select("metadata")
+            .eq("metadata->>name", old_document_name)
+            .execute()
+        ).data or []
+        candidates = []
+        for row in rows:
+            metadata = row.get("metadata") or {}
+            if metadata.get("status") != "Active":
+                continue
+            if office and normalize_document_identity(metadata.get("office")) != normalize_document_identity(office):
+                continue
+            if program and normalize_document_identity(metadata.get("program") or "GLOBAL") != normalize_document_identity(program):
+                continue
+            candidates.append(metadata)
+        if not candidates:
             raise HTTPException(status_code=404, detail="Old document not found in database.")
 
-        old_metadata = res.data[0]['metadata']
-        require_document_office(admin, old_metadata.get("office"))
-        category     = old_metadata.get("category", "Policy")
-        office       = old_metadata.get("office",   "Academic Affairs")
+        old_metadata = candidates[0]
+        if not can_manage_document(admin, old_metadata):
+            raise HTTPException(403, "You can only update documents in your assigned office, college, or program.")
+        category = old_metadata.get("category", "Policy")
+        require_general_repository_category(category)
+        resolved_office = old_metadata.get("office", "Academic Affairs")
+        resolved_program = old_metadata.get("program") or "GLOBAL"
+        resolved_scope_type, resolved_scope_code = document_scope(old_metadata)
 
-        # ── 3. Archive old chunks synchronously (must happen before new version appears) ──
-        old_chunks_res = supabase.table("document_sections").select("id, metadata").eq("metadata->>name", old_document_name).execute()
-        if old_chunks_res.data:
-            for chunk in old_chunks_res.data:
-                chunk_meta           = chunk['metadata']
-                chunk_meta['status'] = "Superseded"
-                supabase.table("document_sections").update({"metadata": chunk_meta}).eq("id", chunk['id']).execute()
-
-        # ── 4. Read & upload new file to Supabase Storage immediately ────
+        # ── 3. Hash and reserve before Storage or version state changes ───
         contents = await read_upload_limited(file)
+        file_sha256 = hashlib.sha256(contents).hexdigest()
+        duplicate = classify_document_duplicate(
+            file_sha256,
+            old_document_name,
+            resolved_office,
+            resolved_program,
+            "NEW_VERSION",
+            resolved_scope_type,
+            resolved_scope_code,
+        )
+        if duplicate["code"] == "EXACT_DUPLICATE":
+            raise duplicate_http_exception(duplicate_result_for_user(duplicate, admin))
+        if duplicate["code"] == "CROSS_SCOPE_DUPLICATE" and not allow_cross_scope_duplicate:
+            raise duplicate_http_exception(duplicate_result_for_user(duplicate, admin))
 
-        safe_filename   = file.filename.replace(" ", "_")
-        unique_filename = f"v{new_version}_{int(time.time())}_{safe_filename}"
+        registry_id = reserve_document_upload(
+            file_sha256=file_sha256,
+            file_size=len(contents),
+            original_filename=file.filename,
+            document_name=old_document_name,
+            category=category,
+            office=resolved_office,
+            program=resolved_program,
+            scope_type=resolved_scope_type,
+            scope_code=resolved_scope_code,
+            version=new_version,
+            upload_mode="NEW_VERSION",
+            uploaded_by=uploaded_by,
+        )
+
+        # ── 4. Store the replacement without overwriting the old object ───
+        safe_filename = re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(file.filename))
+        unique_filename = f"repository/{uuid.uuid4()}_{safe_filename}"
 
         supabase.storage.from_("documents").upload(
             file=contents,
             path=unique_filename,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = create_private_file_url(unique_filename)
+        stored_file_reference = unique_filename
         job_id = str(uuid.uuid4())
 
-        new_metadata = {
+        new_metadata = dict(old_metadata)
+        new_metadata.update({
             "name":             old_document_name,
             "category":         category,
-            "office":           office,
+            "office":           resolved_office,
+            "program":          resolved_program,
+            "scope_type":       resolved_scope_type,
+            "scope_code":       resolved_scope_code,
             "version":          new_version,
             "effectivity_date": new_effectivity_date,
             "upload_date":      datetime.now().isoformat(),
             "storage_path":     unique_filename,
-            "file_url":         public_url,
+            "file_url":         stored_file_reference,
             "job_id":           job_id,
             "status":           "Active",
             "uploaded_by":      uploaded_by or "Unknown",
-        }
+            "file_sha256":      file_sha256,
+            "file_size":        len(contents),
+            "original_filename": os.path.basename(file.filename),
+            "upload_registry_id": registry_id,
+            "supersede_previous_version": True,
+        })
+
+        update_document_upload_registry(
+            registry_id,
+            "PROCESSING",
+            storage_path=stored_file_reference,
+            job_id=job_id,
+        )
 
         # ── 5. Defer OCR + vector embedding to dedicated worker pool ─────
         background_tasks.add_task(
@@ -1786,15 +2856,16 @@ async def upload_new_version(
             content_type=file.content_type or "application/pdf",
             metadata=new_metadata,
         )
+        processing_queued = True
 
         # ── 6. Notifications synchronously ────────────────────────────────
         _notify_all_admins(
             db=db,
             n_type="info",
-            title="Document Updated to New Version",
+            title="Document Version Update Started",
             message=(
-                f"'{old_document_name}' has been updated to v{new_version}. "
-                "The previous version has been archived automatically."
+                f"Version {new_version} of '{old_document_name}' is being prepared. "
+                "The current version will remain available until processing succeeds."
             ),
         )
 
@@ -1802,10 +2873,10 @@ async def upload_new_version(
             db=db,
             role="FACULTY",
             n_type="info",
-            title="Document Updated",
+            title="Document Version Update Started",
             message=(
-                f"'{old_document_name}' has been updated to version {new_version}. "
-                "The latest version is now available in the Knowledge Repository."
+                f"Version {new_version} of '{old_document_name}' is being prepared. "
+                "It will replace the current version after processing succeeds."
             ),
         )
 
@@ -1817,10 +2888,24 @@ async def upload_new_version(
         }
 
     except HTTPException:
+        if registry_id and not processing_queued:
+            update_document_upload_registry(registry_id, "FAILED", failure_reason="Version upload was not completed.")
+            if stored_file_reference:
+                try:
+                    supabase.storage.from_("documents").remove([stored_file_reference])
+                except Exception:
+                    _log.exception("version_upload_storage_cleanup_failed", extra={"storage_path": stored_file_reference})
         raise
     except Exception as e:
-        print(f"Update version error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if registry_id and not processing_queued:
+            update_document_upload_registry(registry_id, "FAILED", failure_reason="Version Storage upload or queueing failed.")
+            if stored_file_reference:
+                try:
+                    supabase.storage.from_("documents").remove([stored_file_reference])
+                except Exception:
+                    _log.exception("version_upload_storage_cleanup_failed", extra={"storage_path": stored_file_reference})
+        _log.exception("document_version_upload_failed", extra={"request_id": _request_id.get(), "filename": file.filename, "name": old_document_name})
+        raise HTTPException(status_code=500, detail=f"Version upload failed. Request ID: {_request_id.get()}") from e
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DOCUMENTS — LIST
@@ -1849,7 +2934,9 @@ def get_documents(
             if not can_read_document(current_user, meta):
                 continue
             name = meta.get("name")
-            if not name or name in unique_docs:
+            scope_type, scope_code = document_scope(meta)
+            document_key = (name, scope_type, scope_code)
+            if not name or document_key in unique_docs:
                 continue
 
             if current_user.role.upper() == "STUDENT" and is_student_hidden_category(meta.get("category")):
@@ -1860,20 +2947,24 @@ def get_documents(
             if category and meta.get("category") != category: continue
             if status and meta.get("status") != status: continue
 
-            unique_docs[name] = {
-                "can_manage": can_read_document(current_user, meta) and can_manage_document(current_user, meta),
+            unique_docs[document_key] = {
+                "can_manage": not is_governance_evidence(meta) and can_read_document(current_user, meta) and can_manage_document(current_user, meta),
                 "id":               meta.get("id") or f"doc_{len(unique_docs) + 1}",
                 "name":             name,
                 "category":         meta.get("category",         ""),
                 "office":           meta.get("office",           ""),
                 "program":          meta.get("program",          "GLOBAL"),
+                "scope_type":       scope_type,
+                "scope_code":       scope_code,
                 "version":          meta.get("version",          "1.0"),
                 "effectivity_date": meta.get("effectivity_date", ""),
                 "status":           meta.get("status",           "Active"),
                 "approved_by":      meta.get("approved_by",      ""),
                 "approved_at":      meta.get("approved_at",      ""),
                 "admin_feedback":   meta.get("admin_feedback",   ""),
-                "file_url":         meta.get("file_url",         ""),
+                "file_url":         get_fresh_private_file_url(
+                    meta.get("file_url"), meta.get("storage_path")
+                ),
                 "upload_date":      meta.get("upload_date",      ""),
                 "uploaded_by":      meta.get("uploaded_by",      "Unknown"),
             }
@@ -1887,6 +2978,8 @@ def get_documents(
 def get_document_file_url(
     document_name: str = Query(..., min_length=1),
     version: Optional[str] = Query(None),
+    scope_type: Optional[str] = Query(None),
+    scope_code: Optional[str] = Query(None),
     current_user: models.User = Depends(get_current_user),
 ):
     """Return a fresh authorized signed URL for a repository document.
@@ -1916,6 +3009,11 @@ def get_document_file_url(
         if metadata.get("name") != document_name.strip():
             continue
         if version and str(metadata.get("version", "")) != str(version):
+            continue
+        metadata_scope = document_scope(metadata)
+        if scope_type and metadata_scope[0] != scope_type.upper():
+            continue
+        if scope_code and metadata_scope[1] != scope_code:
             continue
         if current_user.role.upper() == "STUDENT":
             if is_student_hidden_category(metadata.get("category")):
@@ -1965,24 +3063,50 @@ def update_document(
 ):
     require_document_name_access(admin, request.old_name)
     try:
-        res = supabase.table("document_sections").select("metadata").eq("metadata->>name", request.old_name).limit(1).execute()
-        if not res.data:
+        res = supabase.table("document_sections").select("id, metadata").eq("metadata->>name", request.old_name).execute()
+        matching_rows = [
+            row for row in (res.data or [])
+            if document_scope(row.get("metadata") or {}) == (request.old_scope_type.upper(), request.old_scope_code)
+        ]
+        if not matching_rows:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        base_metadata = res.data[0]['metadata']
-        updated_metadata = dict(base_metadata)
-        updated_metadata.update({"category": request.category, "office": request.office, "program": request.program or "GLOBAL"})
-        if not can_manage_document(admin, updated_metadata):
-            raise HTTPException(403, "You cannot move this document outside your assigned scope.")
+        base_metadata = matching_rows[0]['metadata']
+        if not can_manage_document(admin, base_metadata):
+            raise HTTPException(403, "You cannot edit a document outside your assigned scope.")
+        require_general_repository_category(request.category)
+        scope_type, scope_code, office, program = authorize_repository_scope(
+            db, admin, request.scope_type, request.scope_code
+        )
 
         base_metadata["name"]             = request.new_name
         base_metadata["category"]         = request.category
-        base_metadata["office"]           = request.office
-        base_metadata["program"]          = request.program or "GLOBAL"
+        base_metadata["office"]           = office
+        base_metadata["program"]          = program
+        base_metadata["scope_type"]       = scope_type
+        base_metadata["scope_code"]       = scope_code
         base_metadata["version"]          = request.version
         base_metadata["effectivity_date"] = request.effectivity_date
 
-        supabase.table("document_sections").update({"metadata": base_metadata}).eq("metadata->>name", request.old_name).execute()
+        registry_id = base_metadata.get("upload_registry_id")
+        if registry_id:
+            supabase.table("document_uploads").update({
+                "document_name": request.new_name.strip(),
+                "normalized_name": normalize_document_identity(request.new_name),
+                "category": request.category,
+                "office": office,
+                "program": program,
+                "scope_type": scope_type,
+                "scope_code": scope_code,
+                "scope_key": document_scope_key(office, program, scope_type, scope_code),
+                "version": request.version,
+                "updated_at": datetime.utcnow().isoformat(),
+            }).eq("id", registry_id).execute()
+
+        for row in matching_rows:
+            row_metadata = dict(row.get("metadata") or {})
+            row_metadata.update(base_metadata)
+            supabase.table("document_sections").update({"metadata": row_metadata}).eq("id", row["id"]).execute()
 
         # ── Notify faculty and admins of the edit ──
         if request.old_name != request.new_name:
@@ -2025,6 +3149,8 @@ def update_document(
 @app.post("/documents/{doc_name}/approve")
 def approve_document(
     doc_name: str,
+    scope_type: str = Query(...),
+    scope_code: str = Query(...),
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_document_manager),
 ):
@@ -2032,11 +3158,13 @@ def approve_document(
     require_document_name_access(admin, doc_name)
     try:
         chunks = supabase.table("document_sections").select("id, metadata").eq("metadata->>name", doc_name).execute()
-        if not chunks.data:
+        scoped_chunks = [chunk for chunk in (chunks.data or []) if document_scope(chunk.get("metadata") or {}) == (scope_type.upper(), scope_code)]
+        if not scoped_chunks:
             raise HTTPException(status_code=404, detail="Document not found in the knowledge repository.")
-        for chunk in chunks.data:
-            require_document_office(admin, (chunk.get("metadata") or {}).get("office"))
-        for chunk in chunks.data:
+        for chunk in scoped_chunks:
+            if not can_manage_document(admin, chunk.get("metadata") or {}):
+                raise HTTPException(403, "This document is outside your assigned repository scope.")
+        for chunk in scoped_chunks:
             metadata = chunk.get("metadata") or {}
             metadata["status"] = "Approved"
             metadata["approved_by"] = admin.email
@@ -2052,6 +3180,8 @@ def approve_document(
 @app.delete("/documents/{doc_name}")
 def archive_document(
     doc_name: str,
+    scope_type: str = Query(...),
+    scope_code: str = Query(...),
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_document_manager)
 ):
@@ -2059,68 +3189,27 @@ def archive_document(
     try:
         # 1. Archive vector chunks in document_sections
         chunks_res = supabase.table("document_sections").select("id, metadata").eq("metadata->>name", doc_name).execute()
-        has_chunks = bool(chunks_res.data)
-        for chunk in chunks_res.data or []:
+        scoped_chunks = [chunk for chunk in (chunks_res.data or []) if document_scope(chunk.get("metadata") or {}) == (scope_type.upper(), scope_code)]
+        has_chunks = bool(scoped_chunks)
+        for chunk in scoped_chunks:
             if not can_manage_document(admin, chunk.get("metadata") or {}):
                 raise HTTPException(403, "This document is outside your assigned governance scope.")
-        for ev in db.query(models.ISOEvidence).filter(models.ISOEvidence.document_name == doc_name).all():
-            require_office(admin, ev.requirement.auditee_office)
-        for ev in db.query(models.ChedEvidence).filter(models.ChedEvidence.document_name == doc_name).all():
-            require_program(admin, ev.requirement.program)
+            if is_governance_evidence(chunk.get("metadata") or {}):
+                raise HTTPException(400, "Archive accreditation or ISO evidence from its Accreditation Support workflow.")
 
-        # 2. Cascading cleanup for ISO Evidences
-        linked_iso_evidences = db.query(models.ISOEvidence).filter(models.ISOEvidence.document_name == doc_name).all()
-        for iso_ev in linked_iso_evidences:
-            parent_req = iso_ev.requirement
-            db.delete(iso_ev)
-            db.flush()
-
-            if parent_req:
-                remaining_evs = db.query(models.ISOEvidence).filter(models.ISOEvidence.iso_requirement_id == parent_req.id).all()
-                approved_evs = [e for e in remaining_evs if e.status == "Approved"]
-                pending_evs = [e for e in remaining_evs if e.status == "Pending"]
-
-                if approved_evs:
-                    parent_req.status = "Compliant"
-                elif pending_evs:
-                    parent_req.status = "Pending"
-                else:
-                    parent_req.status = "Not Compliant"
-
-        # 3. Cascading cleanup for CHED Evidences
-        linked_ched_evidences = db.query(models.ChedEvidence).filter(models.ChedEvidence.document_name == doc_name).all()
-        for ched_ev in linked_ched_evidences:
-            parent_ched = ched_ev.requirement
-            db.delete(ched_ev)
-            db.flush()
-
-            if parent_ched:
-                remaining_ched = db.query(models.ChedEvidence).filter(models.ChedEvidence.requirement_id == parent_ched.id).all()
-                parent_ched.status = "Compliant" if remaining_ched else "Not Compliant"
-
-        # 4. Cascading cleanup for QMS Evidences (if any)
-        linked_qms_evidences = db.query(models.QMSEvidence).filter(models.QMSEvidence.document_name == doc_name).all()
-        for qms_ev in linked_qms_evidences:
-            db.delete(qms_ev)
-
-        if not has_chunks and not linked_iso_evidences and not linked_ched_evidences and not linked_qms_evidences:
+        if not has_chunks:
             raise HTTPException(status_code=404, detail="Document not found in the database.")
 
         if has_chunks:
-            for chunk in chunks_res.data:
+            registry_ids = set()
+            for chunk in scoped_chunks:
                 chunk_meta = chunk.get('metadata') or {}
                 chunk_meta['status'] = "Archived"
+                if chunk_meta.get("upload_registry_id"):
+                    registry_ids.add(str(chunk_meta["upload_registry_id"]))
                 supabase.table("document_sections").update({"metadata": chunk_meta}).eq("id", chunk['id']).execute()
-
-        try:
-            supabase.table("iso_evidences").delete().eq("document_name", doc_name).execute()
-        except Exception:
-            pass
-
-        try:
-            supabase.table("ched_evidences").delete().eq("document_name", doc_name).execute()
-        except Exception:
-            pass
+            for registry_id in registry_ids:
+                update_document_upload_registry(registry_id, "ARCHIVED")
 
         db.commit()
 
@@ -2163,7 +3252,7 @@ def ask_policy(
     req: Request,
     request: QuestionRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[models.User] = Depends(get_optional_user)
+    current_user: models.User = Depends(get_current_user),
 ):
     request_started_at = time.perf_counter()
     # RAG Query Rate Limiting: Max 15 questions per 1 minute per IP to prevent vector database scraping
@@ -2199,13 +3288,10 @@ def ask_policy(
             "restricted": False
         }
 
-    # SECURITY HARDENING: Use cryptographically verified identity from JWT token if logged in
-    if current_user:
-        user_email = current_user.email
-        user_role = current_user.role.upper()
-    else:
-        user_email = request.user_email
-        user_role = "STUDENT"
+    # Identity and authorization always come from the verified server-side
+    # account. The request body cannot select an email address or role.
+    user_email = current_user.email
+    user_role = role_of(current_user)
 
     # ==========================================
     # ROLE-BASED ACCESS CONFIGURATION
@@ -2482,12 +3568,12 @@ Standalone Search Query:"""
             "such as the Student Handbook, academic catalog, grading guidelines, and general procedures. "
             "Accreditation evidence materials are confidential and must not be disclosed."
         ),
-        "FACULTY": (
-            "The user is a FACULTY MEMBER. Reference authorized institutional documents including "
+        "PERSONNEL": (
+            "The user is CAMPUS PERSONNEL. Reference authorized institutional documents including "
             "the Faculty Manual, research policies, syllabus guidelines, and curriculum standards."
         ),
-        "ADMIN": (
-            "The user is an ADMINISTRATOR. You have access to all verified institutional policies "
+        "SYSTEM_ADMIN": (
+            "The user is a SYSTEM ADMINISTRATOR. You have access to all verified institutional policies "
             "and administrative quality standards."
         ),
     }.get(user_role, "The user's role is unknown. Answer conservatively using only general public policies.")
@@ -2739,12 +3825,13 @@ def broadcast_notification(
     try:
         sent = 0
 
-        if request.target_role.upper() in ("ALL", "EVERYONE"):
-            # Faculty + Students
+        target_role = "PERSONNEL" if request.target_role.upper() == "FACULTY" else request.target_role.upper()
+        if target_role in ("ALL", "EVERYONE"):
+            # Personnel + Students
             users = (
                 db.query(models.User)
                 .filter(
-                    models.User.role.in_(["FACULTY", "STUDENT"]),
+                    models.User.role.in_(["PERSONNEL", "STUDENT"]),
                     models.User.status != "Disabled"
                 )
                 .all()
@@ -2753,7 +3840,7 @@ def broadcast_notification(
             users = (
                 db.query(models.User)
                 .filter(
-                    models.User.role == request.target_role.upper(),
+                    models.User.role == target_role,
                     models.User.status != "Disabled"
                 )
                 .all()
@@ -2850,8 +3937,10 @@ def get_public_stats():
 
 
 @app.get("/system-stats")
-def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def get_system_stats(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     role = role_of(current_user)
+    is_admin = is_system_admin(current_user)
+    has_governance_access = permissions_for(current_user)["governance.access"]
     import json
 
     total_docs     = 0
@@ -2863,12 +3952,12 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), curre
     iso_pending    = 0
     iso_compliance = 0
 
-    if _DB_IS_AVAILABLE:
+    if is_admin and _DB_IS_AVAILABLE:
         try:
             total_users = db.query(models.User).count()
         except Exception:
             total_users = 0
-    if not total_users:
+    if is_admin and not total_users:
         try:
             u_res = supabase.table("users").select("id").execute()
             total_users = len(u_res.data) if u_res.data else 0
@@ -2932,14 +4021,17 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), curre
         print(f"Document count error: {e}")
 
     try:
-        query_response = supabase.table("chat_history").select("id").eq("role", "user").execute()
+        query = supabase.table("chat_history").select("id").eq("role", "user")
+        if not is_admin:
+            query = query.eq("user_email", current_user.email)
+        query_response = query.execute()
         total_queries  = len(query_response.data) if query_response.data else 0
     except Exception as e:
         print(f"Chat count error: {e}")
 
     # QMS Action Plans (Form 6)
     qms_processed = False
-    if _DB_IS_AVAILABLE:
+    if has_governance_access and _DB_IS_AVAILABLE:
         try:
             qms_plans = filter_office_records(current_user, db.query(models.QMSActionPlan).all())
             qms_total = len(qms_plans)
@@ -2955,7 +4047,7 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), curre
         except Exception:
             qms_processed = False
 
-    if not qms_processed:
+    if has_governance_access and not qms_processed:
         try:
             q_res = supabase.table("qms_action_plans").select("*").execute()
             q_res.data = filter_office_records(current_user, q_res.data or [])
@@ -2968,7 +4060,7 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), curre
 
     # ISO Requirements & Campus Compliance
     iso_processed = False
-    if _DB_IS_AVAILABLE:
+    if has_governance_access and _DB_IS_AVAILABLE:
         try:
             iso_pending = db.query(models.ISORequirement).filter(models.ISORequirement.status == "Pending").count()
             iso_reqs = db.query(models.ISORequirement).filter(models.ISORequirement.cycle_year.ilike("%2026%")).all()
@@ -2983,7 +4075,7 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), curre
         except Exception:
             iso_processed = False
 
-    if not iso_processed:
+    if has_governance_access and not iso_processed:
         try:
             i_res = supabase.table("iso_requirements").select("*").execute()
             i_res.data = filter_office_records(current_user, i_res.data or [])
@@ -3009,6 +4101,7 @@ def get_system_stats(role: str = "STUDENT", db: Session = Depends(get_db), curre
         "aaccupPending":  aaccup_pending,
         "isoPending":     iso_pending,
         "isoCompliance":  iso_compliance,
+        "scope":          "global" if is_admin else ("assigned" if has_governance_access else "personal"),
     }
 
 
@@ -3093,15 +4186,19 @@ def submit_feedback(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/chat-history")
-def get_chat_history(email: str, current_user: models.User = Depends(get_current_user)):
-    if email.lower() != current_user.email.lower() and not is_system_admin(current_user):
+def get_chat_history(
+    email: Optional[str] = None,
+    current_user: models.User = Depends(get_current_user),
+):
+    target_email = (email or current_user.email).strip().lower()
+    if target_email != current_user.email.lower() and not is_system_admin(current_user):
         raise HTTPException(status_code=403, detail="You may only access your own chat history.")
     seven_days_ago = (datetime.now() - timedelta(days=7)).isoformat()
 
     try:
         response = supabase.table("chat_history")\
             .select("*")\
-            .eq("user_email", email)\
+            .eq("user_email", target_email)\
             .gte("created_at", seven_days_ago)\
             .order("created_at", desc=False)\
             .execute()
@@ -3109,7 +4206,7 @@ def get_chat_history(email: str, current_user: models.User = Depends(get_current
         feedback_response = (
             supabase.table("feedback_logs")
             .select("response_id,is_helpful")
-            .eq("user_email", email)
+            .eq("user_email", target_email)
             .execute()
         )
         feedback_by_response = {
@@ -3131,6 +4228,70 @@ def get_chat_history(email: str, current_user: models.User = Depends(get_current
 # ACCREDITATION
 # ─────────────────────────────────────────────────────────────────────────────
 
+def resolve_accreditation_cycle(
+    db: Session,
+    program_code: str,
+    cycle_id: Optional[str] = None,
+) -> tuple[models.ProgramAccreditation, models.AccreditationCycle]:
+    accreditation = db.query(models.ProgramAccreditation).filter(
+        models.ProgramAccreditation.program_code == program_code
+    ).first()
+    if not accreditation:
+        raise HTTPException(status_code=404, detail="Program accreditation record not found.")
+
+    query = db.query(models.AccreditationCycle).filter(
+        models.AccreditationCycle.program_id == accreditation.id
+    )
+    if cycle_id:
+        try:
+            normalized_cycle_id = uuid.UUID(str(cycle_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid accreditation cycle ID.") from exc
+        cycle = query.filter(models.AccreditationCycle.id == normalized_cycle_id).first()
+    else:
+        cycle = query.filter(models.AccreditationCycle.status == "ACTIVE").first()
+    if not cycle:
+        raise HTTPException(status_code=404, detail="Accreditation cycle not found for this program.")
+    return accreditation, cycle
+
+
+def load_aaccup_evidence_chunks(evidence_id: uuid.UUID) -> list[dict]:
+    response = (
+        supabase.table("document_sections")
+        .select("id, metadata")
+        .eq("metadata->>category", "Accreditation Evidence")
+        .eq("metadata->>accreditation_evidence_id", str(evidence_id))
+        .execute()
+    )
+    return response.data or []
+
+
+def aaccup_evidence_from_metadata(metadata: dict) -> dict:
+    return {
+        "evidence_id": metadata.get("accreditation_evidence_id"),
+        "cycle_id": metadata.get("accreditation_cycle_id"),
+        "program": metadata.get("program", ""),
+        "name": metadata.get("name", "Untitled evidence"),
+        "area_code": metadata.get("area_code", ""),
+        "requirement_target": metadata.get("requirement_target", "Uncategorized"),
+        "status": metadata.get("status", "Pending"),
+        "admin_feedback": metadata.get("admin_feedback", ""),
+        "uploaded_by": metadata.get("uploaded_by"),
+        "upload_date": metadata.get("upload_date"),
+        "original_filename": metadata.get("original_filename"),
+    }
+
+
+def require_active_aaccup_evidence(db: Session, metadata: dict) -> models.AccreditationCycle:
+    program_code = metadata.get("program")
+    cycle_id = metadata.get("accreditation_cycle_id")
+    if not program_code or not cycle_id:
+        raise HTTPException(status_code=409, detail="This evidence is not linked to an accreditation cycle.")
+    _, cycle = resolve_accreditation_cycle(db, program_code, cycle_id)
+    if cycle.status != "ACTIVE":
+        raise HTTPException(status_code=409, detail="Previous accreditation cycles are read-only.")
+    return cycle
+
 @app.post("/upload-accreditation-evidence")
 async def upload_accreditation_evidence(
     file:                UploadFile = File(...),
@@ -3139,6 +4300,7 @@ async def upload_accreditation_evidence(
     area_code:           str = Form(...),
     requirement_target:  str = Form(...),
     uploaded_by:         str = Form(None),
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_faculty_or_admin),
 ):
     uploaded_by = current_user.email
@@ -3176,6 +4338,23 @@ async def upload_accreditation_evidence(
         if not extracted_text.strip():
             raise HTTPException(status_code=400, detail="Could not extract text.")
 
+        accreditation = (
+            db.query(models.ProgramAccreditation)
+            .filter(models.ProgramAccreditation.program_code == program)
+            .with_for_update()
+            .first()
+        )
+        if not accreditation:
+            accreditation = models.ProgramAccreditation(
+                program_code=program,
+                current_level="Candidate Status",
+                status="Active",
+            )
+            db.add(accreditation)
+            db.flush()
+        active_cycle = ensure_active_accreditation_cycle(db, accreditation, uploaded_by)
+        db.commit()
+
         # --- OFFLINE OCR PIPELINE: Clean artifacts before embedding ---
         extracted_text = clean_ocr_text_offline(extracted_text)
         # --------------------------------------------------------------
@@ -3186,7 +4365,7 @@ async def upload_accreditation_evidence(
         supabase.storage.from_("documents").upload(
             file=contents, path=unique_filename, file_options={"content-type": file.content_type}
         )
-        public_url = create_private_file_url(unique_filename)
+        stored_file_reference = unique_filename
 
         metadata = {
             "name": document_name,
@@ -3195,12 +4374,21 @@ async def upload_accreditation_evidence(
             "version": "1.0",
             "status": "Pending", 
             "program": program,
+            "scope_type": "PROGRAM",
+            "scope_code": program,
             "area_code": area_code,
             "requirement_target": requirement_target, 
+            "accreditation_evidence_id": str(evidence_id),
+            "accreditation_cycle_id": str(active_cycle.id),
+            "accreditation_cycle_label": active_cycle.cycle_label,
+            "accreditation_level": active_cycle.level_name,
+            "accreditation_attempt": active_cycle.attempt_number,
             "uploaded_by": uploaded_by, 
             "admin_feedback": "",
             "upload_date": datetime.now().isoformat(),
-            "file_url": public_url
+            "original_filename": file.filename,
+            "storage_path": unique_filename,
+            "file_url": stored_file_reference
         }
 
         vector_store.add_to_vector_db(extracted_text, metadata)
@@ -3217,33 +4405,53 @@ async def upload_accreditation_evidence(
             print(f"Failed to log accreditation upload: {e}")
         # ------------------------
 
-        return {"message": "Evidence successfully uploaded and is pending Admin review!"}
+        return {"message": "Evidence uploaded to the current accreditation cycle and is pending review."}
 
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
+        db.rollback()
         print(f"Evidence upload error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- NEW: ADMIN REVIEW QUEUE ROUTE ---
 @app.get("/admin/accreditation-pending")
-def get_pending_accreditation(admin: models.User = Depends(get_governance_reviewer)):
-    from vector_store import supabase
+def get_pending_accreditation(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_governance_reviewer),
+):
     try:
         res = supabase.table("document_sections").select("metadata").eq("metadata->>category", "Accreditation Evidence").eq("metadata->>status", "Pending").execute()
-        
+
+        active_cycle_ids = {
+            str(cycle.id)
+            for cycle in db.query(models.AccreditationCycle).filter(
+                models.AccreditationCycle.status == "ACTIVE"
+            ).all()
+        }
         unique_docs = {}
         if res.data:
             for item in res.data:
                 meta = item.get('metadata', {})
-                doc_name = meta.get('name')
-                if doc_name and doc_name not in unique_docs:
-                    unique_docs[doc_name] = {
-                        "name": doc_name,
+                evidence_id = meta.get("accreditation_evidence_id")
+                if not evidence_id or meta.get("accreditation_cycle_id") not in active_cycle_ids:
+                    continue
+                if not can_access_program(admin, meta.get('program')):
+                    continue
+                if evidence_id not in unique_docs:
+                    unique_docs[evidence_id] = {
+                        "evidence_id": evidence_id,
+                        "cycle_id": meta.get("accreditation_cycle_id"),
+                        "name": meta.get('name'),
                         "program": meta.get('program', 'Unknown'),
                         "area_code": meta.get('area_code', 'Unknown'),
                         "target": meta.get('requirement_target', 'Unknown'),
                         "uploaded_by": meta.get('uploaded_by', 'Faculty Member'),
                         "date": meta.get('upload_date', '').split('T')[0],
-                        "url": meta.get('file_url')
+                        "url": get_fresh_private_file_url(
+                            meta.get('file_url'), meta.get('storage_path')
+                        )
                     }
         return list(unique_docs.values())
     except Exception as e:
@@ -3253,18 +4461,28 @@ def get_pending_accreditation(admin: models.User = Depends(get_governance_review
 @app.post("/admin/accreditation-review")
 def review_accreditation(
     req: AccreditationReviewRequest,
+    db: Session = Depends(get_db),
     admin: models.User = Depends(get_governance_reviewer),
 ):
-    from vector_store import supabase
     try:
-        # Fetch all chunks of this document
-        chunks_res = supabase.table("document_sections").select("id, metadata").eq("metadata->>name", req.document_name).execute()
-        
-        if not chunks_res.data:
-            raise HTTPException(status_code=404, detail="Document not found")
+        chunks = load_aaccup_evidence_chunks(req.evidence_id)
+        if not chunks:
+            raise HTTPException(status_code=404, detail="Accreditation evidence not found.")
 
-        # Update status and feedback for all chunks
-        for chunk in chunks_res.data:
+        canonical_metadata = chunks[0].get("metadata") or {}
+        require_program(admin, canonical_metadata.get("program"))
+        require_active_aaccup_evidence(db, canonical_metadata)
+        for chunk in chunks:
+            chunk_meta = chunk.get("metadata") or {}
+            if chunk_meta.get('category') != "Accreditation Evidence":
+                raise HTTPException(status_code=400, detail="This document is not accreditation evidence.")
+            if (
+                chunk_meta.get("program") != canonical_metadata.get("program")
+                or chunk_meta.get("accreditation_cycle_id") != canonical_metadata.get("accreditation_cycle_id")
+            ):
+                raise HTTPException(status_code=409, detail="Evidence chunks have inconsistent accreditation scope.")
+
+        for chunk in chunks:
             chunk_meta = chunk['metadata']
             chunk_meta['status'] = req.status
             chunk_meta['admin_feedback'] = req.feedback
@@ -3273,12 +4491,13 @@ def review_accreditation(
 
         # --- SILENT AUDIT LOG ---
         try:
-            action_desc = f"Admin marked '{req.document_name}' as {req.status}."
+            document_name = canonical_metadata.get("name", "Accreditation evidence")
+            action_desc = f"Reviewer marked '{document_name}' as {req.status}."
             if req.status == "Needs Revision":
                 action_desc += f" Feedback: {req.feedback}"
                 
             supabase.table("system_events_logs").insert({
-                "user_email": "System Admin", # Can be dynamic if you pass admin email
+                "user_email": admin.email,
                 "event_type": "QA Review",
                 "description": action_desc
             }).execute()
@@ -3286,22 +4505,36 @@ def review_accreditation(
             print(f"Failed to log QA Review: {e}")
         # ------------------------
 
-        return {"message": f"Document successfully marked as {req.status}!"}
+        return {"message": f"Evidence successfully marked as {req.status}."}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to process review")
 
 # 2. THE UPDATED STATUS ROUTE (Database-driven AACCUP requirements)
 @app.get("/accreditation-status/{program}")
-def get_accreditation_status(program: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
+def get_accreditation_status(
+    program: str,
+    cycle_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
     require_program(current_user, program)
     try:
-        # Fetch active areas configuration for the program if exists
+        prog_acc, selected_cycle = resolve_accreditation_cycle(db, program, cycle_id)
         active_areas_set = None
-        prog_acc = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program).first()
         if prog_acc and prog_acc.active_areas:
             active_areas_set = set(a.strip() for a in prog_acc.active_areas.split(",") if a.strip())
 
-        res = supabase.table("document_sections").select("metadata").eq("metadata->>category", "Accreditation Evidence").eq("metadata->>program", program).eq("metadata->>status", "Approved").execute()
+        res = (
+            supabase.table("document_sections")
+            .select("metadata")
+            .eq("metadata->>category", "Accreditation Evidence")
+            .eq("metadata->>program", program)
+            .eq("metadata->>accreditation_cycle_id", str(selected_cycle.id))
+            .eq("metadata->>status", "Approved")
+            .execute()
+        )
         
         fulfilled_reqs = {}
         if res.data:
@@ -3356,24 +4589,38 @@ def get_accreditation_status(program: str, db: Session = Depends(get_db), curren
         overall = int((total_ev / total_req) * 100) if total_req > 0 else 0
 
         return {
-            "level":    "Level III" if program == "BSIT" else "Level II",
+            "level":    selected_cycle.level_name,
+            "cycle_id": str(selected_cycle.id),
+            "cycle_label": selected_cycle.cycle_label,
+            "cycle_status": selected_cycle.status,
+            "read_only": selected_cycle.status == "CLOSED",
             "overall":  overall,
             "gaps":     total_req - total_ev,
             "evidence": total_ev,
             "areas":    areas_list,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to calculate status")
 
 
 @app.get("/accreditation-details/{program}/{area_code}")
-def get_accreditation_details(program: str, area_code: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
+def get_accreditation_details(
+    program: str,
+    area_code: str,
+    cycle_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
     require_program(current_user, program)
     try:
+        _, selected_cycle = resolve_accreditation_cycle(db, program, cycle_id)
         response = supabase.table("document_sections")\
             .select("metadata")\
             .eq("metadata->>category", "Accreditation Evidence")\
             .eq("metadata->>program",  program)\
+            .eq("metadata->>accreditation_cycle_id", str(selected_cycle.id))\
             .eq("metadata->>area_code", area_code)\
             .execute()
 
@@ -3385,6 +4632,7 @@ def get_accreditation_details(program: str, area_code: str, db: Session = Depend
                 meta = item.get('metadata', {})
                 if meta.get('status') == "Archived": continue
                 
+                evidence_id = meta.get("accreditation_evidence_id")
                 doc_name = meta.get('name')
                 req_target = meta.get('requirement_target') 
                 doc_status = meta.get('status', 'Pending')
@@ -3392,14 +4640,18 @@ def get_accreditation_details(program: str, area_code: str, db: Session = Depend
                 if req_target and doc_status == "Approved":
                     fulfilled_targets.add(req_target) 
                 
-                if doc_name and doc_name not in unique_docs:
-                    unique_docs[doc_name] = {
+                if evidence_id and evidence_id not in unique_docs:
+                    unique_docs[evidence_id] = {
+                        "evidence_id": evidence_id,
+                        "cycle_id": str(selected_cycle.id),
                         "name": doc_name,
                         "date": meta.get('upload_date', '').split('T')[0] if 'upload_date' in meta else 'Recently',
-                        "url": meta.get('file_url') or meta.get('source', '#'),
                         "target": req_target or "Uncategorized",
+                        "requirement_target": req_target or "Uncategorized",
                         "status": doc_status,
-                        "feedback": meta.get('admin_feedback', '')
+                        "feedback": meta.get('admin_feedback', ''),
+                        "uploaded_by": meta.get("uploaded_by"),
+                        "original_filename": meta.get("original_filename"),
                     }
 
         uploaded_files = list(unique_docs.values())
@@ -3415,16 +4667,121 @@ def get_accreditation_details(program: str, area_code: str, db: Session = Depend
             })
 
         return {
+            "cycle": schemas.AccreditationCycleResponse.model_validate(selected_cycle).model_dump(),
+            "read_only": selected_cycle.status == "CLOSED",
             "requirements":  requirements,
             "uploadedFiles": sorted(uploaded_files, key=lambda x: x['date'], reverse=True),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to fetch details")
 
 
+@app.get(
+    "/accreditation/program/{program_code}/cycles/{cycle_id}/evidence",
+    response_model=List[schemas.AaccupEvidenceResponse],
+)
+def list_cycle_aaccup_evidence(
+    program_code: str,
+    cycle_id: str,
+    area_code: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    require_program(current_user, program_code)
+    _, cycle = resolve_accreditation_cycle(db, program_code, cycle_id)
+    query = (
+        supabase.table("document_sections")
+        .select("metadata")
+        .eq("metadata->>category", "Accreditation Evidence")
+        .eq("metadata->>program", program_code)
+        .eq("metadata->>accreditation_cycle_id", str(cycle.id))
+    )
+    if area_code:
+        query = query.eq("metadata->>area_code", area_code)
+    rows = query.execute().data or []
+    evidence_by_id = {}
+    for row in rows:
+        metadata = row.get("metadata") or {}
+        evidence_id = metadata.get("accreditation_evidence_id")
+        if evidence_id and metadata.get("status") != "Archived":
+            evidence_by_id.setdefault(evidence_id, aaccup_evidence_from_metadata(metadata))
+    return sorted(
+        evidence_by_id.values(),
+        key=lambda item: item.get("upload_date") or "",
+        reverse=True,
+    )
+
+
+@app.get("/accreditation/evidence/{evidence_id}/access-url")
+def get_aaccup_evidence_access_url(
+    evidence_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    chunks = load_aaccup_evidence_chunks(evidence_id)
+    if not chunks:
+        raise HTTPException(status_code=404, detail="Accreditation evidence not found.")
+    metadata = chunks[0].get("metadata") or {}
+    require_program(current_user, metadata.get("program"))
+    resolve_accreditation_cycle(db, metadata.get("program"), metadata.get("accreditation_cycle_id"))
+    storage_path = metadata.get("storage_path") or get_private_storage_path(metadata.get("file_url"))
+    if not storage_path:
+        raise HTTPException(status_code=404, detail="Evidence storage path is missing.")
+    fresh_url = create_private_file_url(storage_path)
+    if not fresh_url:
+        raise HTTPException(status_code=503, detail="Could not create a temporary evidence URL.")
+    return {
+        "file_url": fresh_url,
+        "name": metadata.get("name", "Accreditation evidence"),
+        "original_filename": metadata.get("original_filename"),
+    }
+
+
+@app.delete("/accreditation/evidence/{evidence_id}")
+def archive_aaccup_evidence(
+    evidence_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    chunks = load_aaccup_evidence_chunks(evidence_id)
+    if not chunks:
+        raise HTTPException(status_code=404, detail="Accreditation evidence not found.")
+    metadata = chunks[0].get("metadata") or {}
+    require_program(current_user, metadata.get("program"))
+    if not permissions_for(current_user).get("documents.manage"):
+        raise HTTPException(status_code=403, detail="Program document management permission required.")
+    require_active_aaccup_evidence(db, metadata)
+    for chunk in chunks:
+        chunk_metadata = chunk.get("metadata") or {}
+        if (
+            chunk_metadata.get("program") != metadata.get("program")
+            or chunk_metadata.get("accreditation_cycle_id") != metadata.get("accreditation_cycle_id")
+        ):
+            raise HTTPException(status_code=409, detail="Evidence chunks have inconsistent accreditation scope.")
+        chunk_metadata["status"] = "Archived"
+        chunk_metadata["archived_by"] = current_user.email
+        chunk_metadata["archived_at"] = datetime.utcnow().isoformat()
+        supabase.table("document_sections").update({"metadata": chunk_metadata}).eq("id", chunk["id"]).execute()
+    try:
+        supabase.table("system_events_logs").insert({
+            "user_email": current_user.email,
+            "event_type": "Accreditation Evidence Archived",
+            "description": f"Archived '{metadata.get('name', 'Accreditation evidence')}' from the active {metadata.get('program')} cycle.",
+        }).execute()
+    except Exception:
+        pass
+    return {"message": "Evidence archived from the active accreditation cycle."}
+
+
 # --- AACCUP REQUIREMENTS CRUD ENDPOINTS ---
 @app.get("/aaccup/requirements", response_model=List[schemas.AaccupRequirementResponse])
-def get_aaccup_requirements(area_code: Optional[str] = None, db: Session = Depends(get_db)):
+def get_aaccup_requirements(
+    area_code: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_accreditation_reader),
+):
     query = db.query(models.AaccupRequirement)
     if area_code:
         query = query.filter(models.AaccupRequirement.area_code == area_code)
@@ -3435,7 +4792,7 @@ def get_aaccup_requirements(area_code: Optional[str] = None, db: Session = Depen
 def create_aaccup_requirement(
     req: schemas.AaccupRequirementCreate,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_governance_reviewer),
+    admin: models.User = Depends(get_campus_governance_reviewer),
 ):
     item = models.AaccupRequirement(**req.model_dump())
     db.add(item)
@@ -3449,7 +4806,7 @@ def update_aaccup_requirement(
     req_id: str,
     req: schemas.AaccupRequirementCreate,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_governance_reviewer),
+    admin: models.User = Depends(get_campus_governance_reviewer),
 ):
     db_req = db.query(models.AaccupRequirement).filter(models.AaccupRequirement.id == req_id).first()
     if not db_req:
@@ -3463,7 +4820,7 @@ def update_aaccup_requirement(
 
 
 @app.delete("/aaccup/requirements/{req_id}")
-def delete_aaccup_requirement(req_id: str, db: Session = Depends(get_db), admin: models.User = Depends(get_governance_reviewer)):
+def delete_aaccup_requirement(req_id: str, db: Session = Depends(get_db), admin: models.User = Depends(get_campus_governance_reviewer)):
     item = db.query(models.AaccupRequirement).filter(models.AaccupRequirement.id == req_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Requirement not found")
@@ -3478,7 +4835,7 @@ def delete_aaccup_requirement(req_id: str, db: Session = Depends(get_db), admin:
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/analytics/recent")
-def get_recent_questions(current_user: models.User = Depends(get_current_faculty_or_admin)):
+def get_recent_questions(current_user: models.User = Depends(get_current_admin)):
     """Return recent user queries, aggressively filtering out greetings and small talk."""
     try:
         from vector_store import supabase
@@ -3545,7 +4902,7 @@ def get_recent_questions(current_user: models.User = Depends(get_current_faculty
 
 
 @app.get("/analytics/popular")
-def get_popular_topics(current_user: models.User = Depends(get_current_faculty_or_admin)):
+def get_popular_topics(current_user: models.User = Depends(get_current_admin)):
     """Return the top recurring topics from chat history to power the Popular Topics panel."""
     try:
         response = supabase_query_with_retry(lambda: supabase.table("chat_history").select("content").eq("role", "user").execute())
@@ -3602,6 +4959,44 @@ def get_popular_topics(current_user: models.User = Depends(get_current_faculty_o
         ]
 
 
+@app.get("/analytics/me/monthly")
+def get_my_monthly_query_activity(current_user: models.User = Depends(get_current_user)):
+    """Return monthly counts for the signed-in user without exposing question text."""
+    today = datetime.utcnow()
+    month_starts = []
+    year, month = today.year, today.month
+    for offset in range(5, -1, -1):
+        target_month = month - offset
+        target_year = year
+        while target_month <= 0:
+            target_month += 12
+            target_year -= 1
+        month_starts.append(datetime(target_year, target_month, 1))
+
+    first_month = month_starts[0].isoformat()
+    counts = {start.strftime("%Y-%m"): 0 for start in month_starts}
+    try:
+        response = (
+            supabase.table("chat_history")
+            .select("created_at")
+            .eq("role", "user")
+            .eq("user_email", current_user.email)
+            .gte("created_at", first_month)
+            .execute()
+        )
+        for row in response.data or []:
+            key = str(row.get("created_at") or "")[:7]
+            if key in counts:
+                counts[key] += 1
+    except Exception:
+        pass
+
+    return [
+        {"month": start.strftime("%b"), "year": start.year, "queries": counts[start.strftime("%Y-%m")]}
+        for start in month_starts
+    ]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # AUDIT TRAIL
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3653,8 +5048,10 @@ def log_document_access(log: AccessLogRequest, current_user: models.User = Depen
         supabase.table("document_access_logs").insert({
             "document_name": log.document_name,
             "action_type":   log.action_type,
-            "user_email":    log.user_email,
-            "user_role":     log.user_role,
+            # Audit identity must always come from the verified session, never
+            # from browser-supplied fields.
+            "user_email":    current_user.email,
+            "user_role":     role_of(current_user),
         }).execute()
         return {"message": "Access successfully logged"}
     except Exception as e:
@@ -4198,11 +5595,16 @@ def delete_car_form(car_id: str, db: Session = Depends(get_db), admin: models.Us
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/api/extract-car-form")
-async def extract_car_form(file: UploadFile = File(...)):
+async def extract_car_form(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(get_governance_reader),
+):
     """
     Accepts a scanned CAR Form 1 (PDF or image) and uses natively llama3.2-vision 
     to extract key fields into a structured JSON response (No PaddleOCR needed!).
     """
+    limiter.check(request, key_name="car_extract", max_requests=5, window_seconds=60)
     try:
         import base64
         import json
@@ -4417,6 +5819,20 @@ def mark_all_notifications_read(payload: dict = Body(...), db: Session = Depends
 @app.patch("/notifications/{notification_id}/read")
 def mark_notification_read(notification_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     try:
+        notification = (
+            supabase.table("notifications")
+            .select("id,user_email")
+            .eq("id", notification_id)
+            .limit(1)
+            .execute()
+        )
+        if not notification.data:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        if (
+            not is_system_admin(current_user)
+            and str(notification.data[0].get("user_email", "")).lower() != current_user.email.lower()
+        ):
+            raise HTTPException(status_code=403, detail="You may only modify your own notifications.")
         response = (
             supabase.table("notifications")
             .update({"is_read": True})
@@ -4579,182 +5995,6 @@ def update_profile(
         "email": user.email  
     }
 
-# --- NEW: ANNOUNCEMENT ROUTES ---
-# --- NEW: ANNOUNCEMENT ROUTES ---
-@app.post("/announcements", response_model=schemas.AnnouncementResponse)
-def create_announcement(announcement: schemas.AnnouncementCreate, db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
-    global _DB_IS_AVAILABLE
-    sent_dt = datetime.utcnow()
-    
-    if announcement.schedule_date:
-        try:
-            sent_dt = datetime.fromisoformat(announcement.schedule_date.replace("Z", "+00:00"))
-        except ValueError:
-            pass
-            
-    payload = {
-        "title": announcement.title,
-        "content": announcement.content,
-        "recipients": announcement.recipients,
-        "sent_date": sent_dt.isoformat(),
-        "sent_by": announcement.sent_by,
-        "status": announcement.status,
-        "total_recipients": announcement.total_recipients,
-        "read_count": 0
-    }
-
-    result = None
-    if _DB_IS_AVAILABLE:
-        try:
-            db_announcement = models.Announcement(
-                title=announcement.title,
-                content=announcement.content,
-                recipients=announcement.recipients,
-                sent_date=sent_dt,
-                sent_by=announcement.sent_by,
-                status=announcement.status,
-                total_recipients=announcement.total_recipients
-            )
-            db.add(db_announcement)
-            db.commit()
-            db.refresh(db_announcement)
-            result = db_announcement
-        except Exception:
-            _DB_IS_AVAILABLE = False
-            result = None
-
-    if result is None:
-        try:
-            res = supabase.table("announcements").insert(payload).execute()
-            if res.data and len(res.data) > 0:
-                result = res.data[0]
-            else:
-                result = payload
-        except Exception as sb_err:
-            raise HTTPException(status_code=500, detail=f"Failed to create announcement: {str(sb_err)}")
-    
-    # --- SILENT AUDIT LOG ---
-    try:
-        supabase.table("system_events_logs").insert({
-            "user_email": announcement.sent_by,
-            "event_type": "Broadcast Sent",
-            "description": f"Broadcasted: {announcement.title} to {announcement.recipients}"
-        }).execute()
-    except Exception as e:
-        print(f"Failed to log announcement: {e}")
-
-    return result
-
-
-@app.get("/users/counts")
-def get_user_counts(db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
-    if _DB_IS_AVAILABLE:
-        try:
-            students = db.query(models.User).filter(models.User.role == "STUDENT", models.User.status == "Active").count()
-            faculty = db.query(models.User).filter(models.User.role == "FACULTY", models.User.status == "Active").count()
-            admins = db.query(models.User).filter(models.User.role == "SYSTEM_ADMIN", models.User.status == "Active").count()
-            return {
-                "all": students + faculty + admins,
-                "students": students,
-                "faculty": faculty
-            }
-        except Exception:
-            pass
-
-    students, faculty, admins = 0, 0, 0
-    try:
-        res = supabase.table("users").select("role, status").eq("status", "Active").execute()
-        if res.data:
-            for u in res.data:
-                r = (u.get("role") or "").upper()
-                if r == "STUDENT": students += 1
-                elif r == "FACULTY": faculty += 1
-                elif r == "ADMIN": admins += 1
-    except Exception:
-        pass
-
-    return {
-        "all": students + faculty + admins,
-        "students": students,
-        "faculty": faculty
-    }
-
-@app.put("/announcements/{announcement_id}", response_model=schemas.AnnouncementResponse)
-def update_announcement(announcement_id: str, req: schemas.AnnouncementUpdate, db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
-    if _DB_IS_AVAILABLE:
-        try:
-            announcement = db.query(models.Announcement).filter(models.Announcement.id == announcement_id).first()
-            if announcement:
-                announcement.title = req.title
-                announcement.content = req.content
-                announcement.recipients = req.recipients
-                announcement.status = req.status
-                announcement.total_recipients = req.total_recipients
-                if req.schedule_date:
-                    try:
-                        announcement.sent_date = datetime.fromisoformat(req.schedule_date.replace("Z", "+00:00"))
-                    except ValueError:
-                        pass 
-                elif req.status == "Sent":
-                    announcement.sent_date = datetime.utcnow()
-                db.commit()
-                db.refresh(announcement)
-                return announcement
-        except Exception:
-            pass
-
-    update_data = {
-        "title": req.title,
-        "content": req.content,
-        "recipients": req.recipients,
-        "status": req.status,
-        "total_recipients": req.total_recipients
-    }
-    if req.schedule_date:
-        update_data["sent_date"] = req.schedule_date
-    elif req.status == "Sent":
-        update_data["sent_date"] = datetime.utcnow().isoformat()
-
-    try:
-        res = supabase.table("announcements").update(update_data).eq("id", announcement_id).execute()
-        if res.data and len(res.data) > 0:
-            return res.data[0]
-    except Exception as sb_err:
-        raise HTTPException(status_code=500, detail=f"Failed to update announcement: {str(sb_err)}")
-    raise HTTPException(status_code=404, detail="Announcement not found")
-
-
-@app.post("/announcements/{announcement_id}/read")
-def mark_announcement_read(announcement_id: str, db: Session = Depends(get_db)):
-    if _DB_IS_AVAILABLE:
-        try:
-            announcement = db.query(models.Announcement).filter(models.Announcement.id == announcement_id).first()
-            if announcement:
-                announcement.read_count = (announcement.read_count or 0) + 1
-                db.commit()
-                db.refresh(announcement)
-                return {
-                    "id": str(announcement.id),
-                    "read_count": announcement.read_count,
-                    "total_recipients": announcement.total_recipients
-                }
-        except Exception:
-            pass
-
-    try:
-        check = supabase.table("announcements").select("read_count, total_recipients").eq("id", announcement_id).execute()
-        if check.data and len(check.data) > 0:
-            new_count = (check.data[0].get("read_count") or 0) + 1
-            supabase.table("announcements").update({"read_count": new_count}).eq("id", announcement_id).execute()
-            return {
-                "id": announcement_id,
-                "read_count": new_count,
-                "total_recipients": check.data[0].get("total_recipients") or 0
-            }
-    except Exception as sb_err:
-        print(f"[mark_announcement_read] error: {sb_err}")
-    return {"id": announcement_id, "read_count": 1, "total_recipients": 0}
-
 # --- SETTINGS ROUTES ---
 @app.get("/settings", response_model=SettingsSchema)
 def get_system_settings(db: Session = Depends(get_db), admin: models.User = Depends(get_current_admin)):
@@ -4857,6 +6097,34 @@ def update_ched_requirement(
     db.commit()
     db.refresh(requirement)
     return requirement
+
+
+@app.delete("/ched/requirements/{req_id}")
+def delete_ched_requirement(
+    req_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_governance_manager),
+):
+    """Delete a CHED requirement and archive its linked evidence chunks."""
+    requirement = db.query(models.ChedRequirement).filter(models.ChedRequirement.id == req_id).first()
+    if not requirement:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+
+    require_program(admin, requirement.program)
+    document_names = [evidence.document_name for evidence in requirement.evidences]
+    db.delete(requirement)
+    db.commit()
+
+    try:
+        chunks = supabase.table("document_sections").select("id, metadata").eq("metadata->>req_id", req_id).execute()
+        for chunk in chunks.data or []:
+            metadata = dict(chunk.get("metadata") or {})
+            metadata["status"] = "Archived"
+            supabase.table("document_sections").update({"metadata": metadata}).eq("id", chunk["id"]).execute()
+    except Exception:
+        pass
+
+    return {"message": "CHED requirement deleted successfully.", "archived_documents": len(document_names)}
 
 
 @app.get("/ched/requirements/{program}", response_model=List[schemas.ChedRequirementResponse])
@@ -4972,7 +6240,7 @@ async def upload_ched_evidence(
         supabase.storage.from_("documents").upload(
             file=contents, path=unique_filename, file_options={"content-type": file.content_type}
         )
-        public_url = create_private_file_url(unique_filename)
+        stored_file_reference = unique_filename
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to upload file to storage.")
 
@@ -4982,7 +6250,7 @@ async def upload_ched_evidence(
         document_name=document_name,
         file_name=original_file_name,
         storage_path=unique_filename,
-        file_url=public_url,
+        file_url=stored_file_reference,
         uploaded_by=current_user.email,
         status="Pending Verification",
     )
@@ -5003,7 +6271,7 @@ async def upload_ched_evidence(
         "requirement_target": requirement.description,
         "uploaded_by": current_user.email,
         "upload_date": datetime.now().isoformat(),
-        "file_url": public_url,
+        "file_url": stored_file_reference,
         "storage_path": unique_filename,
         "file_name": original_file_name,
         "is_ched": True,
@@ -5032,7 +6300,8 @@ def update_ched_status(
     req = db.query(models.ChedRequirement).filter(models.ChedRequirement.id == requirement_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Requirement not found")
-        
+
+    require_program(admin, req.program)
     req.status = status 
     
     # If the admin Revokes or Rejects, we must delete the evidence file record
@@ -5066,6 +6335,7 @@ def update_ched_evidence_status(
     evidence = db.query(models.ChedEvidence).filter(models.ChedEvidence.id == evidence_id).first()
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
+    require_program(admin, evidence.requirement.program)
     evidence.status = status
     db.commit()
     return {"message": f"Evidence status updated to {status}"}
@@ -5136,20 +6406,46 @@ def _paper_trail_visible(record, user):
     email = user.email.casefold()
     if email in [(record.sender_email or "").casefold(), (record.recipient_email or "").casefold()]:
         return True
-    office = office_key(getattr(user, "administrative_office", None))
-    return bool(office and office in [office_key(record.office), office_key(record.current_location), office_key(record.origin_office)])
+    user_offices = {office_key(name) for name in _paper_trail_user_offices(user)}
+    record_offices = {
+        office_key(record.office),
+        office_key(record.current_location),
+        office_key(record.origin_office),
+    }
+    record_offices.discard("")
+    return bool(user_offices & record_offices)
 
 
 def _paper_trail_user_offices(user: models.User) -> list[str]:
-    """Returns normalized office identities that may hold custody for this user."""
-    return [
-        value.strip().lower()
-        for value in (
-            getattr(user, "administrative_office", None),
-            getattr(user, "department", None),
-        )
-        if value and value.strip()
-    ]
+    """Return every active OFFICE assignment, preserving its canonical display name."""
+    offices = []
+    seen = set()
+    for name in assigned_offices(user):
+        normalized = office_key(name)
+        if normalized and normalized not in seen:
+            offices.append(str(name).strip())
+            seen.add(normalized)
+    return offices
+
+
+def _paper_trail_origin_office(user: models.User, requested_office: Optional[str] = None) -> str:
+    """Resolve the office a user is representing for a newly created trail."""
+    requested = (requested_office or "").strip()
+    if permissions_for(user)["paper_trail.control"]:
+        return requested or "Document Control Office"
+
+    offices = _paper_trail_user_offices(user)
+    if requested:
+        requested_key = office_key(requested)
+        match = next((name for name in offices if office_key(name) == requested_key), None)
+        if not match:
+            raise HTTPException(403, "The originating office must be one of your active office assignments.")
+        return match
+    if len(offices) == 1:
+        return offices[0]
+    if len(offices) > 1:
+        raise HTTPException(400, "Select which assigned office is creating this paper trail record.")
+    raise HTTPException(403, "An active office assignment is required to create a paper trail record.")
 
 
 def _paper_trail_is_current_custodian(record: models.PaperTrailRecord, user: models.User) -> bool:
@@ -5160,9 +6456,9 @@ def _paper_trail_is_current_custodian(record: models.PaperTrailRecord, user: mod
         return False
     if record.recipient_email and record.recipient_email.lower() == user.email.lower():
         return True
-    current_location = (record.current_location or record.office or "").strip().lower()
-    assigned = office_key(getattr(user, "administrative_office", None))
-    return bool(assigned and assigned == office_key(current_location))
+    current_location = office_key(record.current_location or record.office)
+    assigned = {office_key(name) for name in _paper_trail_user_offices(user)}
+    return bool(current_location and current_location in assigned)
 
 
 def _require_paper_trail_custody(record: models.PaperTrailRecord, user: models.User) -> None:
@@ -5184,16 +6480,16 @@ def create_paper_trail_record(
     
     sender_name = current_user.full_name or payload.sender_name
     sender_email = current_user.email
-    sender_role = current_user.role.upper()
-    actor_office = getattr(current_user, 'administrative_office', None) or getattr(current_user, 'department', None) or "Unassigned Office"
+    sender_role = role_of(current_user)
     has_document_control = permissions_for(current_user)["paper_trail.control"]
-    origin_office = payload.origin_office if has_document_control else actor_office
+    origin_office = _paper_trail_origin_office(current_user, payload.origin_office)
     origin_person = payload.origin_person if has_document_control else sender_name
 
     requires_control_release = bool(payload.is_controlled_document)
     initial_status = "Pending Document Control" if requires_control_release else "Pending Receiving"
     initial_location = "Document Control Office" if requires_control_release else (payload.current_location or payload.office)
 
+    attachment_path = require_private_storage_reference(payload.file_url, payload.storage_path)
     new_record = models.PaperTrailRecord(
         tracking_number=tracking_no,
         title=payload.title,
@@ -5212,7 +6508,8 @@ def create_paper_trail_record(
         is_controlled_document=requires_control_release,
         status=initial_status,
         remarks=payload.remarks,
-        file_url=payload.file_url
+        storage_path=attachment_path or None,
+        file_url=attachment_path or None,
     )
     db.add(new_record)
     db.commit()
@@ -5264,7 +6561,7 @@ def create_paper_trail_record(
     except Exception as exc:
         print(f"[paper_trail] notification warning: {exc}")
 
-    return new_record
+    return serialize_paper_trail_record(new_record)
 
 
 @app.post("/paper-trail/request", response_model=schemas.PaperTrailRecordResponse, status_code=status.HTTP_201_CREATED)
@@ -5273,12 +6570,12 @@ def create_top_down_document_request(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_paper_trail_reader)
 ):
-    """The Document Controller registers a request assigned to an office or person."""
+    """Register a request assigned to an office or person within the caller's office scope."""
     tracking_no = _generate_tracking_number(db)
     requester_name = current_user.full_name or "Campus User"
     requester_email = current_user.email
-    requester_role = current_user.role.upper()
-    requester_office = getattr(current_user, 'administrative_office', None) or getattr(current_user, 'department', None) or "Unassigned Office"
+    requester_role = role_of(current_user)
+    requester_office = _paper_trail_origin_office(current_user, payload.origin_office)
 
     new_record = models.PaperTrailRecord(
         tracking_number=tracking_no,
@@ -5290,7 +6587,7 @@ def create_top_down_document_request(
         sender_role=requester_role,
         recipient_name=payload.target_person_name or payload.office,
         recipient_email=payload.target_person_email,
-        recipient_role="FACULTY",
+        recipient_role="PERSONNEL",
         origin_office=requester_office,
         origin_person=requester_name,
         current_location=payload.office,
@@ -5334,19 +6631,21 @@ def create_top_down_document_request(
     except Exception as exc:
         print(f"[create_top_down_document_request] notification warning: {exc}")
 
-    return new_record
+    return serialize_paper_trail_record(new_record)
 
 
 @app.get("/paper-trail", response_model=List[schemas.PaperTrailRecordResponse])
 def get_paper_trail_records(
-    role: Optional[str] = None,
-    email: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_paper_trail_reader),
 ):
     """List paper-trail records visible to the authenticated user."""
     records = db.query(models.PaperTrailRecord).order_by(models.PaperTrailRecord.created_at.desc()).all()
-    return [record for record in records if _paper_trail_visible(record, current_user)]
+    return [
+        serialize_paper_trail_record(record)
+        for record in records
+        if _paper_trail_visible(record, current_user)
+    ]
 
 
 @app.put("/paper-trail/{record_id}/fulfill", response_model=schemas.PaperTrailRecordResponse)
@@ -5356,7 +6655,7 @@ def fulfill_document_request(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_paper_trail_reader)
 ):
-    """The Document Controller attaches a fulfilled file and records its return to the origin."""
+    """The current office custodian attaches a fulfilled file and routes it to the origin."""
     record = db.query(models.PaperTrailRecord).filter(models.PaperTrailRecord.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Document record not found.")
@@ -5365,7 +6664,11 @@ def fulfill_document_request(
     user_name = current_user.full_name or "Faculty Member"
     user_email = current_user.email
 
-    record.file_url = payload.file_url
+    attachment_path = require_private_storage_reference(payload.file_url, payload.storage_path)
+    if not attachment_path:
+        raise HTTPException(status_code=400, detail="A fulfilled request requires an uploaded attachment.")
+    record.storage_path = attachment_path
+    record.file_url = attachment_path
     record.status = "Submitted / Fulfilled"
     record.current_location = record.origin_office or record.sender_name or "Director / Admin Desk"
     record.recipient_email = None
@@ -5377,7 +6680,7 @@ def fulfill_document_request(
         status="Submitted / Fulfilled",
         actor_name=user_name,
         actor_email=user_email,
-        actor_role=current_user.role.upper(),
+        actor_role=role_of(current_user),
         notes=payload.remarks or f"Fulfilled request for '{record.title}' and routed back to {record.current_location}."
     )
     db.add(new_log)
@@ -5405,7 +6708,7 @@ def fulfill_document_request(
     except Exception as exc:
         print(f"[fulfill_document_request] notification warning: {exc}")
 
-    return record
+    return serialize_paper_trail_record(record)
 
 
 
@@ -5422,7 +6725,7 @@ def get_paper_trail_detail(
         raise HTTPException(status_code=404, detail="Paper trail record not found.")
     if not _paper_trail_visible(record, current_user):
         raise HTTPException(403, "This record is outside your assigned office.")
-    return record
+    return serialize_paper_trail_record(record)
 
 
 @app.put("/paper-trail/{record_id}/metadata", response_model=schemas.PaperTrailRecordResponse)
@@ -5456,12 +6759,12 @@ def correct_paper_trail_metadata(
         status=record.status,
         actor_name=current_user.full_name or "Document Controller",
         actor_email=current_user.email,
-        actor_role="DOCUMENT_CONTROLLER",
+        actor_role=role_of(current_user),
         notes="Document registry details were corrected; prior movement history was preserved.",
     ))
     db.commit()
     db.refresh(record)
-    return record
+    return serialize_paper_trail_record(record)
 
 
 @app.put("/paper-trail/{record_id}/status", response_model=schemas.PaperTrailRecordResponse)
@@ -5528,7 +6831,7 @@ def update_paper_trail_status(
         status=new_status,
         actor_name=current_user.full_name or "Document Controller",
         actor_email=current_user.email,
-        actor_role=current_user.role.upper(),
+        actor_role=role_of(current_user),
         notes=payload.notes or f"Action: {action_text} by {current_user.full_name or 'Document Controller'}."
     )
     db.add(new_log)
@@ -5574,7 +6877,7 @@ def update_paper_trail_status(
     except Exception as exc:
         print(f"[update_paper_trail_status] notification error: {exc}")
 
-    return record
+    return serialize_paper_trail_record(record)
 
 
 @app.post("/paper-trail/upload")
@@ -5590,8 +6893,11 @@ async def upload_paper_trail_attachment(file: UploadFile = File(...), current_us
             path=unique_filename,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = create_private_file_url(unique_filename)
-        return {"file_url": public_url, "filename": file.filename}
+        return {
+            "storage_path": unique_filename,
+            "file_url": create_private_file_url(unique_filename),
+            "filename": file.filename,
+        }
     except Exception as exc:
         print(f"[upload_paper_trail_attachment] error: {exc}")
         raise HTTPException(status_code=500, detail="Failed to upload attachment.")
@@ -5601,11 +6907,215 @@ async def upload_paper_trail_attachment(file: UploadFile = File(...), current_us
 # ISO 9001:2015 QUALITY MANAGEMENT SYSTEM (QMS) & IQA ENDPOINTS
 # ─────────────────────────────────────────────────────────────────────────────
 
+ISO_INTERNAL_RESULT_TYPE = "INTERNAL_AUDIT"
+ISO_EXTERNAL_RESULT_TYPES = {
+    "CERTIFICATION_AUDIT", "SURVEILLANCE_AUDIT", "RECERTIFICATION_AUDIT", "OTHER_EXTERNAL"
+}
+ISO_RESULT_TYPES = {ISO_INTERNAL_RESULT_TYPE, *ISO_EXTERNAL_RESULT_TYPES}
+ISO_CERTIFICATION_STATUSES = {
+    "CERTIFIED", "MAINTAINED", "RECOMMENDED", "SUSPENDED", "WITHDRAWN", "NOT_CERTIFIED"
+}
+
+
+def validate_iso_result_payload(payload, cycle, existing_result=None):
+    result_type = str(payload.result_type or "").strip().upper()
+    record_status = str(getattr(payload, "record_status", "DRAFT") or "DRAFT").strip().upper()
+    certification_status = str(payload.certification_status or "").strip().upper() or None
+    if result_type not in ISO_RESULT_TYPES:
+        raise HTTPException(400, "Select a valid internal or external ISO audit type.")
+    if record_status not in {"DRAFT", "FINALIZED"}:
+        raise HTTPException(400, "Result status must be Draft or Finalized.")
+    if payload.audit_start_date and payload.audit_start_date > payload.audit_end_date:
+        raise HTTPException(400, "Audit start date cannot be after the end date.")
+    if result_type == ISO_INTERNAL_RESULT_TYPE:
+        certification_status = None
+    elif certification_status not in ISO_CERTIFICATION_STATUSES:
+        if record_status == "FINALIZED":
+            raise HTTPException(400, "A finalized external audit requires a certification outcome.")
+        certification_status = None
+
+    # A cycle has one authoritative standard version. It may be adjusted while
+    # it has no other result records, but cannot silently change historical data.
+    standard_version = str(payload.standard_version or "").strip()
+    if not standard_version:
+        raise HTTPException(400, "ISO standard version is required.")
+    return result_type, record_status, certification_status, standard_version
+
+
+@app.get("/iso/audit-cycles", response_model=List[schemas.ISOAuditCycleResponse])
+def get_iso_audit_cycles(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_governance_reader),
+):
+    return db.query(models.ISOAuditCycle).order_by(models.ISOAuditCycle.name.desc()).all()
+
+
+@app.get("/iso/results", response_model=List[schemas.ISOAuditResultResponse])
+def get_iso_audit_results(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_governance_reader),
+):
+    results = db.query(models.ISOAuditResult).order_by(
+        models.ISOAuditResult.audit_end_date.desc(), models.ISOAuditResult.created_at.desc()
+    ).all()
+    return [serialize_iso_audit_result(result) for result in results]
+
+
+@app.post("/iso/results", response_model=schemas.ISOAuditResultResponse, status_code=status.HTTP_201_CREATED)
+def create_iso_audit_result(
+    payload: schemas.ISOAuditResultCreate,
+    db: Session = Depends(get_db),
+    reviewer: models.User = Depends(get_campus_governance_reviewer),
+):
+    cycle = db.query(models.ISOAuditCycle).filter(models.ISOAuditCycle.id == payload.cycle_id).first()
+    if not cycle:
+        raise HTTPException(404, "ISO audit cycle not found.")
+    result_type, _, certification_status, standard_version = validate_iso_result_payload(payload, cycle)
+    existing_for_cycle = db.query(models.ISOAuditResult).filter(models.ISOAuditResult.cycle_id == cycle.id).first()
+    if existing_for_cycle and cycle.standard_version != standard_version:
+        raise HTTPException(409, "This cycle already has results under a different ISO standard version.")
+    cycle.standard_version = standard_version
+    result = models.ISOAuditResult(
+        cycle_id=cycle.id,
+        result_type=result_type,
+        audit_start_date=datetime.combine(payload.audit_start_date, datetime.min.time()) if payload.audit_start_date else None,
+        audit_end_date=datetime.combine(payload.audit_end_date, datetime.min.time()),
+        auditor_or_certification_body=payload.auditor_or_certification_body.strip(),
+        conclusion=payload.conclusion.strip(),
+        certification_status=certification_status,
+        major_nonconformities=payload.major_nonconformities,
+        minor_nonconformities=payload.minor_nonconformities,
+        observations=payload.observations,
+        opportunities_for_improvement=payload.opportunities_for_improvement,
+        summary=payload.summary.strip(),
+        record_status="DRAFT",
+        created_by=reviewer.email,
+    )
+    db.add(result)
+    db.commit()
+    db.refresh(result)
+    return serialize_iso_audit_result(result)
+
+
+@app.put("/iso/results/{result_id}", response_model=schemas.ISOAuditResultResponse)
+def update_iso_audit_result(
+    result_id: str,
+    payload: schemas.ISOAuditResultUpdate,
+    db: Session = Depends(get_db),
+    reviewer: models.User = Depends(get_campus_governance_reviewer),
+):
+    result = db.query(models.ISOAuditResult).filter(models.ISOAuditResult.id == result_id).first()
+    if not result:
+        raise HTTPException(404, "ISO audit result not found.")
+    if result.record_status == "FINALIZED":
+        raise HTTPException(409, "Finalized ISO results are read-only historical records.")
+    cycle = db.query(models.ISOAuditCycle).filter(models.ISOAuditCycle.id == payload.cycle_id).first()
+    if not cycle:
+        raise HTTPException(404, "ISO audit cycle not found.")
+    result_type, record_status, certification_status, standard_version = validate_iso_result_payload(payload, cycle, result)
+    other_result = db.query(models.ISOAuditResult).filter(
+        models.ISOAuditResult.cycle_id == cycle.id,
+        models.ISOAuditResult.id != result.id,
+    ).first()
+    if other_result and cycle.standard_version != standard_version:
+        raise HTTPException(409, "This cycle already has results under a different ISO standard version.")
+    cycle.standard_version = standard_version
+    result.cycle_id = cycle.id
+    result.result_type = result_type
+    result.audit_start_date = datetime.combine(payload.audit_start_date, datetime.min.time()) if payload.audit_start_date else None
+    result.audit_end_date = datetime.combine(payload.audit_end_date, datetime.min.time())
+    result.auditor_or_certification_body = payload.auditor_or_certification_body.strip()
+    result.conclusion = payload.conclusion.strip()
+    result.certification_status = certification_status
+    result.major_nonconformities = payload.major_nonconformities
+    result.minor_nonconformities = payload.minor_nonconformities
+    result.observations = payload.observations
+    result.opportunities_for_improvement = payload.opportunities_for_improvement
+    result.summary = payload.summary.strip()
+    result.record_status = record_status
+    if record_status == "FINALIZED":
+        result.finalized_by = reviewer.email
+        result.finalized_at = datetime.utcnow()
+        cycle.status = "CLOSED"
+    db.commit()
+    db.refresh(result)
+    return serialize_iso_audit_result(result)
+
+
+@app.post("/iso/results/{result_id}/artifact/{artifact_type}", response_model=schemas.ISOAuditResultResponse)
+async def upload_iso_result_artifact(
+    result_id: str,
+    artifact_type: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    reviewer: models.User = Depends(get_campus_governance_reviewer),
+):
+    result = db.query(models.ISOAuditResult).filter(models.ISOAuditResult.id == result_id).first()
+    if not result:
+        raise HTTPException(404, "ISO audit result not found.")
+    if result.record_status == "FINALIZED":
+        raise HTTPException(409, "Finalized ISO results are read-only historical records.")
+    artifact_type = artifact_type.strip().lower()
+    if artifact_type not in {"report", "certificate"}:
+        raise HTTPException(400, "Artifact type must be report or certificate.")
+    if artifact_type == "certificate" and result.result_type == ISO_INTERNAL_RESULT_TYPE:
+        raise HTTPException(400, "Internal audits may attach an audit report, but they do not issue ISO certificates.")
+    extension = os.path.splitext(file.filename or "")[1].lower()
+    if extension not in {".pdf", ".png", ".jpg", ".jpeg"}:
+        raise HTTPException(400, "Upload a PDF, PNG, or JPEG proof file.")
+    contents = await read_upload_limited(file)
+    safe_filename = re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(file.filename))
+    unique_path = f"iso_results/{result.cycle_id}/{result.id}/{artifact_type}_{uuid.uuid4()}_{safe_filename}"
+    supabase.storage.from_("documents").upload(
+        file=contents,
+        path=unique_path,
+        file_options={"content-type": file.content_type or "application/pdf"},
+    )
+    path_field = f"{artifact_type}_storage_path"
+    name_field = f"{artifact_type}_original_filename"
+    old_path = getattr(result, path_field, None)
+    setattr(result, path_field, unique_path)
+    setattr(result, name_field, os.path.basename(file.filename))
+    db.commit()
+    db.refresh(result)
+    if old_path and old_path != unique_path:
+        try:
+            supabase.storage.from_("documents").remove([old_path])
+        except Exception:
+            _log.exception("iso_result_old_artifact_cleanup_failed", extra={"storage_path": old_path})
+    return serialize_iso_audit_result(result)
+
+
+@app.get("/iso/results/{result_id}/artifact/{artifact_type}/url")
+def get_iso_result_artifact_url(
+    result_id: str,
+    artifact_type: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_governance_reader),
+):
+    result = db.query(models.ISOAuditResult).filter(models.ISOAuditResult.id == result_id).first()
+    if not result:
+        raise HTTPException(404, "ISO audit result not found.")
+    artifact_type = artifact_type.strip().lower()
+    if artifact_type not in {"report", "certificate"}:
+        raise HTTPException(400, "Artifact type must be report or certificate.")
+    storage_path = getattr(result, f"{artifact_type}_storage_path", None)
+    if not storage_path:
+        raise HTTPException(404, f"No {artifact_type} is attached to this result.")
+    file_url = create_private_file_url(storage_path)
+    if not file_url:
+        raise HTTPException(503, "Could not create a temporary proof-file URL.")
+    return {
+        "file_url": file_url,
+        "file_name": getattr(result, f"{artifact_type}_original_filename", None) or f"iso_{artifact_type}.pdf",
+    }
+
 @app.get("/iso/cycles", response_model=List[str])
 def get_iso_cycles(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Retrieves all distinct audit cycle years present in the system, sorted."""
     cycles = db.query(models.ISORequirement.cycle_year).distinct().all()
     cycle_list = [c[0] for c in cycles if c[0]]
+    cycle_list.extend(c.name for c in db.query(models.ISOAuditCycle).all() if c.name not in cycle_list)
     defaults = ["2026 Recertification", "2025 Surveillance", "2024 Initial Audit"]
     for d in defaults:
         if d not in cycle_list:
@@ -5617,7 +7127,7 @@ def get_iso_cycles(db: Session = Depends(get_db), current_user: models.User = De
 def initialize_iso_cycle(
     payload: schemas.ISOCycleCreate,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_governance_reviewer)
+    admin: models.User = Depends(get_campus_governance_reviewer)
 ):
     """Initializes a new ISO Audit Cycle (e.g. '2026 Surveillance')."""
     target_prog = "GLOBAL"
@@ -5629,6 +7139,11 @@ def initialize_iso_cycle(
         models.ISORequirement.program == target_prog,
         models.ISORequirement.cycle_year == new_cycle
     ).all()
+
+    cycle = db.query(models.ISOAuditCycle).filter(models.ISOAuditCycle.name == new_cycle).first()
+    if not cycle:
+        db.add(models.ISOAuditCycle(name=new_cycle, standard_version="ISO 9001:2015", status="ACTIVE"))
+        db.commit()
 
     return existing
 
@@ -5645,7 +7160,10 @@ def get_iso_requirements(program: str, cycle_year: Optional[str] = "2026 Recerti
                 models.ISORequirement.program == target_prog,
                 models.ISORequirement.cycle_year == target_cycle
             ).all()
-            return filter_office_records(current_user, records)
+            return [
+                serialize_iso_requirement(record)
+                for record in filter_office_records(current_user, records)
+            ]
         except Exception:
             pass
     if supabase:
@@ -5678,7 +7196,7 @@ def create_iso_requirement(
     db.add(new_req)
     db.commit()
     db.refresh(new_req)
-    return new_req
+    return serialize_iso_requirement(new_req)
 
 
 @app.put("/iso/requirements/{req_id}", response_model=schemas.ISORequirementResponse)
@@ -5704,7 +7222,7 @@ def update_iso_requirement(
         req.cycle_year = payload.cycle_year
     db.commit()
     db.refresh(req)
-    return req
+    return serialize_iso_requirement(req)
 
 
 @app.delete("/iso/requirements/{req_id}")
@@ -5750,13 +7268,14 @@ async def upload_iso_evidence(
             path=unique_path,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = create_private_file_url(unique_path)
+        stored_file_reference = unique_path
 
         # ── 2. Write SQL record synchronously (so UI updates instantly) ───
         new_evidence = models.ISOEvidence(
             iso_requirement_id=req.id,
             document_name=document_name,
-            file_url=public_url,
+            storage_path=unique_path,
+            file_url=stored_file_reference,
             uploaded_by=uploaded_by,
             status="Pending"
         )
@@ -5773,10 +7292,13 @@ async def upload_iso_evidence(
             "category": "Accreditation Evidence",
             "office": req.auditee_office,
             "program": "GLOBAL",
+            "scope_type": "OFFICE",
+            "scope_code": req.auditee_office,
             "iso_clause": req.iso_clause,
             "uploaded_by": uploaded_by,
             "upload_date": datetime.now().isoformat(),
-            "file_url": public_url
+            "storage_path": unique_path,
+            "file_url": stored_file_reference,
         }
         background_tasks.add_task(
             queue_document_processing,
@@ -5788,7 +7310,10 @@ async def upload_iso_evidence(
             iso_req_id=str(req.id),
         )
 
-        return {"message": "ISO evidence uploaded successfully! AI indexing is running in the background.", "public_url": public_url}
+        return {
+            "message": "ISO evidence uploaded successfully! AI indexing is running in the background.",
+            "file_url": create_private_file_url(unique_path),
+        }
     except HTTPException:
         raise
     except Exception as exc:
@@ -5807,11 +7332,15 @@ def get_pending_iso_evidences(db: Session = Depends(get_db), admin: models.User 
             ).all()
             for ev in evidences:
                 req = ev.requirement
+                if not req or not can_access_office(admin, req.auditee_office):
+                    continue
                 result.append({
                     "id": str(ev.id),
                     "iso_requirement_id": str(ev.iso_requirement_id),
                     "name": ev.document_name,
-                    "url": ev.file_url,
+                    "url": get_fresh_private_file_url(
+                        ev.file_url, getattr(ev, "storage_path", None)
+                    ),
                     "uploaded_by": ev.uploaded_by,
                     "status": ev.status,
                     "admin_feedback": ev.admin_feedback,
@@ -5830,11 +7359,15 @@ def get_pending_iso_evidences(db: Session = Depends(get_db), admin: models.User 
             if res.data:
                 for ev in res.data:
                     req = ev.get("iso_requirements") or {}
+                    if not can_access_office(admin, req.get("auditee_office")):
+                        continue
                     result.append({
                         "id": str(ev.get("id")),
                         "iso_requirement_id": str(ev.get("iso_requirement_id")),
                         "name": ev.get("document_name"),
-                        "url": ev.get("file_url"),
+                        "url": get_fresh_private_file_url(
+                            ev.get("file_url"), ev.get("storage_path")
+                        ),
                         "uploaded_by": ev.get("uploaded_by"),
                         "status": ev.get("status"),
                         "admin_feedback": ev.get("admin_feedback"),
@@ -5863,21 +7396,41 @@ def update_iso_evidence_status(
     if _DB_IS_AVAILABLE:
         try:
             ev = db.query(models.ISOEvidence).filter(models.ISOEvidence.id == evidence_id).first()
-            if ev:
-                ev.status = payload.status
-                ev.admin_feedback = payload.feedback
-                db.commit()
-                db.refresh(ev)
         except Exception as e:
             print(f"[update_iso_evidence_status] DB error: {e}")
 
+    if ev:
+        requirement = ev.requirement
+        if not requirement:
+            raise HTTPException(status_code=404, detail="ISO evidence requirement not found")
+        require_office(current_user, requirement.auditee_office)
+        ev.status = payload.status
+        ev.admin_feedback = payload.feedback
+        db.commit()
+        db.refresh(ev)
+
     if not ev and supabase:
         try:
+            lookup = (
+                supabase.table("iso_evidences")
+                .select("*, iso_requirements(auditee_office)")
+                .eq("id", evidence_id)
+                .limit(1)
+                .execute()
+            )
+            if not lookup.data:
+                raise HTTPException(status_code=404, detail="Evidence not found")
+            evidence_row = lookup.data[0]
+            requirement = evidence_row.get("iso_requirements") or {}
+            require_office(current_user, requirement.get("auditee_office"))
+
             update_data = {"status": payload.status, "admin_feedback": payload.feedback}
             res = supabase.table("iso_evidences").update(update_data).eq("id", evidence_id).execute()
             if res.data and len(res.data) > 0:
                 from types import SimpleNamespace
                 ev = SimpleNamespace(**dict(res.data[0]))
+        except HTTPException:
+            raise
         except Exception as sb_err:
             print(f"[update_iso_evidence_status] Supabase error: {sb_err}")
 
@@ -5975,7 +7528,7 @@ def update_iso_status(
             db.add(car_plan)
             db.commit()
 
-    return req
+    return serialize_iso_requirement(req)
 
 
 @app.get("/iso/schedule/{program}", response_model=schemas.IQAScheduleResponse)
@@ -5995,12 +7548,34 @@ def get_iqa_schedule(program: str, db: Session = Depends(get_db), current_user: 
             day2_scope="Audit of HRMO (Clause 7.2), Registrar & MIS (Clause 9.1), Document Controller (Clause 7.5), Library, and BAC Procurement (Clause 8.4).",
             day3_date="Sept 12, 2025",
             day3_title="Consolidation & Closing Meeting",
-            day3_scope="Internal data cross-referencing, synthesis of observations, drafting formal audit findings report, and official Closing Ceremony & Certificate Awarding."
+            day3_scope="Internal data cross-referencing, synthesis of observations, drafting the formal audit findings report, and the official closing meeting and findings presentation."
         )
         db.add(sched)
         db.commit()
         db.refresh(sched)
     return sched
+
+
+
+@app.put("/iso/schedule/{program}", response_model=schemas.IQAScheduleResponse)
+def update_iqa_schedule(
+    program: str,
+    payload: schemas.IQAScheduleUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_campus_governance_reviewer),
+):
+    """Update the campus-level IQA audit schedule."""
+    if program != "GLOBAL":
+        raise HTTPException(status_code=400, detail="Only the GLOBAL IQA schedule can be updated.")
+    schedule = db.query(models.IQASchedule).filter(models.IQASchedule.program == "GLOBAL").first()
+    if not schedule:
+        schedule = models.IQASchedule(program="GLOBAL")
+        db.add(schedule)
+    for field, value in payload.model_dump().items():
+        setattr(schedule, field, value)
+    db.commit()
+    db.refresh(schedule)
+    return schedule
 
 
 
@@ -6022,7 +7597,7 @@ DEFAULT_IQA_DAYS = [
         "day_number": 3,
         "day_date": "2025-09-12",
         "title": "Consolidation & Closing Meeting",
-        "scope": "Internal data cross-referencing, synthesis of observations, drafting formal audit findings report, and official Closing Ceremony & Certificate Awarding."
+        "scope": "Internal data cross-referencing, synthesis of observations, drafting the formal audit findings report, and the official closing meeting and findings presentation."
     }
 ]
 
@@ -6047,6 +7622,29 @@ def get_iqa_schedule_days(cycle_year: str = Query("2026 Recertification"), db: S
     return []
 
 
+@app.post("/iso/schedule-days", response_model=schemas.IQADayScheduleResponse, status_code=status.HTTP_201_CREATED)
+def create_iqa_schedule_day(
+    payload: schemas.IQADayScheduleCreate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_campus_governance_reviewer),
+):
+    """Add an IQA audit day to the selected campus audit cycle."""
+    if payload.day_number < 1:
+        raise HTTPException(status_code=400, detail="Day number must be at least 1.")
+    existing = db.query(models.IQADaySchedule).filter(
+        models.IQADaySchedule.program == "GLOBAL",
+        models.IQADaySchedule.cycle_year == payload.cycle_year,
+        models.IQADaySchedule.day_number == payload.day_number,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="This audit cycle already has that day number.")
+    item = models.IQADaySchedule(program="GLOBAL", **payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 
 
 @app.put("/iso/schedule-days/{day_id}", response_model=schemas.IQADayScheduleResponse)
@@ -6054,7 +7652,7 @@ def update_iqa_schedule_day(
     day_id: str,
     payload: schemas.IQADayScheduleCreate,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_governance_reviewer)
+    admin: models.User = Depends(get_campus_governance_reviewer)
 ):
     """Admin updates an existing dynamic IQA Audit Day."""
     item = db.query(models.IQADaySchedule).filter(models.IQADaySchedule.id == day_id).first()
@@ -6088,7 +7686,13 @@ def get_qms_action_plans(
     query = db.query(models.QMSActionPlan).filter(models.QMSActionPlan.cycle_year == cycle_year)
     if office and office != "all":
         query = query.filter(models.QMSActionPlan.auditee_office == office)
-    return filter_office_records(current_user, query.order_by(models.QMSActionPlan.created_at.desc()).all())
+    return [
+        serialize_qms_action_plan(plan)
+        for plan in filter_office_records(
+            current_user,
+            query.order_by(models.QMSActionPlan.created_at.desc()).all(),
+        )
+    ]
 
 
 @app.post("/qms/action-plans", response_model=schemas.QMSActionPlanResponse, status_code=status.HTTP_201_CREATED)
@@ -6104,14 +7708,14 @@ def create_qms_action_plan(
     db.add(item)
     db.commit()
     db.refresh(item)
-    return item
+    return serialize_qms_action_plan(item)
 
 
 @app.delete("/iso/schedule-days/{day_id}")
 def delete_iqa_schedule_day(
     day_id: str,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_governance_reviewer),
+    admin: models.User = Depends(get_campus_governance_reviewer),
 ):
     """Admin deletes an existing dynamic IQA Audit Day."""
     item = db.query(models.IQADaySchedule).filter(models.IQADaySchedule.id == day_id).first()
@@ -6161,7 +7765,7 @@ def update_qms_action_plan(
 
     db.commit()
     db.refresh(plan)
-    return plan
+    return serialize_qms_action_plan(plan)
 
 
 @app.delete("/qms/action-plans/{plan_id}")
@@ -6212,7 +7816,7 @@ async def upload_qms_action_plan_evidence(
     contents = await read_upload_limited(file)
     file_path = f"qms_evidences/{uuid.uuid4()}_{file.filename}"
     
-    file_url = ""
+    stored_file_reference = ""
     try:
         if supabase:
             supabase.storage.from_("documents").upload(
@@ -6220,21 +7824,27 @@ async def upload_qms_action_plan_evidence(
                 file=contents,
                 file_options={"content-type": file.content_type}
             )
-            file_url = create_private_file_url(file_path)
+            stored_file_reference = file_path
     except Exception as e:
-        print(f"Supabase upload notice: {e}")
+        _log.exception("qms_evidence_storage_upload_failed", extra={"plan_id": plan_id})
+        raise HTTPException(status_code=500, detail="Failed to upload QMS evidence file.") from e
 
     evidence = models.QMSEvidence(
         action_plan_id=plan.id,
         document_name=document_name or file.filename,
-        file_url=file_url,
+        storage_path=file_path,
+        file_url=stored_file_reference,
         uploaded_by=current_user.email
     )
     db.add(evidence)
     db.commit()
     db.refresh(evidence)
 
-    return {"message": "Evidence file attached to Action Plan successfully!", "evidence_id": str(evidence.id), "file_url": file_url}
+    return {
+        "message": "Evidence file attached to Action Plan successfully!",
+        "evidence_id": str(evidence.id),
+        "file_url": create_private_file_url(file_path),
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -6245,7 +7855,9 @@ async def upload_qms_action_plan_evidence(
 def get_program_accreditation(program_code: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_faculty_or_admin)):
     """Fetches the current level and history for a program. Initializes default if none exists."""
     require_program(current_user, program_code)
-    accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
+    accreditation = db.query(models.ProgramAccreditation).filter(
+        models.ProgramAccreditation.program_code == program_code
+    ).with_for_update().first()
     
     if not accreditation:
         # Seed default starting point with initial history
@@ -6255,8 +7867,7 @@ def get_program_accreditation(program_code: str, db: Session = Depends(get_db), 
             status="Active"
         )
         db.add(accreditation)
-        db.commit()
-        db.refresh(accreditation)
+        db.flush()
         
         # Seed initial baseline milestone
         initial_history = models.AccreditationHistory(
@@ -6265,8 +7876,8 @@ def get_program_accreditation(program_code: str, db: Session = Depends(get_db), 
             remarks="Initial Candidate Status baseline"
         )
         db.add(initial_history)
-        db.commit()
-        db.refresh(accreditation)
+        active_cycle = ensure_active_accreditation_cycle(db, accreditation, current_user.email)
+        initial_history.cycle_id = active_cycle.id
     elif not accreditation.history or len(accreditation.history) == 0:
         # Ensure historical timeline contains at least the current standing
         initial_history = models.AccreditationHistory(
@@ -6276,10 +7887,14 @@ def get_program_accreditation(program_code: str, db: Session = Depends(get_db), 
             remarks=f"Official baseline standing: {accreditation.current_level or 'Candidate Status'}"
         )
         db.add(initial_history)
-        db.commit()
-        db.refresh(accreditation)
+        active_cycle = ensure_active_accreditation_cycle(db, accreditation, current_user.email)
+        initial_history.cycle_id = active_cycle.id
+
+    ensure_active_accreditation_cycle(db, accreditation, current_user.email)
+    db.commit()
+    db.refresh(accreditation)
         
-    return accreditation
+    return serialize_program_accreditation(accreditation)
 
 
 @app.put("/accreditation/program/{program_code}", response_model=schemas.ProgramAccreditationResponse)
@@ -6289,14 +7904,17 @@ def update_program_accreditation(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_faculty_or_admin),
 ):
-    """Updates configurable AACCUP evaluation areas for a program."""
+    """Updates AACCUP areas or calibrates the current standing and cycle."""
     require_program(current_user, program_code)
-    if not permissions_for(current_user)["governance.manage"]:
+    changes_standing = req.new_level is not None or req.valid_until_date is not None
+    if changes_standing:
+        require_campus_reviewer(current_user)
+    elif not permissions_for(current_user)["governance.manage"]:
         raise HTTPException(status_code=403, detail="Governance management permission required.")
 
     accreditation = db.query(models.ProgramAccreditation).filter(
         models.ProgramAccreditation.program_code == program_code
-    ).first()
+    ).with_for_update().first()
     if not accreditation:
         accreditation = models.ProgramAccreditation(
             program_code=program_code,
@@ -6304,6 +7922,9 @@ def update_program_accreditation(
             status="Active",
         )
         db.add(accreditation)
+        db.flush()
+
+    active_cycle = ensure_active_accreditation_cycle(db, accreditation, current_user.email)
 
     if req.active_areas is not None:
         areas = [area.strip() for area in req.active_areas.split(",") if area.strip()]
@@ -6315,9 +7936,40 @@ def update_program_accreditation(
             raise HTTPException(status_code=400, detail=f"Invalid evaluation area: {invalid[0]}")
         accreditation.active_areas = ",".join(dict.fromkeys(areas))
 
+    if changes_standing:
+        new_level = (req.new_level or accreditation.current_level or "Candidate Status").strip()
+        if not new_level:
+            raise HTTPException(status_code=400, detail="Accreditation level is required.")
+        parsed_date = parse_accreditation_date(req.valid_until_date)
+        if new_level != accreditation.current_level:
+            close_accreditation_cycle(active_cycle, current_user.email)
+            db.flush()
+            new_cycle = create_accreditation_cycle(
+                db,
+                accreditation,
+                new_level,
+                current_user.email,
+                "ADMINISTRATIVE_BASELINE",
+                parsed_date,
+                "Administrative Baseline",
+            )
+            db.add(models.AccreditationHistory(
+                program_id=accreditation.id,
+                level_achieved=new_level,
+                valid_until=parsed_date,
+                remarks=req.remarks or f"Administrative baseline set to {new_level}",
+                cycle_id=new_cycle.id,
+            ))
+        else:
+            active_cycle.valid_until = parsed_date
+            active_cycle.updated_at = datetime.utcnow()
+        accreditation.current_level = new_level
+        accreditation.valid_until = parsed_date
+        accreditation.updated_at = datetime.utcnow()
+
     db.commit()
     db.refresh(accreditation)
-    return accreditation
+    return serialize_program_accreditation(accreditation)
 
 
 
@@ -6327,7 +7979,7 @@ def add_accreditation_milestone(
     program_code: str,
     req: schemas.UpgradeAccreditationRequest,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_governance_manager)
+    admin: models.User = Depends(get_campus_governance_reviewer)
 ):
     """Adds a promotion level milestone to the accreditation timeline with optional certificate."""
     require_program(admin, program_code)
@@ -6342,24 +7994,23 @@ def add_accreditation_milestone(
         db.commit()
         db.refresh(accreditation)
 
-    parsed_date = None
-    if req.valid_until_date:
-        try:
-            parsed_date = datetime.fromisoformat(req.valid_until_date)
-        except Exception:
-            pass
+    parsed_date = parse_accreditation_date(req.valid_until_date)
+    active_cycle = ensure_active_accreditation_cycle(db, accreditation, admin.email)
 
+    certificate_path = get_private_storage_path(req.certificate_url)
     history_log = models.AccreditationHistory(
         program_id=accreditation.id,
         level_achieved=req.new_level or "Accreditation Update",
         valid_until=parsed_date,
-        certificate_url=req.certificate_url,
-        remarks=req.remarks or f"Milestone logged for {req.new_level}"
+        certificate_storage_path=certificate_path or None,
+        certificate_url=certificate_path or req.certificate_url,
+        remarks=req.remarks or f"Milestone logged for {req.new_level}",
+        cycle_id=active_cycle.id,
     )
     db.add(history_log)
     db.commit()
     db.refresh(accreditation)
-    return accreditation
+    return serialize_program_accreditation(accreditation)
 
 
 @app.post("/accreditation/program/{program_code}/upgrade", response_model=schemas.ProgramAccreditationResponse)
@@ -6367,42 +8018,52 @@ def upgrade_program_accreditation(
     program_code: str, 
     req: schemas.UpgradeAccreditationRequest, 
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_governance_manager)
+    admin: models.User = Depends(get_campus_governance_reviewer)
 ):
     """Officially upgrades a program's level and logs the level achievement into history."""
     require_program(admin, program_code)
-    accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).first()
+    new_level = (req.new_level or "").strip()
+    if not new_level:
+        raise HTTPException(status_code=400, detail="New accreditation level is required.")
+    accreditation = db.query(models.ProgramAccreditation).filter(models.ProgramAccreditation.program_code == program_code).with_for_update().first()
     if not accreditation:
         accreditation = models.ProgramAccreditation(
             program_code=program_code,
-            current_level=req.new_level,
+            current_level="Candidate Status",
             status="Active"
         )
         db.add(accreditation)
-        db.commit()
-        db.refresh(accreditation)
+        db.flush()
 
-    # 1. Log the new achievement to history
-    parsed_date = None
-    if req.valid_until_date:
-        try:
-            parsed_date = datetime.fromisoformat(req.valid_until_date)
-        except Exception:
-            pass
+    parsed_date = parse_accreditation_date(req.valid_until_date)
+    previous_cycle = ensure_active_accreditation_cycle(db, accreditation, admin.email)
+    close_accreditation_cycle(previous_cycle, admin.email)
+    db.flush()
+    new_cycle = create_accreditation_cycle(
+        db,
+        accreditation,
+        new_level,
+        admin.email,
+        "LEVEL_TRANSITION",
+        parsed_date,
+        "Current Cycle",
+    )
 
+    certificate_path = get_private_storage_path(req.certificate_url)
     history_log = models.AccreditationHistory(
         program_id=accreditation.id,
-        level_achieved=req.new_level,
+        level_achieved=new_level,
         valid_until=parsed_date,
-        certificate_url=req.certificate_url,
-        remarks=req.remarks or f"Officially promoted to {req.new_level}"
+        certificate_storage_path=certificate_path or None,
+        certificate_url=certificate_path or req.certificate_url,
+        remarks=req.remarks or f"Officially promoted to {new_level}",
+        cycle_id=new_cycle.id,
     )
     db.add(history_log)
 
     # 2. Update the active status
-    accreditation.current_level = req.new_level
-    if parsed_date:
-        accreditation.valid_until = parsed_date
+    accreditation.current_level = new_level
+    accreditation.valid_until = parsed_date
     accreditation.updated_at = datetime.utcnow()
 
     db.commit()
@@ -6413,7 +8074,7 @@ def upgrade_program_accreditation(
         supabase.table("system_events_logs").insert({
             "user_email": admin.email,
             "event_type": "Accreditation Upgrade",
-            "description": f"Officially upgraded {program_code} to {req.new_level}"
+            "description": f"Closed {previous_cycle.cycle_label} and opened {new_cycle.cycle_label}"
         }).execute()
     except Exception:
         pass
@@ -6423,12 +8084,32 @@ def upgrade_program_accreditation(
             db=db,
             n_type="success",
             title=f"AACCUP Level Upgraded: {program_code}",
-            message=f"Program {program_code} has been officially upgraded to {req.new_level} by {admin.full_name or admin.email}."
+            message=f"Program {program_code} has been officially upgraded to {new_level} by {admin.full_name or admin.email}."
         )
     except Exception:
         pass
 
-    return accreditation
+    return serialize_program_accreditation(accreditation)
+
+
+@app.get("/accreditation/program/{program_code}/cycles", response_model=List[schemas.AccreditationCycleResponse])
+def list_program_accreditation_cycles(
+    program_code: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
+    require_program(current_user, program_code)
+    accreditation = db.query(models.ProgramAccreditation).filter(
+        models.ProgramAccreditation.program_code == program_code
+    ).first()
+    if not accreditation:
+        return []
+    return (
+        db.query(models.AccreditationCycle)
+        .filter(models.AccreditationCycle.program_id == accreditation.id)
+        .order_by(models.AccreditationCycle.opened_at.desc(), models.AccreditationCycle.attempt_number.desc())
+        .all()
+    )
 
 
 @app.post("/accreditation/history/{history_id}/upload-certificate")
@@ -6436,7 +8117,7 @@ async def upload_historical_certificate(
     history_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    admin: models.User = Depends(get_governance_manager)
+    admin: models.User = Depends(get_campus_governance_reviewer)
 ):
     """Uploads an official certificate file and attaches it to an accreditation history log."""
     history_log = db.query(models.AccreditationHistory).filter(models.AccreditationHistory.id == history_id).first()
@@ -6454,12 +8135,14 @@ async def upload_historical_certificate(
             path=unique_path,
             file_options={"content-type": file.content_type or "application/pdf"}
         )
-        public_url = create_private_file_url(unique_path)
-        
-        history_log.certificate_url = public_url
+        history_log.certificate_storage_path = unique_path
+        history_log.certificate_url = unique_path
         db.commit()
         db.refresh(history_log)
-        return {"message": "Certificate uploaded successfully", "certificate_url": public_url}
+        return {
+            "message": "Certificate uploaded successfully",
+            "certificate_url": create_private_file_url(unique_path),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload certificate: {str(e)}")
 
@@ -6472,7 +8155,11 @@ class GenerateDocRequest(BaseModel):
     prompt: str
     temperature: Optional[float] = 0.3
 
-def generate_document_endpoint(req: GenerateDocRequest):
+@app.post("/generate-document")
+def generate_document_endpoint(
+    req: GenerateDocRequest,
+    current_user: models.User = Depends(get_current_faculty_or_admin),
+):
     """
     Generates professional document body content using local Llama3.1 (via Ollama) or Groq.
     Outputs structured markdown formatted for DOCX/PDF export.
@@ -7339,7 +9026,7 @@ def extract_pdf_header_footer_images(contents: bytes):
     return header_png, footer_png
 
 def _upload_asset_to_storage(asset_bytes: bytes, prefix: str) -> str | None:
-    """Upload a PNG blob to the documents bucket and return its public URL."""
+    """Upload a PNG blob and return its durable private-bucket object path."""
     if not asset_bytes:
         return None
     try:
@@ -7347,7 +9034,7 @@ def _upload_asset_to_storage(asset_bytes: bytes, prefix: str) -> str | None:
         supabase.storage.from_("documents").upload(
             file=asset_bytes, path=path, file_options={"content-type": "image/png"}
         )
-        return create_private_file_url(path)
+        return path
     except Exception as e:
         print(f"[_upload_asset_to_storage] warning: {e}")
         return None
@@ -7382,14 +9069,10 @@ def _fetch_url_bytes(url: str) -> bytes | None:
         return None
 
     # ── Path 1: Supabase storage client (preferred) ──────────────────────
-    # Public URL format:
-    #   https://<project>.supabase.co/storage/v1/object/public/documents/<path>
+    # Stored values may be durable paths or legacy public/signed URLs.
     try:
-        marker = "/storage/v1/object/public/documents/"
-        if marker in url:
-            object_path = url.split(marker, 1)[1]
-            # Strip any query string that might have been appended.
-            object_path = object_path.split("?", 1)[0]
+        object_path = get_private_storage_path(url)
+        if object_path:
             blob = supabase.storage.from_("documents").download(object_path)
             if blob:
                 print(f"[_fetch_url_bytes] ✓ supabase client fetched {object_path} ({len(blob)} bytes)")
@@ -7616,9 +9299,11 @@ def get_document_content(
             "version":          meta.get("version", "1.0"),
             "effectivity_date": meta.get("effectivity_date", ""),
             "content_html":     meta.get("content_html", ""),
-            "header_image_url": meta.get("header_image_url"),
-            "footer_image_url": meta.get("footer_image_url"),
-            "file_url":         meta.get("file_url", ""),
+            "header_image_url": get_fresh_private_file_url(meta.get("header_image_url")) or None,
+            "footer_image_url": get_fresh_private_file_url(meta.get("footer_image_url")) or None,
+            "file_url":         get_fresh_private_file_url(
+                meta.get("file_url"), meta.get("storage_path")
+            ),
             "page_size":        meta.get("page_size", "short"),
             "line_spacing":     meta.get("line_spacing", "1.5"),
         }

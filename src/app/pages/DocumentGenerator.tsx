@@ -2707,10 +2707,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
 
       try {
         const response = await apiClient.post("/generate-document", { prompt: fullPromptPayload, targetPages });
-        if (response.ok) {
-          const data = await response.json();
-          rawContent = data.content ?? "";
-        } else throw new Error("Server returned error status");
+        rawContent = response.data?.content ?? "";
       } catch {
         rawContent = `# ${prompt.toUpperCase()}\n\n**DOCUMENT REF NO.:** CTU-ARG-DOC-2026-001\n**DATE:** ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}\n\n## 1.0 PURPOSE AND SCOPE\nThis document outlines official guidelines and procedural terms regarding ${prompt}.\n\n## 2.0 DIRECTIVES AND PROVISIONS\n- All concerned personnel shall adhere to university governance standards.\n- Regular compliance reports must be submitted to the Office of the Dean.\n\n## 3.0 SIGNATORIES\n\n**Prepared by:**\n____________________________________\nFaculty Member / Proponent\n\n**Approved by:**\n____________________________________\nCampus Director`;
       }
@@ -2997,43 +2994,6 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
       (f) => f.includes('class="page"') || f.includes("MRC Form") || f.includes("MANAGEMENT REVIEW")
     );
 
-    if (false) {
-      const printWindow = window.open("", "_blank", "width=900,height=750");
-      if (!printWindow) return setErrorMessage("Please allow pop-ups to print the document.");
-
-      const isLandscape = fragments.some(
-        (f) =>
-          f.includes("11in 8.5in") ||
-          f.includes("MRC Form 4") ||
-          f.includes("MRC Form 3") ||
-          f.includes("MRC Form 5") ||
-          f.includes("MRC Form 7") ||
-          f.includes("MRC FORM 7") ||
-          f.includes("ANNUAL PLAN") ||
-          f.includes("RISK IDENTIFICATION") ||
-          f.includes("RELEVANT ISSUES LOG")
-      );
-      const printPageSize = isLandscape ? "11in 8.5in" : "8.5in 11in";
-
-      printWindow.document.write(`<!DOCTYPE html><html><head>
-        <title>${resolveFileNameBase()}</title>
-        <style>
-          @page { size: ${printPageSize}; margin: 0; }
-          * { box-sizing: border-box; }
-          html, body { margin: 0; padding: 0; background: #ffffff; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Calibri, Carlito, "Segoe UI", sans-serif; }
-          @media print {
-            body { margin: 0; }
-            .page { margin: 0 !important; box-shadow: none !important; width: 100% !important; }
-          }
-        </style>
-      </head><body>${fragments.join("")}</body></html>`);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
-      return;
-    }
-
     const pagesHtml = fragments
       .map((frag, idx) =>
         buildSinglePageHtml({
@@ -3052,7 +3012,10 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
       .join("");
 
     const printWindow = window.open("", "_blank", "width=900,height=750");
-    if (!printWindow) return setErrorMessage("Please allow pop-ups to print the document.");
+    if (!printWindow) {
+      setErrorMessage("Please allow pop-ups to print the document.");
+      return;
+    }
 
     printWindow.document.write(`<!DOCTYPE html><html><head>
       <title>${resolveFileNameBase()}</title>

@@ -218,7 +218,7 @@ export function SignUpPage() {
         full_name: formData.fullName.trim(),
         course: formData.role === "STUDENT" ? formData.course : null,
         year: formData.role === "STUDENT" ? formData.year : null,
-        department: formData.role === "FACULTY" ? formData.course : null
+        department: formData.role === "PERSONNEL" ? formData.course : null
       });
 
       navigate("/login");
@@ -315,7 +315,7 @@ export function SignUpPage() {
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { value: "STUDENT", label: "Student", icon: GraduationCap },
-                    { value: "FACULTY", label: "Faculty", icon: User }
+                    { value: "PERSONNEL", label: "Faculty / Instructor", icon: User }
                   ].map((option) => {
                     const Icon = option.icon;
                     const isSelected = formData.role === option.value;
@@ -342,6 +342,11 @@ export function SignUpPage() {
                     );
                   })}
                 </div>
+                {formData.role === "PERSONNEL" && (
+                  <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                    Faculty and instructors may request an account here. Other personnel accounts and administrative assignments are created by the System Administrator.
+                  </p>
+                )}
               </div>
 
               {/* Full Name */}
@@ -646,7 +651,7 @@ export function SignUpPage() {
                 By registering for an account on the CTU Argao Institutional Knowledge System, you agree to comply with institutional data governance policies and maintain account confidentiality.
               </p>
               <p>
-                Student registrations receive immediate access to policy assistance and repositories. Faculty registrations are subject to administrative verification.
+                Student registrations receive immediate access to policy assistance and repositories. Faculty and instructor registrations require System Administrator verification. Other personnel accounts are created by the System Administrator.
               </p>
             </div>
 

@@ -1,65 +1,102 @@
-# Roles and governance permissions
+# Authorization and permission matrix
 
-Implemented November 2, 2026; expanded November 5, 2026. Backend policy: `backend/permissions.py`.
+Updated November 6, 2026. The system uses three base roles and repeatable scoped assignments.
 
-| Capability | System Administrator | Office Head | College Dean | Program Chair | College Secretary | Faculty | Document Controller | Student |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Users, role assignments, system settings, full audit logs | All | No | No | No | No | No | No | No |
-| Campus announcements | All | No | No | No | No | No | No | No |
-| Read published policies / ask the assistant | All | Yes | Yes | Yes | Yes | Yes | Yes | Yes, with student restrictions |
-| Manage repository documents | All | Assigned office/program | Assigned college | Assigned program | Assigned college | No | No | No |
-| Read/submit CHED and AACCUP evidence | All | Assigned program | All programs in college | Assigned program | All programs in college | Assigned program | No | No |
-| Manage accreditation configuration and milestones | All | Assigned program | All programs in college | Assigned program | No | No | No | No |
-| Read ISO, QMS, CAR and survey records | All | Assigned office | Assigned office if assigned | Assigned office if assigned | Assigned office if assigned | Assigned office | No | No |
-| Review evidence, set compliance, assess plans, close CARs | All | Auditor/QA assignment | Auditor/QA assignment | Auditor/QA assignment | Auditor/QA assignment | Auditor/QA assignment | No | No |
-| Paper Trail visibility | All | Own office / participant | Own unit / participant | Own unit / participant | Own unit / participant | Own office / participant | Campus-wide | No |
-| Controlled-document routing | All | No special override | No special override | No special override | No special override | No special override | Primary operational role | No |
+## Base roles
 
-System Administrator is the emergency/global override and can access every system and governance function. A Quality Assurance office assignment or `is_iqa_auditor` grants campus-wide review access to other personnel roles. Academic leadership does not automatically approve its own evidence unless separately assigned as a reviewer.
+| Base role | Purpose |
+| --- | --- |
+| System Administrator | Global system and governance access, user management, settings, audit logs and emergency override |
+| Personnel | Campus employee account; effective access comes from one or more assignments below |
+| Student | Public/student repository, AI assistant, grade evaluation and client survey access |
 
-## Scope rules
+Job titles are not base roles. A Personnel account can hold several assignments at the same time.
 
-- Office scope comes from `users.administrative_office`. Academic scope comes from `users.department`: College Dean and College Secretary store a college, while Program Chair and Faculty store one program. The backend maps a college to all of its campus programs.
-- College Dean can manage accreditation workflows and college-scoped documents. College Secretary can manage college-scoped documents and evidence but cannot manage users or alter accreditation configuration/milestones. Program Chair manages only the assigned program.
-- Missing assignments grant no matching workflow access. They are never treated as “all offices.” Legacy `ADMIN` values are interpreted as `OFFICE_HEAD`; new accounts must use the new roles.
-- Office names match exact normalized values or the explicit aliases in `permissions.py`, including existing combined ISO process offices. There is no substring matching.
-- Updates check both the existing office and a requested replacement office. Evidence access checks the parent requirement/action plan before returning links or changing records.
-- Governance evidence is filtered in repository listings, signed links, content retrieval and RAG context. Published general policies remain available under existing student restrictions.
-- Frontend navigation uses the role returned by `/auth/me`. Governance controls use server-calculated capabilities. Session storage is only a UI cache; API authorization loads the account from the database.
-- Self-registration cannot assign privileged roles, office scope or auditor access. Staff cannot change their own program assignment through Profile Settings.
-- The last active System Administrator cannot be disabled, deleted or demoted. Assign another active administrator first. Email changes are allowed; log in again using the new email afterward.
+## Personnel assignments
 
-## Existing-account migration
+| Assignment | Required scope | Effective access |
+| --- | --- | --- |
+| Office Head | Office | Office records, office ISO/QMS work, office survey analytics, document management |
+| Office Member | Office | Read/submit within the office; no approval, user management or document-management authority |
+| College Dean | College | All programs in the college; accreditation and college document management |
+| College Secretary | College | All programs in the college and college documents; no accreditation configuration/milestones |
+| Program Chair | Program | Assigned program accreditation, evidence and document management |
+| Faculty Member / Instructor | Program | Read/submit assigned-program evidence; no approval or document management |
+| Quality Assurance Head | Campus | Campus-wide governance review and management |
+| Internal Quality Auditor | Campus or office | Campus-wide or assigned-office review scope |
+| Survey Analyst | Campus or office | Campus-wide or assigned-office Survey Analytics |
+| Document Controller | Campus | Paper Trail control; only one active assignment is allowed |
 
-`backend/migrate_roles.py` performs an explicit transaction and backs up role/office/auditor assignments before changes. It never promotes accounts based on their display name or office.
+## Menu and capability rules
 
-- `admin@ctu.edu.ph` → `SYSTEM_ADMIN`, as requested.
-- Other legacy `ADMIN` accounts → `OFFICE_HEAD`.
-- Existing QA office and IQA assignments are preserved.
-- Legacy `IQA` role, if present → `FACULTY` with the auditor assignment retained.
-- One former administrator, `bakiogtiki@gmail.com`, had no office at migration time. Subsequently assigned to **HR & Records Management** at the user's request; the database update was verified.
+| Menu / capability | System Administrator | Personnel | Student |
+| --- | --- | --- | --- |
+| Dashboard, Knowledge Repository, AI Assistant | Yes | Yes | Yes, with student document restrictions |
+| Accreditation Support | Yes | Only with office, academic, QA or IQA assignment | No |
+| Paper Trail | Yes; control | Read for all Personnel; control only with Document Controller | No |
+| Survey Analytics | Yes, campus-wide | Office Head, QA Head, IQA Auditor or Survey Analyst only | No |
+| Document Generator | Yes | Yes | No |
+| Grade Evaluation | Yes | Yes | Yes |
+| Broadcast Announcement | Yes | No | No |
+| Audit Trail | Yes | No | No |
+| Users & Roles | Yes | No | No |
+| System Settings | Yes | No | No |
 
-Backup: `backups/role_assignments_20261102T043416816155Z.json` (ignored by Git).
+## Scope behavior
 
-The migration also removes the public-read policy and public client privileges on `system_events_logs`. This app uses its own authentication and the server's Supabase service role, so API authorization must protect service-role operations. Other public tables were checked: RLS was enabled, with only the intended anonymous survey-insert policy remaining. See [Supabase API security](https://supabase.com/docs/guides/api/securing-your-api).
+- Missing assignments grant no governance, accreditation or analytics scope.
+- College assignments expand to every program mapped to that college. Program assignments remain program-specific.
+- Office assignments use the confirmed campus organizational office directory. `Other` remains a survey response option and cannot be assigned to an account.
+- The 16 ISO groups are accreditation/QMS process groups, not organizational offices. `iso_process_unit_mappings` maps each process group to one or more actual campus offices.
+- Multiple active assignments are combined. They never change the account's base role from `PERSONNEL`.
+- Paper Trail visibility and current-office custody combine every active OFFICE assignment; sender, recipient and Document Controller access remain independent of office scope.
+- No dedicated Document Controller is assigned yet. System Administrator retains full Paper Trail control; a future Personnel account with the campus-scoped Document Controller assignment receives the same operational visibility, custody, controlled-release, closure and metadata-correction capabilities.
+- QA Head and campus-scoped IQA Auditor grant campus-wide governance review.
+- Only the System Administrator, campus-scoped QA Head, or campus-scoped IQA Auditor can calibrate an AACCUP standing, close/open accreditation cycles, log an official level promotion, or change an official accreditation certificate.
+- College Deans and Program Chairs retain their scoped program evidence and accreditation-work access, but cannot change the program's official accreditation level.
+- Authorized academic personnel and campus reviewers can browse evidence and certificates from prior AACCUP cycles. Closed cycles are read-only; only the active cycle accepts uploads, review changes, or evidence archiving.
+- An office-scoped IQA Auditor can review only the assigned office and its mapped ISO process groups. This assignment does not grant access to unrelated offices or academic programs; any additional scope must come from another explicit assignment.
+- Survey Analyst grants survey access only and does not grant governance review.
+- System Administrator is the only global system-management role and can access every menu.
+- API authorization is calculated from database assignments. Browser session storage is only a UI cache.
 
-## Verification and progress
+## Database model
 
-- [x] Role split and central authorization helpers.
-- [x] Account and system APIs restricted to System Administrator.
-- [x] Office/program checks on ISO, QMS, CAR, CHED and AACCUP workflows.
-- [x] Paper Trail direct-record access checked against the same visibility rule as its list.
-- [x] Scoped survey results and governance evidence access.
-- [x] UI roles, navigation, assignment forms and repository action visibility updated.
-- [x] Regression tests in `backend/test_authorization.py` (real route bodies with mocked database calls, plus an HTTP dependency test).
-- [x] 31 authorization, password-reset and RAG regression tests passed; frontend production build passed.
-- [x] Eight live authenticated API checks passed after restarting the development backend: system settings access, Office Head denial on system APIs, empty unassigned-office records, and preserved QA review access.
-- [x] Database verification: one System Administrator, two Office Heads, no legacy ADMIN roles; anonymous/authenticated Supabase clients cannot read system audit logs.
-- [x] Assign the missing Office Head office: `bakiogtiki@gmail.com` → HR & Records Management.
-- [ ] Administrator reviews academic program assignments where applicable.
-- [ ] Final walkthrough using your actual Office Head workflow and presentation documents.
+- `users.role`: `SYSTEM_ADMIN`, `PERSONNEL` or `STUDENT`
+- `organizational_units`: confirmed offices and academic colleges
+- `academic_programs`: programs mapped to colleges
+- `user_assignments`: repeatable position and scope records
+- `iso_process_groups`: the 16 ISO/QMS process groups
+- `iso_process_unit_mappings`: process-group-to-campus-office mappings
+- `iso_process_aliases`: exact legacy labels used by existing ISO requirements
+- `accreditation_cycles`: one immutable program/level attempt record, with at most one active cycle per program
 
-Run tests from `backend`: `python -m unittest test_authorization -v`.
-Build the frontend from the project root: `npm run build`.
+Migrations:
 
-Future extension: use explicit assignment tables if one person needs several colleges, unrelated programs, several offices or a restricted auditor assignment. Do not grant the campus-wide auditor flag merely to solve a missing scope assignment.
+- `supabase/20261106_base_roles_and_personnel_assignments.sql`
+- `supabase/20261106_enforce_authorization_constraints.sql`
+- `supabase/20261106_iso_process_aliases.sql`
+- `supabase/20261108_accreditation_cycles.sql`
+
+## Migration result
+
+The live Supabase database migration preserved all 33 accounts:
+
+- 1 System Administrator
+- 12 Personnel
+- 20 Students
+- 15 migrated assignments: 7 Faculty Member, 4 Office Member, 2 Office Head and 2 IQA Auditor assignments (some people hold more than one)
+
+Reference data contains 27 assignable campus offices, 5 colleges, 19 programs, 16 ISO process groups, 16 exact legacy aliases and 27 ISO-to-office mappings. All 17 distinct process labels already used by ISO requirements are covered by a canonical name or alias.
+
+## Verification
+
+- Backend compilation passed.
+- Authorization regression suite: `python backend/test_authorization.py`
+- Authorization and permission regression suite: `python -m unittest discover -s backend -p "test_*.py"`
+- Strict TypeScript validation: `npm run typecheck`
+- Frontend production build: `npm run build`
+- Live database checks confirmed valid base roles, valid assignment scopes and no assignments attached to non-Personnel accounts.
+- Supabase Data API hardening removes all `anon` and `authenticated` table/sequence grants; application data and the vector-search RPC are available only through the backend service role.
+- The vector-search function uses the fixed `public, extensions` search path, and pgvector is installed in the non-exposed `extensions` schema.
+- Fix 11 live configuration: the unused Jane Doe test account was permanently removed, System Administrator remains the current Paper Trail controller, and PAID remains intentionally unmapped pending adviser confirmation.

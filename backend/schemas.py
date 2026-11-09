@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime, date
 import uuid
 from typing import Optional, List, Union
@@ -29,6 +29,7 @@ class UserResponse(BaseModel):
     email_changed: Optional[bool] = False
     status: Optional[str] = "Active"
     created_at: datetime
+    assignments: List[dict] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -113,7 +114,7 @@ class PaperTrailCreate(BaseModel):
     office: str
     sender_name: str
     sender_email: str
-    sender_role: str = "FACULTY"
+    sender_role: str = "PERSONNEL"
     recipient_name: Optional[str] = None
     recipient_email: Optional[str] = None
     recipient_role: Optional[str] = None
@@ -123,6 +124,7 @@ class PaperTrailCreate(BaseModel):
     transaction_type: Optional[str] = "Submission"
     is_controlled_document: bool = False
     remarks: Optional[str] = None
+    storage_path: Optional[str] = None
     file_url: Optional[str] = None
 
 class PaperTrailRequestCreate(BaseModel):
@@ -131,10 +133,12 @@ class PaperTrailRequestCreate(BaseModel):
     office: str
     target_person_name: Optional[str] = None
     target_person_email: Optional[str] = None
+    origin_office: Optional[str] = None
     instructions: Optional[str] = None
 
 class PaperTrailFulfillRequest(BaseModel):
-    file_url: str
+    storage_path: Optional[str] = None
+    file_url: Optional[str] = None
     remarks: Optional[str] = None
 
 class PaperTrailMetadataUpdate(BaseModel):
@@ -239,6 +243,61 @@ class ISORequirementResponse(BaseModel):
 
 class ISOCycleCreate(BaseModel):
     cycle_year: str
+
+
+class ISOAuditResultCreate(BaseModel):
+    cycle_id: uuid.UUID
+    standard_version: str = Field(min_length=1, max_length=100)
+    result_type: str
+    audit_start_date: Optional[date] = None
+    audit_end_date: date
+    auditor_or_certification_body: str = Field(min_length=1, max_length=255)
+    conclusion: str = Field(min_length=1, max_length=255)
+    certification_status: Optional[str] = None
+    major_nonconformities: int = Field(default=0, ge=0)
+    minor_nonconformities: int = Field(default=0, ge=0)
+    observations: int = Field(default=0, ge=0)
+    opportunities_for_improvement: int = Field(default=0, ge=0)
+    summary: str = Field(min_length=1)
+
+
+class ISOAuditResultUpdate(ISOAuditResultCreate):
+    record_status: str = "DRAFT"
+
+
+class ISOAuditResultResponse(BaseModel):
+    id: uuid.UUID
+    cycle_id: uuid.UUID
+    cycle_name: str
+    standard_version: str
+    result_type: str
+    audit_start_date: Optional[datetime] = None
+    audit_end_date: datetime
+    auditor_or_certification_body: str
+    conclusion: str
+    certification_status: Optional[str] = None
+    major_nonconformities: int
+    minor_nonconformities: int
+    observations: int
+    opportunities_for_improvement: int
+    summary: str
+    report_url: Optional[str] = None
+    report_original_filename: Optional[str] = None
+    certificate_url: Optional[str] = None
+    certificate_original_filename: Optional[str] = None
+    record_status: str
+    created_by: str
+    finalized_by: Optional[str] = None
+    finalized_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ISOAuditCycleResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    standard_version: str
+    status: str
 
 class ISOStatusUpdate(BaseModel):
     status: str # Compliant, Pending, Not Compliant
@@ -372,9 +431,40 @@ class AccreditationHistoryResponse(BaseModel):
     valid_until: Optional[datetime] = None
     certificate_url: Optional[str] = None
     remarks: Optional[str] = None
+    cycle_id: Optional[uuid.UUID] = None
 
     class Config:
         from_attributes = True
+
+class AccreditationCycleResponse(BaseModel):
+    id: uuid.UUID
+    program_id: uuid.UUID
+    level_name: str
+    attempt_number: int
+    cycle_label: str
+    status: str
+    source: str
+    opened_at: datetime
+    closed_at: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AaccupEvidenceResponse(BaseModel):
+    evidence_id: uuid.UUID
+    cycle_id: uuid.UUID
+    program: str
+    name: str
+    area_code: str
+    requirement_target: str
+    status: str
+    admin_feedback: Optional[str] = None
+    uploaded_by: Optional[str] = None
+    upload_date: Optional[str] = None
+    original_filename: Optional[str] = None
+
 
 class ProgramAccreditationResponse(BaseModel):
     id: uuid.UUID
@@ -384,6 +474,8 @@ class ProgramAccreditationResponse(BaseModel):
     active_areas: Optional[str] = "Area I,Area II,Area III,Area IV,Area V,Area VI,Area VII,Area VIII,Area IX,Area X"
     valid_until: Optional[datetime] = None
     history: List[AccreditationHistoryResponse] = []
+    active_cycle: Optional[AccreditationCycleResponse] = None
+    cycles: List[AccreditationCycleResponse] = []
 
     class Config:
         from_attributes = True

@@ -63,7 +63,7 @@ export function ProfileSettings() {
 
 
   const userRole = sessionStorage.getItem("userRole") || "STUDENT";
-  const originalEmail = sessionStorage.getItem("userEmail") || "";
+  const [originalEmail, setOriginalEmail] = useState(() => sessionStorage.getItem("userEmail") || "");
   const createdByAdmin = sessionStorage.getItem("createdByAdmin") === "true";
   const emailChanged = sessionStorage.getItem("emailChanged") === "true";
   const isEmailLocked = userRole !== "SYSTEM_ADMIN" && (!createdByAdmin || emailChanged);

@@ -1,6 +1,6 @@
 import { useRole } from "../contexts/RoleContext";
 import { AdminDashboard } from "./AdminDashboard";
-import { FacultyDashboard } from "./FacultyDashboard";
+import { PersonnelDashboard } from "./PersonnelDashboard";
 import { StudentDashboard } from "./StudentDashboard";
 
 export function DashboardRouter() {
@@ -11,15 +11,8 @@ export function DashboardRouter() {
   switch (userRole) {
     case "SYSTEM_ADMIN":
       return <AdminDashboard />;
-    case "OFFICE_HEAD":
-    case "COLLEGE_DEAN":
-    case "PROGRAM_CHAIR":
-    case "COLLEGE_SECRETARY":
-    case "ADMIN":
-    case "FACULTY":
-      return <FacultyDashboard />;
-    case "DOCUMENT_CONTROLLER":
-      return <FacultyDashboard />;
+    case "PERSONNEL":
+      return <PersonnelDashboard />;
     case "STUDENT":
       return <StudentDashboard />;
     default:

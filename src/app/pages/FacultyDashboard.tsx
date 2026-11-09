@@ -33,7 +33,7 @@ export function FacultyDashboard() {
         setUserDepartment(userDept); 
 
         const [statsRes, historyRes, accessRes, accredRes] = await Promise.all([
-          apiClient.get("/system-stats?role=FACULTY"),
+          apiClient.get("/system-stats"),
           apiClient.get(`/chat-history?email=${userEmail}`),
           apiClient.get("/audit/access"),
           apiClient.get(`/accreditation-status/${userDept}`) 

@@ -15,16 +15,13 @@ const KnowledgeRepository = lazy(() => import("./pages/KnowledgeRepository").the
 const PaperTrail = lazy(() => import("./pages/PaperTrail").then(m => ({ default: m.PaperTrail })));
 const AskPolicy = lazy(() => import("./pages/AskPolicy").then(m => ({ default: m.AskPolicy })));
 const AccreditationSupport = lazy(() => import("./pages/AccreditationSupport").then(m => ({ default: m.AccreditationSupport })));
-const GovernanceReference = lazy(() => import("./pages/GovernanceReference").then(m => ({ default: m.GovernanceReference })));
 const AuditTrail = lazy(() => import("./pages/AuditTrail").then(m => ({ default: m.AuditTrail })));
 const UsersRoles = lazy(() => import("./pages/UsersRoles").then(m => ({ default: m.UsersRoles })));
 const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
 const ProfileSettings = lazy(() => import("./pages/ProfileSettings").then(m => ({ default: m.ProfileSettings })));
 const BroadcastAnnouncement = lazy(() => import("./pages/BroadcastAnnouncement").then(m => ({ default: m.BroadcastAnnouncement })));
 const DocumentGenerator = lazy(() => import("./pages/DocumentGenerator").then(m => ({ default: m.DocumentGenerator })));
-const AIDocumentGenerator = lazy(() => import("./pages/AIDocumentGenerator").then(m => ({ default: m.AIDocumentGenerator })));
 const GradeEvaluation = lazy(() => import("./pages/GradeEvaluation").then(m => ({ default: m.GradeEvaluation })));
-const StudentRecords = lazy(() => import("./pages/StudentRecords").then(m => ({ default: m.StudentRecords })));
 const ClientSatisfactionSurvey = lazy(() => import("./pages/ClientSatisfactionSurvey").then(m => ({ default: m.ClientSatisfactionSurvey })));
 const CssDashboard = lazy(() => import("./pages/CssDashboard/Dashboard").then(m => ({ default: m.Dashboard })));
 
@@ -100,14 +97,6 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: "governance-reference",
-            element: (
-              <ProtectedRoute permission="canAccessGovernanceReference">
-                {withSuspense(GovernanceReference)}
-              </ProtectedRoute>
-            ),
-          },
-          {
             path: "audit-trail",
             element: (
               <ProtectedRoute permission="canAccessAuditTrail">
@@ -156,26 +145,10 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: "ai-document-generator",
-            element: (
-              <ProtectedRoute permission="canAccessAIDocumentGenerator">
-                {withSuspense(AIDocumentGenerator)}
-              </ProtectedRoute>
-            ),
-          },
-          {
             path: "grade-evaluation",
             element: (
               <ProtectedRoute permission="canAccessGradeEvaluation">
                 {withSuspense(GradeEvaluation)}
-              </ProtectedRoute>
-            ),
-          },
-          {
-            path: "student-records",
-            element: (
-              <ProtectedRoute permission="canAccessStudentRecords">
-                {withSuspense(StudentRecords)}
               </ProtectedRoute>
             ),
           },

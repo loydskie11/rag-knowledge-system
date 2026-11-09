@@ -4,7 +4,7 @@ import { Search, Filter, Upload, Download, Edit, Archive, Clock, Eye, CheckCircl
 import axios from "axios"
 import { useRole } from "../contexts/RoleContext"
 import { ISO_OFFICES_16 } from "./UsersRoles"
-import { ACADEMIC_LEADERSHIP_ROLES, CAMPUS_PROGRAMS } from "../constants/academicScopes"
+import { CAMPUS_OFFICES, CAMPUS_PROGRAMS } from "../constants/academicScopes"
 import { useUploadQueue } from "../contexts/UploadQueueContext"
 import { apiClient } from "../api/client";
 
@@ -22,19 +22,59 @@ export interface BackgroundUploadTask {
   isVersionUpdate?: boolean
 }
 
+type RepositoryScopeType = "CAMPUS" | "OFFICE" | "PROGRAM"
+
+type DuplicateCode = "NEW_DOCUMENT" | "EXACT_DUPLICATE" | "CROSS_SCOPE_DUPLICATE" | "POSSIBLE_NEW_VERSION"
+
+interface DuplicateCheckResult {
+  code: DuplicateCode
+  message: string
+  existing_document?: {
+    document_name?: string
+    original_filename?: string
+    office?: string
+    program?: string
+    scope_type?: RepositoryScopeType
+    scope_code?: string
+    version?: string
+    status?: string
+  } | null
+}
+
+interface PendingDuplicateDecision {
+  result: DuplicateCheckResult
+  mode: "NEW_DOCUMENT" | "NEW_VERSION"
+  file: File
+}
+
+async function sha256File(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer())
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("")
+}
+
 export function KnowledgeRepository() {
   const { userRole } = useRole()
   const currentRole = userRole || "STUDENT"
 
   const canUpload = hasPermission(currentRole, "canUploadDocuments")
   const canEdit = hasPermission(currentRole, "canEditDocuments")
-  const assignedOffice = sessionStorage.getItem("userAdministrativeOffice") || ""
+  const assignments: any[] = (() => { try { return JSON.parse(sessionStorage.getItem("userAssignments") || "[]") } catch { return [] } })()
+  const assignedOffices = assignments.filter((item) => item.scope_type === "OFFICE").map((item) => item.scope_name).filter(Boolean)
   const allowedPrograms: string[] = (() => { try { return JSON.parse(sessionStorage.getItem("allowedPrograms") || "[]") } catch { return [] } })()
-  const isAcademicLeader = ACADEMIC_LEADERSHIP_ROLES.includes(currentRole as any)
-  const documentOffices = currentRole === "SYSTEM_ADMIN" || hasCapability("governance.cross_office") ? ISO_OFFICES_16 : [assignedOffice || (isAcademicLeader ? "Academic Affairs" : "")].filter(Boolean)
+  const documentOffices = currentRole === "SYSTEM_ADMIN"
+    ? [...CAMPUS_OFFICES]
+    : assignedOffices
   const defaultOffice = documentOffices[0] || ""
-  const selectablePrograms = currentRole === "SYSTEM_ADMIN" || hasCapability("governance.cross_office") ? CAMPUS_PROGRAMS : CAMPUS_PROGRAMS.filter((program) => allowedPrograms.includes(program.code))
-  const defaultProgram = currentRole === "SYSTEM_ADMIN" || hasCapability("governance.cross_office") ? "GLOBAL" : selectablePrograms[0]?.code || "GLOBAL"
+  const selectablePrograms = currentRole === "SYSTEM_ADMIN" ? CAMPUS_PROGRAMS : CAMPUS_PROGRAMS.filter((program) => allowedPrograms.includes(program.code))
+  const defaultProgram = selectablePrograms[0]?.code || ""
+  const availableScopeTypes: RepositoryScopeType[] = currentRole === "SYSTEM_ADMIN"
+    ? ["CAMPUS", "OFFICE", "PROGRAM"]
+    : [
+        ...(documentOffices.length ? ["OFFICE" as const] : []),
+        ...(selectablePrograms.length ? ["PROGRAM" as const] : []),
+      ]
+  const defaultScopeType: RepositoryScopeType = availableScopeTypes[0] || "CAMPUS"
+  const defaultScopeCode = defaultScopeType === "OFFICE" ? defaultOffice : defaultScopeType === "PROGRAM" ? defaultProgram : "ARGAO"
 
   const [documents, setDocuments] = useState<any[]>([])
   const [processingStatuses, setProcessingStatuses] = useState<any[]>([])
@@ -53,6 +93,7 @@ export function KnowledgeRepository() {
   // Modals State
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingDocName, setEditingDocName] = useState("")
+  const [editingDocScope, setEditingDocScope] = useState<{ type: RepositoryScopeType; code: string }>({ type: "CAMPUS", code: "ARGAO" })
   const [isEditing, setIsEditing] = useState(false)
 
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -73,8 +114,6 @@ export function KnowledgeRepository() {
   const [isUpdatingVersion, setIsUpdatingVersion] = useState(false)
   const updateFileInputRef = useRef<HTMLInputElement>(null)
 
-  const userDept = sessionStorage.getItem('userDepartment') || 'BSIT'
-
   // Filters
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
@@ -84,15 +123,35 @@ export function KnowledgeRepository() {
   const [formData, setFormData] = useState({
     name: "",
     category: "Policy",
-    office: defaultOffice,
-    program: defaultProgram,
+    office: defaultScopeType === "OFFICE" ? defaultOffice : defaultScopeType === "PROGRAM" ? CAMPUS_PROGRAMS.find(item => item.code === defaultProgram)?.college || "Academic Program" : "Campus-wide",
+    program: defaultScopeType === "PROGRAM" ? defaultProgram : "GLOBAL",
+    scopeType: defaultScopeType,
+    scopeCode: defaultScopeCode,
     version: "",
     effectivityDate: ""
+  })
+
+  const scopeValues = (data: typeof formData) => {
+    if (data.scopeType === "OFFICE") return { office: data.scopeCode, program: "GLOBAL" }
+    if (data.scopeType === "PROGRAM") {
+      const program = CAMPUS_PROGRAMS.find(item => item.code === data.scopeCode)
+      return { office: program?.college || "Academic Program", program: data.scopeCode }
+    }
+    return { office: "Campus-wide", program: "GLOBAL" }
+  }
+
+  const resetForm = () => setFormData({
+    name: "", category: "Policy",
+    office: defaultScopeType === "OFFICE" ? defaultOffice : defaultScopeType === "PROGRAM" ? CAMPUS_PROGRAMS.find(item => item.code === defaultProgram)?.college || "Academic Program" : "Campus-wide",
+    program: defaultScopeType === "PROGRAM" ? defaultProgram : "GLOBAL",
+    scopeType: defaultScopeType, scopeCode: defaultScopeCode,
+    version: "", effectivityDate: "",
   })
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [duplicateDecision, setDuplicateDecision] = useState<PendingDuplicateDecision | null>(null)
 
   const loadDocs = async () => {
     try {
@@ -141,8 +200,8 @@ export function KnowledgeRepository() {
     }
 
     // 2. FACULTY: Program-Restricted filtering for Accreditation Evidence
-    if (currentRole === "FACULTY" && doc.category === "Accreditation Evidence") {
-      if (doc.program && doc.program !== "GLOBAL" && doc.program !== userDept) {
+    if (currentRole === "PERSONNEL" && doc.category === "Accreditation Evidence") {
+      if (doc.program && doc.program !== "GLOBAL" && !allowedPrograms.includes(doc.program)) {
         return false; // Faculty cannot view evidence from other departments
       }
     }
@@ -194,7 +253,12 @@ export function KnowledgeRepository() {
       const previewWindow = window.open("about:blank", "_blank");
       try {
         const response = await apiClient.get("/documents/file-url", {
-          params: { document_name: doc.name, version: doc.version },
+          params: {
+            document_name: doc.name,
+            version: doc.version,
+            scope_type: doc.scope_type,
+            scope_code: doc.scope_code,
+          },
         });
         if (previewWindow) {
           previewWindow.location.href = response.data.file_url;
@@ -246,15 +310,20 @@ export function KnowledgeRepository() {
   };
 
   const handleEditClick = (doc: any) => {
+    const inferredScopeType: RepositoryScopeType = doc.scope_type || (doc.program && doc.program !== "GLOBAL" ? "PROGRAM" : "CAMPUS")
+    const inferredScopeCode = doc.scope_code || (inferredScopeType === "PROGRAM" ? doc.program : inferredScopeType === "OFFICE" ? doc.office : "ARGAO")
     setFormData({
       name: doc.name,
       category: doc.category,
       office: doc.office,
       program: doc.program || "GLOBAL",
+      scopeType: inferredScopeType,
+      scopeCode: inferredScopeCode,
       version: doc.version,
       effectivityDate: doc.effectivity_date !== "N/A" ? doc.effectivity_date : ""
     })
     setEditingDocName(doc.name)
+    setEditingDocScope({ type: inferredScopeType, code: inferredScopeCode })
     setShowEditModal(true)
   }
 
@@ -267,15 +336,18 @@ export function KnowledgeRepository() {
     try {
       await apiClient.put("/documents/update", {
         old_name: editingDocName,
+        old_scope_type: editingDocScope.type,
+        old_scope_code: editingDocScope.code,
         new_name: formData.name,
         category: formData.category,
-        office: formData.office,
-        program: formData.program,
+        ...scopeValues(formData),
+        scope_type: formData.scopeType,
+        scope_code: formData.scopeCode,
         version: formData.version,
         effectivity_date: formData.effectivityDate
       })
       setShowEditModal(false)
-      setFormData({ name: "", category: "Policy", office: defaultOffice, program: defaultProgram, version: "", effectivityDate: "" })
+      resetForm()
       const res = await apiClient.get("/documents")
       setDocuments(res.data)
       showToast("Metadata successfully updated!", "success")
@@ -296,7 +368,9 @@ export function KnowledgeRepository() {
     if (!docToDelete) return
     setIsArchiving(true)
     try {
-      await apiClient.delete(`/documents/${encodeURIComponent(docToDelete.name)}`)
+      await apiClient.delete(`/documents/${encodeURIComponent(docToDelete.name)}`, {
+        params: { scope_type: docToDelete.scope_type, scope_code: docToDelete.scope_code },
+      })
       setShowDeleteModal(false)
       setDocToDelete(null)
       setDeleteConfirmText("")
@@ -312,7 +386,9 @@ export function KnowledgeRepository() {
 
   const approveDocument = async (doc: any) => {
     try {
-      await apiClient.post(`/documents/${encodeURIComponent(doc.name)}/approve`)
+      await apiClient.post(`/documents/${encodeURIComponent(doc.name)}/approve`, null, {
+        params: { scope_type: doc.scope_type, scope_code: doc.scope_code },
+      })
       await loadDocs()
       showToast(`"${doc.name}" is now approved and searchable.`, "success")
     } catch (error) {
@@ -331,41 +407,107 @@ export function KnowledgeRepository() {
   // These now delegate to the global UploadQueueContext so the panel
   // survives navigation away from this page.
 
-  const handleUpdateVersionSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!updateFile || !updateFormData.version || !updateFormData.effectivityDate || !docToUpdate) {
-      showToast("Please provide the new file, version, and effectivity date.", "error");
-      return;
+  const checkDuplicate = async (
+    file: File,
+    document: { name: string; category: string; office: string; program?: string; scopeType?: RepositoryScopeType; scopeCode?: string },
+    mode: "NEW_DOCUMENT" | "NEW_VERSION",
+  ): Promise<DuplicateCheckResult> => {
+    let response
+    if (globalThis.crypto?.subtle) {
+      const fileSha256 = await sha256File(file)
+      response = await apiClient.post("/documents/check-duplicate", {
+        file_sha256: fileSha256,
+        file_size: file.size,
+        original_filename: file.name,
+        document_name: document.name,
+        category: document.category,
+        office: document.office,
+        program: document.program || "GLOBAL",
+        scope_type: document.scopeType || "CAMPUS",
+        scope_code: document.scopeCode || "ARGAO",
+        upload_mode: mode,
+      })
+    } else {
+      // Web Crypto requires HTTPS outside localhost. Campus LAN deployments
+      // may initially use HTTP, so keep duplicate checks functional there.
+      const fallbackData = new FormData()
+      fallbackData.append("file", file)
+      fallbackData.append("document_name", document.name)
+      fallbackData.append("category", document.category)
+      fallbackData.append("office", document.office)
+      fallbackData.append("program", document.program || "GLOBAL")
+      fallbackData.append("scope_type", document.scopeType || "CAMPUS")
+      fallbackData.append("scope_code", document.scopeCode || "ARGAO")
+      fallbackData.append("upload_mode", mode)
+      response = await apiClient.post("/documents/check-duplicate-file", fallbackData)
     }
+    return response.data
+  }
 
-    const submitData = new FormData();
-    submitData.append("file", updateFile);
-    submitData.append("old_document_name", docToUpdate.name);
-    submitData.append("new_version", updateFormData.version);
-    submitData.append("new_effectivity_date", updateFormData.effectivityDate);
-
-    const docName = docToUpdate.name
+  const queueVersionUpload = (file: File, allowCrossScopeDuplicate = false) => {
+    if (!docToUpdate) return
+    const currentDocument = docToUpdate
+    const submitData = new FormData()
+    submitData.append("file", file)
+    submitData.append("old_document_name", currentDocument.name)
+    submitData.append("new_version", updateFormData.version)
+    submitData.append("new_effectivity_date", updateFormData.effectivityDate)
+    submitData.append("office", currentDocument.office || "")
+    submitData.append("program", currentDocument.program || "GLOBAL")
+    submitData.append("allow_cross_scope_duplicate", String(allowCrossScopeDuplicate))
 
     enqueueUpload({
-      docName,
-      category: docToUpdate.category || "Document",
-      office: docToUpdate.office || "",
+      docName: currentDocument.name,
+      category: currentDocument.category || "Document",
+      office: currentDocument.office || "",
       version: updateFormData.version,
-      fileName: updateFile.name,
+      fileName: file.name,
       endpoint: "/api/upload-new-version",
       formData: submitData,
       isVersionUpdate: true,
-      onComplete: (name, isVersionUpdate) => {
+      onComplete: (name) => {
         loadDocs()
-        showToast(`New version of "${name}" successfully published!`, 'success')
+        showToast(`New version of "${name}" successfully published!`, "success")
       },
     })
 
-    // Immediately close modal & reset fields so user can navigate away
-    setShowUpdateModal(false);
-    setUpdateFile(null);
-    setDocToUpdate(null);
-    showToast(`Version update for "${docName}" started in background!`, 'success')
+    setShowUpdateModal(false)
+    setUpdateFile(null)
+    setDocToUpdate(null)
+    showToast(`Version update for "${currentDocument.name}" started in background!`, "success")
+  }
+
+  const handleUpdateVersionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!updateFile || !updateFormData.version || !updateFormData.effectivityDate || !docToUpdate) {
+      showToast("Please provide the new file, version, and effectivity date.", "error")
+      return
+    }
+
+    setIsUpdatingVersion(true)
+    try {
+      const result = await checkDuplicate(
+        updateFile,
+        {
+          name: docToUpdate.name,
+          category: docToUpdate.category || "Document",
+          office: docToUpdate.office || "",
+          program: docToUpdate.program || "GLOBAL",
+          scopeType: docToUpdate.scope_type || (docToUpdate.program && docToUpdate.program !== "GLOBAL" ? "PROGRAM" : "CAMPUS"),
+          scopeCode: docToUpdate.scope_code || (docToUpdate.program && docToUpdate.program !== "GLOBAL" ? docToUpdate.program : "ARGAO"),
+        },
+        "NEW_VERSION",
+      )
+      if (result.code === "NEW_DOCUMENT") {
+        queueVersionUpload(updateFile)
+      } else {
+        setDuplicateDecision({ result, mode: "NEW_VERSION", file: updateFile })
+      }
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail?.message || "Could not verify this file. Please try again.", "error")
+    } finally {
+      setIsUpdatingVersion(false)
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }
@@ -388,61 +530,128 @@ export function KnowledgeRepository() {
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-  }
-
-  const handleUploadSubmit = () => {
-    if (!selectedFile || !formData.name || !formData.version || !formData.effectivityDate) {
-      showToast("Please fill out all fields and select a file.", "error")
+    const { name, value } = e.target
+    if (name === "scopeType") {
+      const scopeType = value as RepositoryScopeType
+      const scopeCode = scopeType === "OFFICE" ? defaultOffice : scopeType === "PROGRAM" ? defaultProgram : "ARGAO"
+      const next = { ...formData, scopeType, scopeCode }
+      setFormData({ ...next, ...scopeValues(next) })
       return
     }
+    if (name === "scopeCode") {
+      const next = { ...formData, scopeCode: value }
+      setFormData({ ...next, ...scopeValues(next) })
+      return
+    }
+    setFormData({ ...formData, [name]: value })
+  }
 
+  const queueNewDocumentUpload = (file: File, allowCrossScopeDuplicate = false) => {
+    const uploadSnapshot = { ...formData }
+    const resolvedScope = scopeValues(uploadSnapshot)
     const submitData = new FormData()
-    submitData.append("file", selectedFile)
-    submitData.append("name", formData.name)
-    submitData.append("category", formData.category)
-    submitData.append("office", formData.office)
-    submitData.append("program", formData.program)
-    submitData.append("version", formData.version)
-    submitData.append("effectivity_date", formData.effectivityDate)
-
-    const docName = formData.name
+    submitData.append("file", file)
+    submitData.append("name", uploadSnapshot.name)
+    submitData.append("category", uploadSnapshot.category)
+    submitData.append("office", resolvedScope.office)
+    submitData.append("program", resolvedScope.program)
+    submitData.append("scope_type", uploadSnapshot.scopeType)
+    submitData.append("scope_code", uploadSnapshot.scopeCode)
+    submitData.append("version", uploadSnapshot.version)
+    submitData.append("effectivity_date", uploadSnapshot.effectivityDate)
+    submitData.append("allow_cross_scope_duplicate", String(allowCrossScopeDuplicate))
 
     enqueueUpload({
-      docName,
-      category: formData.category,
-      office: formData.office,
-      version: formData.version,
-      fileName: selectedFile.name,
+      docName: uploadSnapshot.name,
+      category: uploadSnapshot.category,
+      office: resolvedScope.office,
+      version: uploadSnapshot.version,
+      fileName: file.name,
       endpoint: "/api/upload-document",
       formData: submitData,
       isVersionUpdate: false,
       onComplete: (name) => {
-        // Optimistically update the UI while background extraction runs
         const newDoc = {
-            id: "temp_" + Date.now(),
-            name: name,
-            category: formData.category,
-            office: formData.office,
-            program: formData.program,
-            version: formData.version,
-            effectivity_date: formData.effectivityDate,
-            status: "Active",
-            uploaded_by: sessionStorage.getItem('userEmail') || 'Unknown',
-            created_at: new Date().toISOString()
-        };
-        setDocuments(prev => [newDoc, ...prev]);
-        
-        loadDocs();
-        showToast(`"${name}" successfully added to repository!`, 'success')
+          id: "temp_" + Date.now(),
+          name,
+          category: uploadSnapshot.category,
+          office: resolvedScope.office,
+          program: resolvedScope.program,
+          scope_type: uploadSnapshot.scopeType,
+          scope_code: uploadSnapshot.scopeCode,
+          version: uploadSnapshot.version,
+          effectivity_date: uploadSnapshot.effectivityDate,
+          status: "Active",
+          uploaded_by: sessionStorage.getItem("userEmail") || "Unknown",
+          created_at: new Date().toISOString(),
+        }
+        setDocuments(prev => [newDoc, ...prev])
+        loadDocs()
+        showToast(`"${name}" successfully added to repository!`, "success")
       },
     })
 
-    // Immediately close modal & reset fields so user can leave
     setShowUploadModal(false)
     setSelectedFile(null)
-    setFormData({ name: "", category: "Policy", office: defaultOffice, program: defaultProgram, version: "", effectivityDate: "" })
-    showToast(`Upload of "${docName}" started in background!`, 'success')
+    resetForm()
+    showToast(`Upload of "${uploadSnapshot.name}" started in background!`, "success")
+  }
+
+  const handleUploadSubmit = async () => {
+    if (!selectedFile || !formData.name || !formData.version || !formData.effectivityDate || !formData.scopeCode) {
+      showToast("Please fill out all fields and select a file.", "error")
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const result = await checkDuplicate(selectedFile, { ...formData, ...scopeValues(formData) }, "NEW_DOCUMENT")
+      if (result.code === "NEW_DOCUMENT") {
+        queueNewDocumentUpload(selectedFile)
+      } else {
+        setDuplicateDecision({ result, mode: "NEW_DOCUMENT", file: selectedFile })
+      }
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail?.message || "Could not verify this file. Please try again.", "error")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const continueCrossScopeUpload = () => {
+    if (!duplicateDecision) return
+    if (duplicateDecision.mode === "NEW_VERSION") {
+      queueVersionUpload(duplicateDecision.file, true)
+    } else {
+      queueNewDocumentUpload(duplicateDecision.file, true)
+    }
+    setDuplicateDecision(null)
+  }
+
+  const continueAsNewVersion = () => {
+    if (!duplicateDecision) return
+    const existing = duplicateDecision.result.existing_document
+    const matchingDocument = documents.find(doc =>
+      doc.name === existing?.document_name &&
+      doc.office === existing?.office &&
+      (doc.program || "GLOBAL") === (existing?.program || "GLOBAL")
+    )
+    const target = matchingDocument || {
+      name: existing?.document_name || formData.name,
+      category: formData.category,
+      office: existing?.office || formData.office,
+      program: existing?.program || formData.program,
+      scope_type: existing?.scope_type || formData.scopeType,
+      scope_code: existing?.scope_code || formData.scopeCode,
+      version: existing?.version || "",
+    }
+    setShowUploadModal(false)
+    setSelectedFile(null)
+    setDocToUpdate(target)
+    setUpdateFile(duplicateDecision.file)
+    setUpdateFormData({ version: formData.version, effectivityDate: formData.effectivityDate })
+    setShowUpdateModal(true)
+    setDuplicateDecision(null)
   }
 
   return (
@@ -457,6 +666,77 @@ export function KnowledgeRepository() {
         }`}>
           {toast.type === 'success' ? <CheckCircle className="h-4 w-4 text-[#DD7230]" /> : <AlertCircle className="h-4 w-4 text-rose-500" />}
           {toast.message}
+        </div>
+      )}
+
+      {duplicateDecision && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <h2 className="text-sm font-semibold text-gray-900">
+                {duplicateDecision.result.code === "EXACT_DUPLICATE"
+                  ? "Document already uploaded"
+                  : duplicateDecision.result.code === "POSSIBLE_NEW_VERSION"
+                    ? "Existing document found"
+                    : "Document exists in another scope"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setDuplicateDecision(null)}
+                className="rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100"
+                aria-label="Close duplicate notice"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              <p className="text-sm leading-6 text-gray-600">{duplicateDecision.result.message}</p>
+              {duplicateDecision.result.existing_document && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+                  <p className="font-medium text-gray-900">
+                    {duplicateDecision.result.existing_document.document_name || "Existing document"}
+                  </p>
+                  <p className="mt-1">
+                    {[duplicateDecision.result.existing_document.office, duplicateDecision.result.existing_document.program !== "GLOBAL" ? duplicateDecision.result.existing_document.program : null]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    {duplicateDecision.result.existing_document.version
+                      ? ` · v${duplicateDecision.result.existing_document.version}`
+                      : ""}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50/60 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setDuplicateDecision(null)}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                {duplicateDecision.result.code === "EXACT_DUPLICATE" ? "Close" : "Cancel"}
+              </button>
+              {duplicateDecision.result.code === "CROSS_SCOPE_DUPLICATE" && (
+                <button
+                  type="button"
+                  onClick={continueCrossScopeUpload}
+                  className="rounded-lg bg-[#DD7230] px-4 py-2 text-xs font-semibold text-white hover:bg-[#c9652b]"
+                >
+                  Upload to this scope
+                </button>
+              )}
+              {duplicateDecision.result.code === "POSSIBLE_NEW_VERSION" && (
+                <button
+                  type="button"
+                  onClick={continueAsNewVersion}
+                  className="rounded-lg bg-[#DD7230] px-4 py-2 text-xs font-semibold text-white hover:bg-[#c9652b]"
+                >
+                  Continue as new version
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -828,31 +1108,30 @@ export function KnowledgeRepository() {
                       <option>Branding Asset</option>
                       <option>Memorandum</option>
                       <option>Resolution</option>
-                      <option>Accreditation Evidence</option>
                       <option>Forms / Templates</option>
                       <option>Other</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Office</label>
-                    <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                      {documentOffices.map((office) => (
-                        <option key={office} value={office}>
-                          {office}
-                        </option>
-                      ))}
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Repository Scope</label>
+                    <select name="scopeType" value={formData.scopeType} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
+                      {availableScopeTypes.includes("CAMPUS") && <option value="CAMPUS">Campus-wide</option>}
+                      {availableScopeTypes.includes("OFFICE") && <option value="OFFICE">Office</option>}
+                      {availableScopeTypes.includes("PROGRAM") && <option value="PROGRAM">Academic program</option>}
                     </select>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Academic Scope</label>
-                  <select name="program" value={formData.program} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                    {(currentRole === "SYSTEM_ADMIN" || hasCapability("governance.cross_office") || selectablePrograms.length === 0) && <option value="GLOBAL">Campus-wide / not program-specific</option>}
-                    {selectablePrograms.map((program) => <option key={program.code} value={program.code}>{program.label}</option>)}
+                {formData.scopeType !== "CAMPUS" && <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">{formData.scopeType === "OFFICE" ? "Office" : "Academic Program"}</label>
+                  <select name="scopeCode" value={formData.scopeCode} onChange={handleInputChange} disabled={formData.scopeType === "OFFICE" ? documentOffices.length === 1 : selectablePrograms.length === 1} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer disabled:cursor-not-allowed disabled:text-gray-600">
+                    {formData.scopeType === "OFFICE"
+                      ? documentOffices.map((office) => <option key={office} value={office}>{office}</option>)
+                      : selectablePrograms.map((program) => <option key={program.code} value={program.code}>{program.label}</option>)}
                   </select>
-                </div>
+                  {(formData.scopeType === "OFFICE" ? documentOffices.length : selectablePrograms.length) === 1 && <p className="mt-1 text-[11px] text-gray-500">This scope is fixed to your assigned {formData.scopeType === "OFFICE" ? "office" : "program"}.</p>}
+                </div>}
                 
                 {(formData.category === "Forms / Templates" || formData.category === "Branding Asset") && (
                   <div className="flex items-start gap-2.5 p-3 mt-2 bg-amber-50 border border-amber-200 rounded-lg animate-in fade-in zoom-in-95 duration-200">
@@ -909,7 +1188,7 @@ export function KnowledgeRepository() {
                       <div>
                         <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
                         <p className="text-xs text-gray-700 font-medium">Click or drag document file here</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5">PDF, DOCX, TXT, or Image (Max 25MB)</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">PDF, DOCX, TXT, HTML, or Image (Max 50 MB)</p>
                       </div>
                     )}
                     <input 
@@ -969,12 +1248,23 @@ export function KnowledgeRepository() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Academic Scope</label>
-                <select name="program" value={formData.program} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                  {(currentRole === "SYSTEM_ADMIN" || hasCapability("governance.cross_office") || selectablePrograms.length === 0) && <option value="GLOBAL">Campus-wide / not program-specific</option>}
-                  {selectablePrograms.map((program) => <option key={program.code} value={program.code}>{program.label}</option>)}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Repository Scope</label>
+                  <select name="scopeType" value={formData.scopeType} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
+                    {availableScopeTypes.includes("CAMPUS") && <option value="CAMPUS">Campus-wide</option>}
+                    {availableScopeTypes.includes("OFFICE") && <option value="OFFICE">Office</option>}
+                    {availableScopeTypes.includes("PROGRAM") && <option value="PROGRAM">Academic program</option>}
+                  </select>
+                </div>
+                {formData.scopeType !== "CAMPUS" && <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">{formData.scopeType === "OFFICE" ? "Office" : "Academic Program"}</label>
+                  <select name="scopeCode" value={formData.scopeCode} onChange={handleInputChange} disabled={formData.scopeType === "OFFICE" ? documentOffices.length === 1 : selectablePrograms.length === 1} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer disabled:cursor-not-allowed">
+                    {formData.scopeType === "OFFICE"
+                      ? documentOffices.map((office) => <option key={office} value={office}>{office}</option>)
+                      : selectablePrograms.map((program) => <option key={program.code} value={program.code}>{program.label}</option>)}
+                  </select>
+                </div>}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -986,20 +1276,12 @@ export function KnowledgeRepository() {
                       <option>Branding Asset</option>
                     <option>Memorandum</option>
                     <option>Resolution</option>
-                    <option>Accreditation Evidence</option>
                     <option>Forms / Templates</option>
                     <option>Other</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Office</label>
-                  <select name="office" value={formData.office} onChange={handleInputChange} className="w-full px-3 py-1.5 bg-gray-50/50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer">
-                    {documentOffices.map((office) => (
-                      <option key={office} value={office}>
-                        {office}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-end">
+                  <p className="text-[11px] leading-5 text-gray-500">AACCUP evidence is uploaded from Accreditation Support so its area and requirement cannot be omitted.</p>
                 </div>
               </div>
 

@@ -26,11 +26,11 @@ export function StudentDashboard() {
       try {
         const userEmail = sessionStorage.getItem('userEmail') || '';
 
-        const [statsRes, historyRes, accessRes, queriesRes, announcementsRes] = await Promise.all([
-          apiClient.get("/system-stats?role=STUDENT"),
+        const [statsRes, historyRes, accessRes, activityRes, announcementsRes] = await Promise.all([
+          apiClient.get("/system-stats"),
           apiClient.get(`/chat-history?email=${userEmail}`),
           apiClient.get("/audit/access"),
-          apiClient.get("/audit/queries"),
+          apiClient.get("/analytics/me/monthly"),
           apiClient.get("/announcements")
         ]);
 
@@ -53,35 +53,7 @@ export function StudentDashboard() {
         setRecentDocs(formattedRecentDocs);
 
         // 4. Process Chart Data
-        const myAllTimeQueries = queriesRes.data.filter((log: any) => log.user === userEmail);
-        const monthCounts: Record<string, number> = { 
-          "Jan": 0, "Feb": 0, "Mar": 0, "Apr": 0, "May": 0, "Jun": 0, 
-          "Jul": 0, "Aug": 0, "Sep": 0, "Oct": 0, "Nov": 0, "Dec": 0 
-        };
-
-        myAllTimeQueries.forEach((q: any) => {
-          const monthStr = q.timestamp.split(' ')[0].substring(0, 3); 
-          if (monthCounts[monthStr] !== undefined) {
-             monthCounts[monthStr]++;
-          }
-        });
-
-        const currentMonthIndex = new Date().getMonth();
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        const displayMonths = [];
-        
-        for(let i = 5; i >= 0; i--) {
-            let mIndex = currentMonthIndex - i;
-            if (mIndex < 0) mIndex += 12;
-            displayMonths.push(monthNames[mIndex]);
-        }
-
-        const finalChartData = displayMonths.map(m => ({ 
-          month: m, 
-          queries: monthCounts[m] || 0 
-        }));
-        
-        setChartData(finalChartData);
+        setChartData(activityRes.data || []);
 
         // Process Live Announcements
         const validAnnouncements = announcementsRes.data

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, RotateCcw, Search, Calendar } from 'lucide-react';
+import { X, RotateCcw, Search } from 'lucide-react';
 import type { DashboardFilters, SurveyResponse } from '../types/survey';
 
 interface FilterPanelProps {
@@ -7,8 +7,8 @@ interface FilterPanelProps {
   setFilters: React.Dispatch<React.SetStateAction<DashboardFilters>>;
   resetFilters: () => void;
   data: SurveyResponse[];
-  availableYears?: string[];
   hideOfficeFilter?: boolean;
+  availableYears?: string[];
 }
 
 const CAMPUSES = ['Argao', 'Oslob', 'Ginatilan'];
@@ -37,7 +37,7 @@ function ToggleTag({
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
-  filters, setFilters, resetFilters, data, availableYears, hideOfficeFilter,
+  filters, setFilters, resetFilters, data, hideOfficeFilter, availableYears,
 }) => {
   const offices = Array.from(new Set(data.map((r) => r.office_visited).filter(Boolean))).sort() as string[];
   const services = Array.from(new Set(data.map((r) => r.service_availed).filter(Boolean))).sort() as string[];
@@ -54,6 +54,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     filters.search !== '';
 
   const activeFilterLabels: { key: string; label: string; remove: () => void }[] = [];
+
   if (filters.year && filters.year !== 'all') {
     activeFilterLabels.push({ key: 'year', label: `Year: ${filters.year}`, remove: () => setFilters((f) => ({ ...f, year: 'all' })) });
   }

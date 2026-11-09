@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useRef, useCallback, ReactNode } from "react"
+import { createContext, useContext, useState, useRef, useCallback } from "react"
+import type { ReactNode } from "react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -109,7 +110,11 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
           })
           const uploadResult = await uploadResponse.json().catch(() => ({}))
           if (!uploadResponse.ok) {
-            throw new Error(uploadResult.detail || "The document upload failed.")
+            const detail = uploadResult.detail
+            const message = typeof detail === "string"
+              ? detail
+              : detail?.message || "The document upload failed."
+            throw new Error(message)
           }
 
           // The upload endpoint returns before OCR/chunking/indexing finishes.
@@ -190,7 +195,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
             updateTask(id, {
               progress: 0,
               status: "error",
-              statusText: "Document processing failed.",
+              statusText: err?.message || "Document processing failed.",
             })
             console.error(`[UploadQueue] upload failed for '${docName}':`, err)
           }
