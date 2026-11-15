@@ -108,7 +108,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       </div>
 
       {/* Filter grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-6 gap-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-4 sm:gap-x-6 gap-y-4">
 
         {/* Year */}
         <div>
@@ -140,7 +140,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         </div>
 
         {/* Client Type */}
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Client Type</p>
           <div className="flex flex-wrap gap-1.5">
             {CLIENT_TYPES.map((ct) => (
@@ -154,7 +154,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         </div>
 
         {/* Gender */}
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Gender</p>
           <div className="flex flex-wrap gap-1.5">
             {GENDERS.map((g) => (
@@ -191,7 +191,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
 
         {/* Office Visited */}
         {!hideOfficeFilter && (
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Office Visited</p>
             <select
               className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]/30 focus:border-[#DD7230] transition-colors"
@@ -205,7 +205,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         )}
 
         {/* Service Availed */}
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Service Availed</p>
           <select
             className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#DD7230]/30 focus:border-[#DD7230] transition-colors"

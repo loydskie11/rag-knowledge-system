@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import type { SurveyResponse } from '../../types/survey';
 import { getCCDistribution, shortLabel } from '../../utils/analytics';
+import { useIsMobile } from '../../../../components/ui/use-mobile';
 
 interface Props { data: SurveyResponse[]; }
 
@@ -51,6 +52,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export const CCCharts: React.FC<Props> = ({ data }) => {
+  const isMobile = useIsMobile();
   if (data.length === 0) return <div className="chart-empty"><span>No data</span></div>;
 
   return (
@@ -58,7 +60,7 @@ export const CCCharts: React.FC<Props> = ({ data }) => {
       {CC_FIELDS.map(({ field, label }) => {
         const distribution = getCCDistribution(data, field);
         const chartData = distribution.map((d) => ({
-          name: shortLabel(d.name, 36),
+          name: shortLabel(d.name, isMobile ? 20 : 36),
           value: d.value,
         }));
         const total = chartData.reduce((s, d) => s + d.value, 0);
@@ -69,14 +71,14 @@ export const CCCharts: React.FC<Props> = ({ data }) => {
               {label}
             </div>
             <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 60, left: 10, bottom: 0 }}>
+              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: isMobile ? 8 : 60, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 9, fill: 'var(--color-text-muted)' }} />
                 <YAxis
                   dataKey="name"
                   type="category"
-                  width={200}
-                  tick={{ fontSize: 9.5, fill: 'var(--color-text-secondary)' }}
+                  width={isMobile ? 115 : 200}
+                  tick={{ fontSize: isMobile ? 8.5 : 9.5, fill: 'var(--color-text-secondary)' }}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={16}>

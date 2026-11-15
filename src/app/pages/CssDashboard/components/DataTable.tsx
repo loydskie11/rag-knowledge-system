@@ -103,8 +103,8 @@ export const DataTable: React.FC<Props> = ({ data, pageSize = 10 }) => {
   return (
     <div>
       {/* Table Toolbar */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
           <input
             type="text"
@@ -120,14 +120,15 @@ export const DataTable: React.FC<Props> = ({ data, pageSize = 10 }) => {
         <button
           onClick={() => exportToCSV(filtered)}
           title="Export filtered data to CSV"
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-[#DD7230] text-white text-xs font-semibold rounded-lg hover:bg-[#c4612a] transition-colors shadow-2xs shrink-0 cursor-pointer"
+          className="ml-auto flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#DD7230] text-white text-xs font-semibold rounded-lg hover:bg-[#c4612a] transition-colors shadow-2xs shrink-0 cursor-pointer"
         >
           <Download className="h-3.5 w-3.5" />
           Export CSV
         </button>
       </div>
 
-      <div className="table-wrapper">
+      <p className="mb-2 text-[11px] text-gray-400 sm:hidden">Swipe sideways to view all columns.</p>
+      <div className="table-wrapper" tabIndex={0} aria-label="Scrollable survey response table">
         <table className="data-table">
           <thead>
             <tr>
@@ -175,11 +176,11 @@ export const DataTable: React.FC<Props> = ({ data, pageSize = 10 }) => {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-wrap gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t border-gray-100 gap-3">
           <span className="text-xs text-gray-400 font-medium">
             Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, sorted.length)} of {sorted.length}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto pb-1">
             <button
               className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer text-xs"
               onClick={() => setPage(0)} disabled={page === 0}

@@ -5,6 +5,7 @@ import {
 import type { PieLabelRenderProps } from 'recharts';
 import type { SurveyResponse } from '../../types/survey';
 import { countByField } from '../../utils/analytics';
+import { useIsMobile } from '../../../../components/ui/use-mobile';
 
 const COLORS = ['#863BFF', '#FF9501', '#47BFFF', '#10B981', '#F43F5E', '#F59E0B'];
 
@@ -50,6 +51,7 @@ const renderCustomLabel = (props: PieLabelRenderProps) => {
 };
 
 export const GenderDonut: React.FC<Props> = ({ data }) => {
+  const isMobile = useIsMobile();
   const counts = countByField(data, 'gender');
   const total = counts.reduce((s, d) => s + d.value, 0);
   const chartData = counts.map((d) => ({ ...d, pct: Math.round((d.value / total) * 100) }));
@@ -61,14 +63,14 @@ export const GenderDonut: React.FC<Props> = ({ data }) => {
   );
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
+    <ResponsiveContainer width="100%" height={isMobile ? 230 : 260}>
       <PieChart>
         <Pie
           data={chartData}
           cx="50%"
           cy="50%"
-          innerRadius={65}
-          outerRadius={100}
+          innerRadius={isMobile ? 50 : 65}
+          outerRadius={isMobile ? 82 : 100}
           paddingAngle={3}
           dataKey="value"
           labelLine={false}

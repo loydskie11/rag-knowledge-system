@@ -45,17 +45,17 @@ function ChartCard({
 }) {
   return (
     <div
-      className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden"
+      className="min-w-0 bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden"
       style={fullWidth ? { gridColumn: '1 / -1' } : undefined}
     >
-      <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-        <div>
+      <div className="px-3.5 py-3 sm:px-5 sm:py-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-2 sm:gap-3">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-800">{title}</p>
           {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
         </div>
         {badge}
       </div>
-      <div className="p-5">
+      <div className="min-w-0 p-3 sm:p-5">
         {children}
       </div>
     </div>
@@ -106,8 +106,8 @@ export const Dashboard: React.FC = () => {
   // --- RESTRICTED ACCESS ---
   if (isRestricted) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center max-w-md p-10 bg-red-50 border border-red-200 rounded-2xl">
+      <div className="flex items-center justify-center min-h-[60vh] px-1">
+        <div className="text-center max-w-md p-6 sm:p-10 bg-red-50 border border-red-200 rounded-2xl">
           <ShieldAlert className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-lg font-bold text-red-800 mb-2">Restricted Access</h2>
           <p className="text-sm text-red-600">
@@ -143,11 +143,11 @@ export const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="survey-dashboard min-w-0 space-y-4 sm:space-y-5 overflow-x-hidden">
 
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Survey Analytics</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
             Client Satisfaction Survey {filters.year !== 'all' ? `(${filters.year})` : '(All Years)'} — {isGlobalAccess ? 'All Campuses & Offices' : `Scoped to ${userOffice}`}
@@ -164,7 +164,7 @@ export const Dashboard: React.FC = () => {
           </p>
           {syncMessage && <p className="mt-1 text-xs text-gray-500">{syncMessage}</p>}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center lg:justify-end lg:shrink-0">
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
             connected
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -173,10 +173,10 @@ export const Dashboard: React.FC = () => {
             <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-emerald-500' : 'bg-gray-400'}`} />
             {connected ? 'Live' : 'Offline'}
           </div>
-          <span className="text-xs text-gray-500 font-medium">{filteredData.length.toLocaleString()} responses</span>
+          <span className="flex items-center text-xs text-gray-500 font-medium">{filteredData.length.toLocaleString()} responses</span>
           <button
             onClick={refetch}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 border border-gray-200 bg-white text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
@@ -185,7 +185,7 @@ export const Dashboard: React.FC = () => {
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 border border-gray-200 bg-white text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
             >
               <CloudDownload className={`h-3.5 w-3.5 ${syncing ? 'animate-pulse' : ''}`} />
               {syncing ? 'Syncing…' : 'Sync now'}
@@ -195,7 +195,7 @@ export const Dashboard: React.FC = () => {
             href="https://ctu-client-satisfaction-survey.vercel.app/"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#DD7230] text-white text-xs font-semibold rounded-lg hover:bg-[#c4612a] transition-colors shadow-2xs"
+            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 bg-[#DD7230] text-white text-xs font-semibold rounded-lg hover:bg-[#c4612a] transition-colors shadow-2xs"
           >
             Open Survey
           </a>
@@ -211,8 +211,8 @@ export const Dashboard: React.FC = () => {
 
       {/* Tab Bar + Filter Toggle */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-2xs">
-        <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100">
-          <div className="flex bg-gray-100 p-1 rounded-lg gap-0.5 overflow-x-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2.5 sm:px-4 border-b border-gray-100">
+          <div className="survey-tab-scroll flex w-full min-w-0 bg-gray-100 p-1 rounded-lg gap-0.5 overflow-x-auto sm:w-auto">
             {NAV_TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -227,9 +227,9 @@ export const Dashboard: React.FC = () => {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:shrink-0">
             {/* Year Dropdown Filter (placed directly beside filter button on its left side) */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium shadow-2xs">
+            <div className="flex min-w-0 items-center justify-center gap-1.5 px-2.5 py-2 sm:py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium shadow-2xs">
               <Calendar className="h-3.5 w-3.5 text-[#DD7230]" />
               <span className="text-gray-500 font-medium">Year:</span>
               <select
@@ -249,7 +249,7 @@ export const Dashboard: React.FC = () => {
 
             <button
               onClick={() => setShowFilters((f) => !f)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shrink-0 cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-medium rounded-lg border transition-colors shrink-0 cursor-pointer ${
                 showFilters || hasActiveFilters
                   ? 'bg-[#DD7230] text-white border-[#DD7230]'
                   : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
@@ -272,7 +272,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Filter Panel */}
         {showFilters && (
-          <div className="border-b border-gray-100 p-4">
+          <div className="border-b border-gray-100 p-3 sm:p-4">
             <FilterPanel
               filters={filters}
               setFilters={setFilters}
@@ -285,7 +285,7 @@ export const Dashboard: React.FC = () => {
         )}
 
         {/* Tab Content */}
-        <div className="p-5 space-y-6">
+        <div className="min-w-0 p-3 sm:p-5 space-y-5 sm:space-y-6">
 
           {/* KPI strip — always visible */}
           <KPICards kpis={kpis} filteredCount={filteredData.length} />

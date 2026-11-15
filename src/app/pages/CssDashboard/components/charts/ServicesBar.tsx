@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import type { SurveyResponse } from '../../types/survey';
 import { countByField, getTopN, shortLabel } from '../../utils/analytics';
+import { useIsMobile } from '../../../../components/ui/use-mobile';
 
 interface Props { data: SurveyResponse[]; topN?: number; }
 
@@ -20,22 +21,23 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export const ServicesBar: React.FC<Props> = ({ data, topN = 8 }) => {
+  const isMobile = useIsMobile();
   const counts = getTopN(countByField(data, 'service_availed'), topN);
-  const chartData = counts.map((d) => ({ ...d, name: shortLabel(d.name, 35) }));
+  const chartData = counts.map((d) => ({ ...d, name: shortLabel(d.name, isMobile ? 18 : 35) }));
   const maxVal = Math.max(...chartData.map((d) => d.value), 1);
 
   if (data.length === 0) return <div className="chart-empty"><span>No data</span></div>;
 
   return (
     <ResponsiveContainer width="100%" height={Math.max(counts.length * 44, 200)}>
-      <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }}>
+      <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: isMobile ? 8 : 40, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} />
         <YAxis
           dataKey="name"
           type="category"
-          width={200}
-          tick={{ fontSize: 10, fontWeight: 600, fill: 'var(--color-text-secondary)', width: 195 }}
+          width={isMobile ? 105 : 200}
+          tick={{ fontSize: isMobile ? 9 : 10, fontWeight: 600, fill: 'var(--color-text-secondary)', width: isMobile ? 100 : 195 }}
         />
         <Tooltip content={<CustomTooltip />} />
         <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>

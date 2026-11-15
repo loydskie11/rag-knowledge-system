@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import type { SurveyResponse } from '../../types/survey';
 import { getSqdAverages } from '../../utils/analytics';
+import { useIsMobile } from '../../../../components/ui/use-mobile';
 
 interface Props { data: SurveyResponse[]; }
 
@@ -21,18 +22,19 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export const SQDRadar: React.FC<Props> = ({ data }) => {
+  const isMobile = useIsMobile();
   const averages = getSqdAverages(data);
   const chartData = averages.map((a) => ({ subject: a.label, score: a.avg, fullMark: 5 }));
 
   if (data.length === 0) return <div className="chart-empty"><span>No data</span></div>;
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <RadarChart data={chartData} outerRadius="75%">
+    <ResponsiveContainer width="100%" height={isMobile ? 275 : 320}>
+      <RadarChart data={chartData} outerRadius={isMobile ? "60%" : "75%"}>
         <PolarGrid stroke="var(--color-border)" />
         <PolarAngleAxis
           dataKey="subject"
-          tick={{ fontSize: 10, fontWeight: 600, fill: 'var(--color-text-secondary)' }}
+          tick={{ fontSize: isMobile ? 8 : 10, fontWeight: 600, fill: 'var(--color-text-secondary)' }}
         />
         <PolarRadiusAxis
           angle={90}

@@ -6,6 +6,7 @@ import {
 import type { SurveyResponse, LikertScale } from '../../types/survey';
 import { LIKERT_COLORS } from '../../types/survey';
 import { getSqdDistributionData } from '../../utils/analytics';
+import { useIsMobile } from '../../../../components/ui/use-mobile';
 
 interface Props { data: SurveyResponse[]; }
 
@@ -39,28 +40,29 @@ const CustomTooltip = ({
 };
 
 export const SQDBar: React.FC<Props> = ({ data }) => {
+  const isMobile = useIsMobile();
   const chartData = getSqdDistributionData(data);
 
   if (data.length === 0) return <div className="chart-empty"><span>No data</span></div>;
 
   return (
     <ResponsiveContainer width="100%" height={360}>
-      <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+      <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: isMobile ? 4 : 20, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} />
         <YAxis
           dataKey="name"
           type="category"
-          width={110}
-          tick={{ fontSize: 10, fontWeight: 600, fill: 'var(--color-text-secondary)' }}
+          width={isMobile ? 76 : 110}
+          tick={{ fontSize: isMobile ? 8.5 : 10, fontWeight: 600, fill: 'var(--color-text-secondary)' }}
         />
         <Tooltip content={<CustomTooltip />} />
         <Legend
           iconType="square"
           iconSize={8}
-          wrapperStyle={{ fontSize: '0.68rem', paddingTop: 16 }}
+          wrapperStyle={{ fontSize: isMobile ? '0.58rem' : '0.68rem', paddingTop: 16 }}
           formatter={(value) => (
-            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+            <span style={{ fontSize: isMobile ? '0.58rem' : '0.68rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
               {value}
             </span>
           )}

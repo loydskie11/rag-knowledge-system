@@ -149,6 +149,9 @@
 /* --- Data Table --- */
 .table-wrapper {
   overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
   border-radius: 8px;
   border: 1px solid #E5E7EB;
 }
@@ -216,4 +219,53 @@
 
 .animate-fade-in {
   animation: fadeIn 0.25s ease forwards;
+}
+
+.survey-tab-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #D1D5DB transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 639px) {
+  .survey-dashboard .chart-tooltip {
+    max-width: min(250px, calc(100vw - 48px));
+    padding: 8px 10px;
+  }
+
+  .survey-dashboard .recharts-wrapper,
+  .survey-dashboard .recharts-responsive-container {
+    max-width: 100%;
+  }
+
+  .survey-dashboard .suggestion-card {
+    padding: 12px;
+  }
+
+  .survey-dashboard .suggestion-text {
+    overflow-wrap: anywhere;
+  }
+
+  .survey-dashboard .sqd-item {
+    gap: 7px;
+  }
+
+  .survey-dashboard .sqd-label {
+    width: 42px;
+    font-size: 0.65rem;
+  }
+
+  .survey-dashboard .score-pill {
+    padding-inline: 6px;
+    font-size: 0.6rem;
+  }
+
+  .data-table {
+    min-width: 680px;
+  }
+
+  .data-table thead th,
+  .data-table tbody td {
+    padding: 9px 10px;
+  }
 }

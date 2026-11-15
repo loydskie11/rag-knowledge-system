@@ -15,10 +15,10 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, filteredCount }) => {
     : kpis.thisWeekCount;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
 
       {/* Total Responses */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-4 col-span-2 xl:col-span-1">
+      <div className="min-w-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs p-3 sm:p-4">
         <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Total Responses</p>
         <div className="flex items-baseline justify-between mt-1.5">
           <h3 className="text-2xl font-bold text-gray-900">{kpis.totalResponses.toLocaleString()}</h3>
@@ -36,7 +36,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, filteredCount }) => {
       </div>
 
       {/* Avg SQD Score */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-4">
+      <div className="min-w-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs p-3 sm:p-4">
         <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Avg SQD Score</p>
         <div className="flex items-baseline justify-between mt-1.5">
           <h3 className="text-2xl font-bold text-gray-900">{kpis.avgSqdScore}</h3>
@@ -46,7 +46,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, filteredCount }) => {
       </div>
 
       {/* Satisfaction Rate */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-4">
+      <div className="min-w-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs p-3 sm:p-4">
         <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Satisfaction</p>
         <div className="flex items-baseline justify-between mt-1.5">
           <h3 className="text-2xl font-bold text-gray-900">{kpis.satisfactionRate}%</h3>
@@ -61,7 +61,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, filteredCount }) => {
       </div>
 
       {/* Most Visited Office */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-4">
+      <div className="min-w-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs p-3 sm:p-4">
         <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Top Office</p>
         <p className="text-sm font-bold text-gray-800 mt-1.5 leading-tight line-clamp-2">
           {kpis.topOffice || '—'}
@@ -70,7 +70,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, filteredCount }) => {
       </div>
 
       {/* Top Service */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-4">
+      <div className="min-w-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs p-3 sm:p-4">
         <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Top Service</p>
         <p className="text-sm font-bold text-gray-800 mt-1.5 leading-tight line-clamp-2">
           {kpis.topService || '—'}
@@ -79,7 +79,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpis, filteredCount }) => {
       </div>
 
       {/* This Week */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-4">
+      <div className="min-w-0 bg-white rounded-xl border border-gray-200/80 shadow-2xs p-3 sm:p-4">
         <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">This Week</p>
         <div className="flex items-baseline justify-between mt-1.5">
           <h3 className="text-2xl font-bold text-gray-900">{kpis.thisWeekCount}</h3>
