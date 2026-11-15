@@ -2,7 +2,7 @@ import { hasCapability } from "../../utils/rolePermissions";
 /// <reference types="vite/client" />
 import React, { useState } from 'react';
 import './index.css';
-import { RefreshCw, ListFilter, ShieldAlert, Calendar } from 'lucide-react';
+import { RefreshCw, ListFilter, ShieldAlert, Calendar, CloudDownload } from 'lucide-react';
 
 import { useSurveyData } from './hooks/useSurveyData';
 import { computeKPIs } from './utils/analytics';
@@ -22,6 +22,7 @@ import { SQDScoreBars } from './components/charts/SQDScoreBars';
 import { ResponseTimeline } from './components/charts/ResponseTimeline';
 import { SuggestionsPanel } from './components/SuggestionsPanel';
 import { DataTable } from './components/DataTable';
+import { DashboardSkeleton } from '../../components/loading/SkeletonLayouts';
 
 const NAV_TABS = [
   { id: 'overview',     label: 'Overview' },
@@ -81,9 +82,20 @@ export const Dashboard: React.FC = () => {
   const isScopedAccess = !isGlobalAccess && userRole === 'PERSONNEL' && assignedOffices.length > 0;
   const isRestricted = !isGlobalAccess && !isScopedAccess;
 
-  const { data, filteredData, availableYears, loading, error, connected, filters, setFilters, resetFilters, refetch, lastUpdated } = useSurveyData();
+  const { data, filteredData, availableYears, loading, error, connected, filters, setFilters, resetFilters, refetch, lastUpdated, syncStatus, syncing, syncNow } = useSurveyData();
   const [activeTab, setActiveTab] = useState('overview');
   const [showFilters, setShowFilters] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+
+  const handleSync = async () => {
+    setSyncMessage('');
+    try {
+      await syncNow();
+      setSyncMessage('Cloud responses are up to date.');
+    } catch (err: any) {
+      setSyncMessage(err?.response?.data?.detail || 'Cloud is unavailable. Local responses are still accessible.');
+    }
+  };
 
   const hasActiveFilters =
     (filters.year !== '' && filters.year !== 'all') ||
@@ -110,12 +122,7 @@ export const Dashboard: React.FC = () => {
 
   // --- LOADING ---
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <div className="w-8 h-8 border-4 border-gray-200 border-t-[#DD7230] rounded-full animate-spin" />
-        <p className="text-sm text-gray-400 font-medium">Loading survey data…</p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // --- ERROR ---
@@ -149,7 +156,13 @@ export const Dashboard: React.FC = () => {
                 · Updated {lastUpdated.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
+            {syncStatus?.last_sync && (
+              <span className="ml-2 text-gray-400">
+                · Cloud synced {new Date(syncStatus.last_sync).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
+              </span>
+            )}
           </p>
+          {syncMessage && <p className="mt-1 text-xs text-gray-500">{syncMessage}</p>}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
@@ -168,6 +181,16 @@ export const Dashboard: React.FC = () => {
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
           </button>
+          {isGlobalAccess && syncStatus?.configured && (
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+            >
+              <CloudDownload className={`h-3.5 w-3.5 ${syncing ? 'animate-pulse' : ''}`} />
+              {syncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          )}
           <a
             href="https://ctu-client-satisfaction-survey.vercel.app/"
             target="_blank"

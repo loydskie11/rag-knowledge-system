@@ -1,7 +1,22 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from datetime import datetime, date
 import uuid
 from typing import Optional, List, Union
+
+CAR_LIFECYCLE_STATUSES = {
+    "Draft", "Issued", "Acknowledged", "Response Submitted", "In Progress",
+    "Awaiting Verification", "Returned", "Closed", "Void",
+}
+
+
+def validate_optional_iso_date(value: Optional[str], field_label: str) -> Optional[str]:
+    if value is None or value == "":
+        return None
+    try:
+        date.fromisoformat(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_label} must use YYYY-MM-DD format.") from exc
+    return value
 
 # What the user sends us when they sign up
 class UserCreate(BaseModel):
@@ -212,6 +227,16 @@ class ISORequirementCreate(BaseModel):
     risk_level: Optional[str] = "Medium"
     cycle_year: Optional[str] = "2025 Surveillance"
 
+    @field_validator("risk_level")
+    @classmethod
+    def validate_risk_level(cls, value: Optional[str]) -> str:
+        normalized = (value or "Medium").strip().title()
+        if normalized == "Low Risk":
+            normalized = "Low"
+        if normalized not in {"High", "Medium", "Low"}:
+            raise ValueError("Risk level must be High, Medium, or Low.")
+        return normalized
+
 class ISOEvidenceResponse(BaseModel):
     id: uuid.UUID
     iso_requirement_id: uuid.UUID
@@ -243,6 +268,28 @@ class ISORequirementResponse(BaseModel):
 
 class ISOCycleCreate(BaseModel):
     cycle_year: str
+
+
+class ISOAuditCycleUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    standard_version: str = Field(min_length=1, max_length=100)
+    status: str
+
+    @field_validator("name", "standard_version")
+    @classmethod
+    def strip_cycle_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("This field cannot be empty.")
+        return normalized
+
+    @field_validator("status")
+    @classmethod
+    def validate_cycle_status(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"PLANNED", "ACTIVE", "CLOSED"}:
+            raise ValueError("Cycle status must be Planned, Active, or Closed.")
+        return normalized
 
 
 class ISOAuditResultCreate(BaseModel):
@@ -341,6 +388,11 @@ class IQADayScheduleCreate(BaseModel):
     title: str
     scope: str
 
+    @field_validator("day_date")
+    @classmethod
+    def validate_day_date(cls, value: str) -> str:
+        return validate_optional_iso_date(value, "Audit date") or value
+
 class IQADayScheduleResponse(BaseModel):
     id: uuid.UUID
     program: str
@@ -368,6 +420,7 @@ class QMSEvidenceResponse(BaseModel):
 
 
 class QMSActionPlanCreate(BaseModel):
+    car_id: uuid.UUID
     cycle_year: str = "2025 Surveillance"
     auditee_office: str
     process_area: str
@@ -378,10 +431,24 @@ class QMSActionPlanCreate(BaseModel):
     corrective_measure: str
     target_date: str
     personnel_responsible: str
+    owner_user_id: Optional[uuid.UUID] = None
+    action_type: str = Field(default="CORRECTIVE_ACTION", pattern=r"^(CORRECTION_CONTAINMENT|CORRECTIVE_ACTION)$")
+    expected_evidence: str = Field(min_length=3, max_length=4000)
     status: str = "In Progress"
     actual_completion_date: Optional[str] = None
     assessment_date: Optional[str] = None
     assessment_notes: Optional[str] = None
+
+    @field_validator("target_date", "actual_completion_date", "assessment_date")
+    @classmethod
+    def validate_qms_dates(cls, value: Optional[str], info):
+        return validate_optional_iso_date(value, info.field_name.replace("_", " ").title())
+
+    @model_validator(mode="after")
+    def validate_qms_date_order(self):
+        if self.actual_completion_date and self.assessment_date and self.assessment_date < self.actual_completion_date:
+            raise ValueError("Assessment date cannot be before the actual completion date.")
+        return self
 
 class QMSActionPlanUpdate(BaseModel):
     auditee_office: Optional[str] = None
@@ -393,13 +460,31 @@ class QMSActionPlanUpdate(BaseModel):
     corrective_measure: Optional[str] = None
     target_date: Optional[str] = None
     personnel_responsible: Optional[str] = None
+    owner_user_id: Optional[uuid.UUID] = None
+    action_type: Optional[str] = Field(default=None, pattern=r"^(CORRECTION_CONTAINMENT|CORRECTIVE_ACTION)$")
+    expected_evidence: Optional[str] = Field(default=None, min_length=3, max_length=4000)
     status: Optional[str] = None
     actual_completion_date: Optional[str] = None
     assessment_date: Optional[str] = None
     assessment_notes: Optional[str] = None
 
+    @field_validator("target_date", "actual_completion_date", "assessment_date")
+    @classmethod
+    def validate_qms_dates(cls, value: Optional[str], info):
+        return validate_optional_iso_date(value, info.field_name.replace("_", " ").title())
+
+    @model_validator(mode="after")
+    def validate_qms_date_order(self):
+        if self.actual_completion_date and self.assessment_date and self.assessment_date < self.actual_completion_date:
+            raise ValueError("Assessment date cannot be before the actual completion date.")
+        return self
+
 class QMSActionPlanResponse(BaseModel):
     id: uuid.UUID
+    car_id: uuid.UUID
+    car_no: Optional[str] = None
+    car_status: Optional[str] = None
+    iso_clause_id: Optional[uuid.UUID] = None
     cycle_year: str
     auditee_office: str
     process_area: str
@@ -410,6 +495,11 @@ class QMSActionPlanResponse(BaseModel):
     corrective_measure: str
     target_date: str
     personnel_responsible: str
+    owner_user_id: Optional[uuid.UUID] = None
+    owner_name: Optional[str] = None
+    sequence_number: int
+    action_type: str
+    expected_evidence: str
     status: str
     actual_completion_date: Optional[str] = None
     assessment_date: Optional[str] = None
@@ -579,16 +669,33 @@ class CARFormCreate(BaseModel):
     campus: Optional[str] = None
     area: Optional[str] = None
     findings: Optional[str] = None
+    requirement_reference: Optional[str] = None
+    objective_evidence: Optional[str] = None
+    nonconformity_statement: Optional[str] = None
     root_cause: Optional[str] = None
+    root_cause_method: Optional[str] = Field(default=None, pattern=r"^(FIVE_WHYS|FISHBONE|FREE_FORM)$")
+    root_cause_analysis: Optional[dict] = None
     immediate_action: Optional[str] = None
     corrective_measure: Optional[str] = None
     measures_proposed_by: Optional[str] = None
     target_date: Optional[str] = None
-    status: str = "Open"
+    status: str = "Issued"
     follow_up_result: Optional[str] = None
     follow_up_date: Optional[str] = None
     comments_remarks: Optional[str] = None
     non_conformity_closed: Optional[bool] = False
+    assigned_to_id: Optional[uuid.UUID] = None
+    source_file_path: Optional[str] = None
+    source_file_name: Optional[str] = None
+    source_mime_type: Optional[str] = None
+    source_file_size: Optional[int] = None
+    source_sha256: Optional[str] = None
+    ocr_model: Optional[str] = None
+    ocr_version: Optional[str] = None
+    ocr_extracted_at: Optional[datetime] = None
+    ocr_raw_json: Optional[dict] = None
+    ocr_confidence_json: Optional[dict] = None
+    human_verified: bool = False
 
     @field_validator("iso_clause_id", mode="before")
     @classmethod
@@ -598,6 +705,31 @@ class CARFormCreate(BaseModel):
         if v == "" or v is None:
             return None
         return v
+
+    @field_validator("assigned_to_id", mode="before")
+    @classmethod
+    def empty_assignee_to_none(cls, value):
+        return None if value in ("", None) else value
+
+    @field_validator("date_issued", "target_date", "follow_up_date")
+    @classmethod
+    def validate_car_dates(cls, value: Optional[str], info):
+        return validate_optional_iso_date(value, info.field_name.replace("_", " ").title())
+
+    @field_validator("status")
+    @classmethod
+    def validate_initial_car_status(cls, value: str):
+        if value not in {"Draft", "Issued"}:
+            raise ValueError("A new CAR can only be saved as Draft or Issued.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_car_date_order(self):
+        if self.date_issued and self.target_date and self.target_date < self.date_issued:
+            raise ValueError("Target date cannot be before the CAR issue date.")
+        if self.date_issued and self.follow_up_date and self.follow_up_date < self.date_issued:
+            raise ValueError("Follow-up date cannot be before the CAR issue date.")
+        return self
 
 class CARFormUpdate(BaseModel):
     car_no: Optional[str] = None
@@ -611,7 +743,12 @@ class CARFormUpdate(BaseModel):
     campus: Optional[str] = None
     area: Optional[str] = None
     findings: Optional[str] = None
+    requirement_reference: Optional[str] = None
+    objective_evidence: Optional[str] = None
+    nonconformity_statement: Optional[str] = None
     root_cause: Optional[str] = None
+    root_cause_method: Optional[str] = Field(default=None, pattern=r"^(FIVE_WHYS|FISHBONE|FREE_FORM)$")
+    root_cause_analysis: Optional[dict] = None
     immediate_action: Optional[str] = None
     corrective_measure: Optional[str] = None
     measures_proposed_by: Optional[str] = None
@@ -621,11 +758,82 @@ class CARFormUpdate(BaseModel):
     follow_up_date: Optional[str] = None
     comments_remarks: Optional[str] = None
     non_conformity_closed: Optional[bool] = None
+    assigned_to_id: Optional[uuid.UUID] = None
+    human_verified: Optional[bool] = None
+    effectiveness_outcome: Optional[str] = Field(default=None, pattern=r"^(EFFECTIVE|PARTIALLY_EFFECTIVE|INEFFECTIVE|ADDITIONAL_EVIDENCE_REQUIRED)$")
+    void_reason: Optional[str] = Field(default=None, max_length=4000)
+
+    @field_validator("assigned_to_id", mode="before")
+    @classmethod
+    def empty_assignee_to_none(cls, value):
+        return None if value in ("", None) else value
+
+    @field_validator("date_issued", "target_date", "follow_up_date")
+    @classmethod
+    def validate_car_dates(cls, value: Optional[str], info):
+        return validate_optional_iso_date(value, info.field_name.replace("_", " ").title())
+
+    @field_validator("status")
+    @classmethod
+    def validate_car_status(cls, value: Optional[str]):
+        if value is not None and value not in CAR_LIFECYCLE_STATUSES:
+            raise ValueError("Invalid CAR lifecycle status.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_car_date_order(self):
+        if self.date_issued and self.target_date and self.target_date < self.date_issued:
+            raise ValueError("Target date cannot be before the CAR issue date.")
+        if self.date_issued and self.follow_up_date and self.follow_up_date < self.date_issued:
+            raise ValueError("Follow-up date cannot be before the CAR issue date.")
+        return self
+
+class CARVerificationEvidenceResponse(BaseModel):
+    id: uuid.UUID
+    car_id: uuid.UUID
+    file_name: str
+    mime_type: Optional[str] = None
+    file_size: int
+    sha256: str
+    notes: Optional[str] = None
+    uploaded_by_id: Optional[uuid.UUID] = None
+    uploaded_by_name: Optional[str] = None
+    uploaded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CARStatusHistoryResponse(BaseModel):
+    id: uuid.UUID
+    from_status: Optional[str] = None
+    to_status: str
+    reason: Optional[str] = None
+    changed_by_id: Optional[uuid.UUID] = None
+    changed_by_name: Optional[str] = None
+    changed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CARRevisionHistoryResponse(BaseModel):
+    id: uuid.UUID
+    changed_fields: dict
+    changed_by_id: Optional[uuid.UUID] = None
+    changed_by_name: Optional[str] = None
+    changed_at: datetime
+
+    class Config:
+        from_attributes = True
+
 
 class CARFormResponse(BaseModel):
     id: uuid.UUID
     cycle_year: str
+    cycle_id: uuid.UUID
     iso_clause_id: Optional[uuid.UUID] = None  # DB returns UUID object, not str
+    audit_finding_id: uuid.UUID
     car_no: Optional[str] = None
     date_issued: Optional[str] = None
     revision: Optional[str] = None
@@ -636,8 +844,14 @@ class CARFormResponse(BaseModel):
     acknowledged_by: Optional[str] = None
     campus: Optional[str] = None
     area: Optional[str] = None
+    responsible_office: str
     findings: Optional[str] = None
+    requirement_reference: Optional[str] = None
+    objective_evidence: Optional[str] = None
+    nonconformity_statement: Optional[str] = None
     root_cause: Optional[str] = None
+    root_cause_method: Optional[str] = None
+    root_cause_analysis: Optional[dict] = None
     immediate_action: Optional[str] = None
     corrective_measure: Optional[str] = None
     measures_proposed_by: Optional[str] = None
@@ -648,6 +862,53 @@ class CARFormResponse(BaseModel):
     comments_remarks: Optional[str] = None
     non_conformity_closed: Optional[bool] = False
     created_at: datetime
+    updated_at: datetime
+    action_plan_id: Optional[uuid.UUID] = None
+    action_plan_count: int = 0
+    issued_by_id: Optional[uuid.UUID] = None
+    acknowledged_by_id: Optional[uuid.UUID] = None
+    assigned_to_id: Optional[uuid.UUID] = None
+    verified_by_id: Optional[uuid.UUID] = None
+    issued_by_name: Optional[str] = None
+    acknowledged_by_name: Optional[str] = None
+    assigned_to_name: Optional[str] = None
+    verified_by_name: Optional[str] = None
+    source_file_path: Optional[str] = None
+    source_file_name: Optional[str] = None
+    source_mime_type: Optional[str] = None
+    source_file_size: Optional[int] = None
+    source_sha256: Optional[str] = None
+    ocr_model: Optional[str] = None
+    ocr_version: Optional[str] = None
+    ocr_extracted_at: Optional[datetime] = None
+    ocr_raw_json: Optional[dict] = None
+    ocr_confidence_json: Optional[dict] = None
+    human_verified_by_id: Optional[uuid.UUID] = None
+    human_verified_at: Optional[datetime] = None
+    human_verified_by_name: Optional[str] = None
+    response_submitted_by_id: Optional[uuid.UUID] = None
+    response_submitted_at: Optional[datetime] = None
+    response_submitted_by_name: Optional[str] = None
+    effectiveness_outcome: Optional[str] = None
+    verified_at: Optional[datetime] = None
+    reopened_by_id: Optional[uuid.UUID] = None
+    reopened_at: Optional[datetime] = None
+    reopen_reason: Optional[str] = None
+    reopen_count: int = 0
+    reopened_by_name: Optional[str] = None
+    issued_at: Optional[datetime] = None
+    acknowledged_at: Optional[datetime] = None
+    in_progress_at: Optional[datetime] = None
+    awaiting_verification_at: Optional[datetime] = None
+    returned_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
+    voided_at: Optional[datetime] = None
+    voided_by_id: Optional[uuid.UUID] = None
+    voided_by_name: Optional[str] = None
+    void_reason: Optional[str] = None
+    verification_evidences: List[CARVerificationEvidenceResponse] = []
+    is_overdue: bool = False
+    days_overdue: int = 0
 
     class Config:
         from_attributes = True

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Send, Users, Calendar, CheckCircle, Clock, Eye, Loader2, Save, Radio, Search, Filter, X, Trash2, BarChart3, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { apiClient } from "../api/client";
+import { Skeleton } from "../components/ui/skeleton";
 
 interface Announcement {
   id: string;
@@ -251,7 +252,7 @@ export function BroadcastAnnouncement() {
       
       {/* GLOBAL TOAST NOTIFICATION */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-4 rounded-xl shadow-xl animate-in slide-in-from-bottom-5 fade-in duration-300 ${
+        <div className={`fixed bottom-4 left-4 right-4 z-[200] flex items-center gap-3 px-4 py-3 sm:bottom-6 sm:left-auto sm:right-6 sm:px-5 sm:py-4 rounded-xl shadow-xl animate-in slide-in-from-bottom-5 fade-in duration-300 ${
           toast.type === "success" ? "bg-gray-900 text-white" : "bg-red-50 text-red-700 border border-red-200"
         }`}>
           {toast.type === "success" ? <CheckCircle className="h-5 w-5 text-green-400" /> : <AlertCircle className="h-5 w-5" />}
@@ -412,7 +413,7 @@ export function BroadcastAnnouncement() {
         </div>
         
         {isFetching ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#DD7230]" /></div>
+          <div className="space-y-3" aria-busy="true" aria-label="Loading announcements">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="rounded-xl border border-gray-200 bg-white p-4"><div className="flex items-start justify-between gap-4"><div className="flex-1 space-y-2"><Skeleton className="h-4 w-1/3 bg-gray-200/80" /><Skeleton className="h-3 w-full bg-gray-200/80" /><Skeleton className="h-3 w-2/3 bg-gray-200/80" /></div><Skeleton className="h-6 w-20 rounded-full bg-gray-200/80" /></div></div>)}</div>
         ) : filteredAnnouncements.length === 0 ? (
           <div className="text-center py-10 text-gray-400 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-xs">
             No announcements found.

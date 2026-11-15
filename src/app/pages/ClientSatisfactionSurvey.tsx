@@ -9,6 +9,7 @@ import {
   Check
 } from "lucide-react";
 import { apiClient } from "../api/client";
+import { useRole } from "../contexts/RoleContext";
 
 // ==========================================
 // SURVEY CONFIGURATION & QUESTION REPOSITORY
@@ -61,36 +62,6 @@ const SURVEY_CONFIG = {
     "Receive Documents (for signature)",
     "Release documents (done signature)",
     "Visit office personnel",
-    "Other"
-  ],
-  offices: [
-    "CD Office (Campus Director)",
-    "Accounting Office",
-    "Budget / Finance Office",
-    "Cashier's Office",
-    "Civil Security Unit (CSU) Office",
-    "Medical Clinic / Dental",
-    "Admin Office",
-    "CAS Office (College of Arts and Sciences)",
-    "COTE Office (College of Technology and Engineering)",
-    "COED Office (College of Education)",
-    "CHTM Office (College of Hospitality and Tourism)",
-    "CAF Office (College of Agriculture and Forestry)",
-    "MIS Office / IT Center",
-    "Guidance Office",
-    "Graduate School Office",
-    "Human Resource and Management Office",
-    "Library Office",
-    "Maintenance Office",
-    "BAC Office (Bids & Awards)",
-    "Public Assistance and Information Desk",
-    "Registrar's Office",
-    "Scholarship Office",
-    "SAO / Dean of Student Affairs Office",
-    "Supply Office",
-    "GAD Office (Gender and Development)",
-    "Planning & Development Office",
-    "DOI Office (Director of Instruction)",
     "Other"
   ],
   ccQuestions: [
@@ -161,6 +132,9 @@ const STEPS_META = [
 
 export function ClientSatisfactionSurvey() {
   const navigate = useNavigate();
+  const { referenceData } = useRole();
+  const surveyOffices = referenceData.offices.map((office) => office.name);
+  const surveyColleges = referenceData.colleges.map((college) => college.name);
   const currentYear = new Date().getFullYear();
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -678,9 +652,17 @@ export function ClientSatisfactionSurvey() {
                 className="w-full py-2.5 px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] focus:bg-white transition-all cursor-pointer"
               >
                 <option value="">Select Office</option>
-                {SURVEY_CONFIG.offices.map((o) => (
+                <optgroup label="Administrative and Service Offices">
+                {surveyOffices.map((o) => (
                   <option key={o} value={o}>{o}</option>
                 ))}
+                </optgroup>
+                <optgroup label="Colleges">
+                  {surveyColleges.map((college) => (
+                    <option key={college} value={college}>{college}</option>
+                  ))}
+                </optgroup>
+                <option value="Other">Other</option>
               </select>
               {formData.office_visited === "Other" && (
                 <input

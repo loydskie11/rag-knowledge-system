@@ -6,9 +6,9 @@ import { useNavigate } from "react-router-dom";
 import { Search, CheckCircle, CheckCircle2, AlertCircle, FileText, Award, Target, Upload, ChevronDown, ChevronUp, X, Loader2, ArrowLeft, Archive, Eye, ShieldAlert, Lock, Check, FileCheck, MessageSquareWarning, MessageSquare, Clock, BarChart2, Calendar, Plus, Edit, Trash2, Download, ExternalLink, FileBadge, History, TrendingUp, Building, Sparkles, Users, Layers, AlertTriangle, SlidersHorizontal, Printer, Info } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import axios from "axios";
-import { ISO_OFFICES_16 } from "./UsersRoles";
-import { CAMPUS_PROGRAMS } from "../constants/academicScopes";
+import { useRole } from "../contexts/RoleContext";
 import { apiClient } from "../api/client";
+import { ModuleSkeleton } from "../components/loading/SkeletonLayouts";
 import {
   exportMrcForm4,
   exportMrcForm5,
@@ -31,9 +31,38 @@ export const MASTER_AACCUP_AREAS = [
 
 // Module-level caches to avoid redundant fetching and keep tab switches and page navigations instant
 const isoRequirementsCache = new Map<string, any[]>();
+const normalizeIsoRiskLevel = (value?: string) => value === "Low Risk" ? "Low" : (value || "Medium");
+const isoRiskLabel = (value?: string) => `${normalizeIsoRiskLevel(value)} Risk`;
+const isoRiskBadgeClass = (value?: string) => {
+  const level = normalizeIsoRiskLevel(value);
+  if (level === "High") return "bg-rose-50 text-rose-700 border-rose-200";
+  if (level === "Low") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  return "bg-amber-50 text-amber-700 border-amber-200";
+};
 const iqaDaysCache = new Map<string, any[]>();
 const qmsPlansCache = new Map<string, any[]>();
 let isoCyclesCache: string[] | null = null;
+
+const CAR_STATUS_TRANSITIONS: Record<string, string[]> = {
+  Draft: ["Issued", "Void"],
+  Issued: ["Acknowledged", "Void"],
+  Acknowledged: ["Response Submitted", "Void"],
+  "Response Submitted": ["In Progress", "Void"],
+  "In Progress": ["Awaiting Verification", "Void"],
+  "Awaiting Verification": ["Returned", "Closed", "Void"],
+  Returned: ["Response Submitted", "In Progress", "Void"],
+  Closed: [],
+  Void: [],
+};
+
+const carStatusBadgeClass = (status?: string) => {
+  if (status === "Closed") return "bg-emerald-50 text-emerald-700";
+  if (status === "Void") return "bg-gray-100 text-gray-600";
+  if (status === "Returned") return "bg-rose-50 text-rose-700";
+  if (status === "Awaiting Verification") return "bg-violet-50 text-violet-700";
+  if (status === "Draft") return "bg-amber-50 text-amber-700";
+  return "bg-blue-50 text-blue-700";
+};
 
 const scopeCacheKey = (cycle: string) => [sessionStorage.getItem('userEmail'), sessionStorage.getItem('userAdministrativeOffice'), sessionStorage.getItem('effectivePermissions'), cycle].join('|');
 
@@ -898,7 +927,7 @@ export const ChedTabContent = ({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[760px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50/80">
                   <th className="p-3.5 rounded-l-xl">CMO Title / Requirement</th>
@@ -985,6 +1014,8 @@ export const IsoTabContent = ({
   showIsoYearFilter,
   setShowIsoYearFilter,
   isoCycleOptions,
+  isIsoCycleClosed,
+  selectedIsoCycleStatus,
   expandedIsoClause,
   setExpandedIsoClause,
   isoClauseEvidences,
@@ -995,6 +1026,8 @@ export const IsoTabContent = ({
   setIsoFilterOffice,
   isoStatusFilter,
   setIsoStatusFilter,
+  isoRiskFilter,
+  setIsoRiskFilter,
   availableIsoOffices = [],
   isoSearchQuery,
   setIsoSearchQuery,
@@ -1021,6 +1054,7 @@ export const IsoTabContent = ({
   isoSubTab,
   setIsoSubTab,
   setShowAddIsoCycleModal,
+  openEditIsoCycleModal,
   setShowAddIsoReqModal,
   setEditingIsoReq,
   setShowEditIsoReqModal,
@@ -1032,6 +1066,7 @@ export const IsoTabContent = ({
   setShowDeleteIsoEvidenceModal,
   setShowEditIqaModal,
   setShowAddIqaDayModal,
+  openAddIqaDayModal,
   setEditingIqaDay,
   setShowEditIqaDayModal,
   setDeletingIqaDay,
@@ -1063,14 +1098,19 @@ export const IsoTabContent = ({
   setCarFormToDelete,
   newCarForm,
   setNewCarForm,
+  handleExportCarFormWithComposer,
   handleExportCarForm,
   handleExportCarForm3,
+  handleComposeCarForm3,
+  handleDownloadAuditPackage,
+  carReportSummary,
   handleExportMrcForm6,
   setShowMrcExportModal,
   setSelectedMrcFormType,
   handleExportMrcForm4,
   handleExportMrcForm5,
-  handleExportMrcForm7
+  handleExportMrcForm7,
+  handleComposeMrcForm,
 }: any) => {
   const [carSearchQuery, setCarSearchQuery] = useState("");
   
@@ -1151,6 +1191,13 @@ export const IsoTabContent = ({
                       </div>
                     )}
                   </div>
+                  <span className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-md border ${
+                    isIsoCycleClosed
+                      ? "bg-gray-100 text-gray-600 border-gray-200"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  }`}>
+                    {selectedIsoCycleStatus === "PLANNED" ? "Planned" : isIsoCycleClosed ? "Closed" : "Active"}
+                  </span>
                   {isOfficeRestricted && (
                     <span className="px-2.5 py-0.5 bg-gray-100 text-gray-700 border border-gray-200 font-medium text-xs rounded-md flex items-center gap-1">
                       <Lock className="h-3 w-3 text-gray-500" /> Scoped to: {userAdminOffice}
@@ -1166,18 +1213,26 @@ export const IsoTabContent = ({
                 {hasCapability("governance.manage") && (
                   <>
                     <button
-                      hidden={!hasCapability("governance.review")}
+                      hidden={!hasCapability("governance.cross_office")}
                       onClick={() => setShowAddIsoCycleModal(true)}
                       className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="h-3.5 w-3.5" /> New Audit Cycle
                     </button>
-                    <button
+                    {hasCapability("governance.cross_office") && !isIsoCycleClosed && (
+                      <button
+                        onClick={openEditIsoCycleModal}
+                        className="px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-medium transition-all border border-gray-300 shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Edit className="h-3.5 w-3.5" /> Edit Cycle
+                      </button>
+                    )}
+                    {!isIsoCycleClosed && <button
                       onClick={() => setShowAddIsoReqModal(true)}
                       className="px-3.5 py-2 bg-[#DD7230] hover:bg-[#DD7230] text-white font-medium text-xs rounded-lg shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
                     >
                       <Plus className="h-3.5 w-3.5" /> Add Requirement
-                    </button>
+                    </button>}
                   </>
                 )}
               </div>
@@ -1235,40 +1290,66 @@ export const IsoTabContent = ({
                         <div className="flex flex-wrap gap-2 w-full xl:w-auto">
                           
                           <button
-                            onClick={handleExportCarForm3}
+                            onClick={handleComposeCarForm3}
                             className="px-3 py-2 bg-white hover:bg-orange-50/50 text-gray-700 hover:text-[#DD7230] rounded-lg text-xs font-medium transition-all border border-gray-300 hover:border-[#DD7230]/40 shadow-2xs flex items-center gap-1.5 cursor-pointer w-full sm:w-auto justify-center"
-                            title="Generate Official CAR Form 3 (Print / PDF)"
+                            title="Generate controlled CAR Form 3 (Print / PDF)"
                           >
-                            <Printer className="h-3.5 w-3.5" /> Export Logsheet
+                            <Printer className="h-3.5 w-3.5" /> Generate master log
                           </button>
 
                           {/* MRC Forms Group */}
                           <div className="flex items-center p-1 bg-gray-100/80 rounded-lg border border-gray-200">
-                            <button onClick={() => handleExportMrcForm4()} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Export MRC Form 4 (Annual Plan)">Form 4</button>
+                            <button onClick={() => handleComposeMrcForm("MRC Form 4 Template")} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Compose MRC Form 4 (Annual Plan)">Form 4</button>
                             <div className="w-px h-3 bg-gray-300 mx-0.5"></div>
-                            <button onClick={() => handleExportMrcForm5()} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Export MRC Form 5 (Risk ID)">Form 5</button>
+                            <button onClick={() => handleComposeMrcForm("MRC Form 5 Template")} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Compose MRC Form 5 (Risk ID)">Form 5</button>
                             <div className="w-px h-3 bg-gray-300 mx-0.5"></div>
-                            <button onClick={() => handleExportMrcForm6()} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Export MRC Form 6 (Action Plan)">Form 6</button>
+                            <button onClick={() => handleComposeMrcForm("MRC Form 6 Template")} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Compose MRC Form 6 (Action Plan)">Form 6</button>
                             <div className="w-px h-3 bg-gray-300 mx-0.5"></div>
-                            <button onClick={() => handleExportMrcForm7()} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Export MRC Form 7 (Issues Log)">Form 7</button>
+                            <button onClick={() => handleComposeMrcForm("MRC Form 7 Template")} className="px-2.5 py-1 hover:bg-white text-gray-600 hover:text-emerald-700 rounded text-xs font-medium transition-all flex items-center gap-1 cursor-pointer" title="Compose MRC Form 7 (Issues Log)">Form 7</button>
                           </div>
 
-                          <button
-                            onClick={() => setShowAddQmsModal(true)}
-                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer w-full sm:w-auto justify-center"
-                            title="Create New QMS Action Plan"
-                          >
-                            <Plus className="h-3.5 w-3.5" /> Create Action Plan
-                          </button>
-                          <button
+                          {hasCapability("car.issue") && <button
                             onClick={() => { setNewCarForm((prev: any) => ({...prev, area: "", iso_clause_id: ""})); setShowAddCarModal(true); }}
                             className="px-3.5 py-2 bg-[#DD7230] hover:bg-[#c45e22] text-white font-medium text-xs rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 w-full sm:w-auto justify-center"
                           >
                             <Plus className="w-3.5 h-3.5" /> Issue CAR Form 1
-                          </button>
+                          </button>}
                         </div>
                       </div>
                     </div>
+
+                    {carReportSummary && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+                          {[
+                            ["Total CARs", carReportSummary.total], ["Open", carReportSummary.open],
+                            ["Closed", carReportSummary.closed], ["Overdue", carReportSummary.overdue],
+                            ["Closure rate", `${carReportSummary.closure_rate}%`],
+                            ["Effective", `${carReportSummary.effective_rate}%`],
+                          ].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-gray-200 bg-white p-3"><div className="text-xl font-bold text-gray-900">{value}</div><div className="mt-0.5 text-[11px] font-medium text-gray-500">{label}</div></div>)}
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="rounded-xl border border-gray-200 bg-white p-4">
+                            <h4 className="text-xs font-bold text-gray-700">Lifecycle distribution</h4>
+                            <div className="mt-3 space-y-2">{Object.entries(carReportSummary.status_distribution || {}).map(([label, count]: any) => <div key={label} className="flex items-center gap-3 text-xs"><span className="w-36 truncate text-gray-600">{label}</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-[#DD7230]" style={{width:`${Math.max(4,(count / Math.max(1,carReportSummary.total))*100)}%`}} /></div><strong className="w-6 text-right">{count}</strong></div>)}</div>
+                          </div>
+                          <div className="rounded-xl border border-gray-200 bg-white p-4">
+                            <h4 className="text-xs font-bold text-gray-700">Effectiveness outcomes</h4>
+                            <div className="mt-3 space-y-2">{Object.entries(carReportSummary.effectiveness_distribution || {}).length ? Object.entries(carReportSummary.effectiveness_distribution || {}).map(([label, count]: any) => <div key={label} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs"><span>{label.replaceAll("_"," ")}</span><strong>{count}</strong></div>) : <p className="text-xs text-gray-400">No verification outcomes recorded yet.</p>}</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="rounded-xl border border-gray-200 bg-white p-4">
+                            <h4 className="text-xs font-bold text-gray-700">Finding classifications</h4>
+                            <div className="mt-3 grid grid-cols-2 gap-2">{Object.entries(carReportSummary.category_distribution || {}).map(([label, count]: any) => <div key={label} className="rounded-lg border border-gray-100 bg-gray-50 p-3"><div className="text-lg font-bold text-gray-900">{count}</div><div className="text-[10px] text-gray-500">{label.replaceAll("_"," ")}</div></div>)}</div>
+                          </div>
+                          <div className="rounded-xl border border-gray-200 bg-white p-4">
+                            <h4 className="text-xs font-bold text-gray-700">Monthly CAR trend</h4>
+                            <div className="mt-3 flex min-h-24 items-end gap-2 overflow-x-auto">{(carReportSummary.monthly_trend || []).map((item: any) => { const max = Math.max(...(carReportSummary.monthly_trend || []).map((entry: any) => entry.count),1); return <div key={item.month} className="flex min-w-14 flex-1 flex-col items-center gap-1"><span className="text-[10px] font-bold text-gray-700">{item.count}</span><div className="w-full rounded-t bg-[#DD7230]" style={{height:`${Math.max(8,(item.count/max)*64)}px`}}/><span className="text-[9px] text-gray-500">{item.month}</span></div>; })}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="relative w-full max-w-3xl">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1292,7 +1373,7 @@ export const IsoTabContent = ({
                       </div>
                     ) : (
                       <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-2xs">
-                      <table className="min-w-full text-left">
+                      <table className="min-w-[760px] w-full text-left">
                         <thead className="bg-gray-50 border-b border-gray-200">
                           <tr>
                             <th className="p-3 text-[11px] font-bold text-gray-600 uppercase tracking-wider">CAR No.</th>
@@ -1308,7 +1389,10 @@ export const IsoTabContent = ({
                         <tbody className="divide-y divide-gray-100">
                           {filteredCarForms.map((car: any) => (
                             <tr key={car.id} className="hover:bg-orange-50/30 transition-colors">
-                              <td className="p-3 text-sm font-bold text-gray-900">{car.car_no || "—"}</td>
+                              <td className="p-3 text-sm font-bold text-gray-900">
+                                <div>{car.car_no || "—"}</div>
+                                {car.action_plan_id && <div className="text-[10px] font-medium text-emerald-700 mt-0.5">Action plan linked</div>}
+                              </td>
                               <td className="p-3 text-sm text-gray-600">{car.date_issued || "—"}</td>
                               <td className="p-3">
                                 <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full ${
@@ -1322,21 +1406,20 @@ export const IsoTabContent = ({
                               <td className="p-3 text-sm text-gray-700">{car.initiator || "—"}</td>
                               <td className="p-3 text-sm text-gray-700">{car.auditor_name || "—"}</td>
                               <td className="p-3">
-                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
-                                  car.status === 'Closed' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
-                                }`}>{car.status}</span>
+                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${carStatusBadgeClass(car.status)}`}>{car.status}</span>
                               </td>
                               <td className="p-3">
                                 <div className="flex gap-1">
-                                  <button onClick={() => handleExportCarForm(car)} className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors cursor-pointer" title="Generate Official CAR Form 1 (Print / PDF)">
-                                    <Printer className="h-4 w-4" />
+                                  <button onClick={() => handleExportCarFormWithComposer(car)} className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors cursor-pointer" title="Generate official CAR Form 1">
+                                    <FileText className="h-4 w-4" />
                                   </button>
-                                  <button onClick={() => { setEditingCarForm(car); setShowEditCarModal(true); }} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 cursor-pointer" title="Edit">
+                                  {car.status !== "Draft" && <button onClick={() => handleDownloadAuditPackage(car)} className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors cursor-pointer" title="Download complete audit-history package"><Download className="h-4 w-4" /></button>}
+                                  {(hasCapability("car.issue") || hasCapability("car.acknowledge") || hasCapability("car.respond") || hasCapability("car.verify")) && <button onClick={() => { setEditingCarForm(car); setShowEditCarModal(true); }} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 cursor-pointer" title="Open workflow action">
                                     <Edit className="h-4 w-4" />
-                                  </button>
-                                  <button onClick={() => { setCarFormToDelete(car); setShowDeleteCarModal(true); }} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg cursor-pointer" title="Delete">
+                                  </button>}
+                                  {hasCapability("car.issue") && car.status === "Draft" && <button onClick={() => { setCarFormToDelete(car); setShowDeleteCarModal(true); }} className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg cursor-pointer" title="Delete draft">
                                     <Trash2 className="h-4 w-4" />
-                                  </button>
+                                  </button>}
                                 </div>
                               </td>
                             </tr>
@@ -1403,7 +1486,7 @@ export const IsoTabContent = ({
                       }`}
                     >
                       <option value="all">All Auditee Offices ({availableIsoOffices.length > 0 ? availableIsoOffices.length : 16} Offices)</option>
-                      {(availableIsoOffices.length > 0 ? availableIsoOffices : ISO_OFFICES_16).map((off: string) => (
+                      {availableIsoOffices.map((off: string) => (
                         <option key={off} value={off}>{off}</option>
                       ))}
                     </select>
@@ -1419,12 +1502,25 @@ export const IsoTabContent = ({
                       <option value="Not Compliant">Not Compliant</option>
                     </select>
 
-                    {(isoFilterCategory !== "all" || (isoFilterOffice !== "all" && !isOfficeRestricted) || (isoStatusFilter && isoStatusFilter !== "all") || isoSearchQuery) && (
+                    <select
+                      value={isoRiskFilter}
+                      onChange={(e) => setIsoRiskFilter(e.target.value)}
+                      className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#DD7230] shadow-2xs cursor-pointer"
+                      aria-label="Filter ISO clauses by risk level"
+                    >
+                      <option value="all">All Risk Levels</option>
+                      <option value="High">High Risk</option>
+                      <option value="Medium">Medium Risk</option>
+                      <option value="Low">Low Risk</option>
+                    </select>
+
+                    {(isoFilterCategory !== "all" || (isoFilterOffice !== "all" && !isOfficeRestricted) || (isoStatusFilter && isoStatusFilter !== "all") || isoRiskFilter !== "all" || isoSearchQuery) && (
                       <button
                         onClick={() => {
                           setIsoFilterCategory("all");
                           if (!isOfficeRestricted) setIsoFilterOffice("all");
                           if (setIsoStatusFilter) setIsoStatusFilter("all");
+                          setIsoRiskFilter("all");
                           setIsoSearchQuery("");
                         }}
                         className="px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
@@ -1459,11 +1555,12 @@ export const IsoTabContent = ({
                   </div>
                 ) : (
                   <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-2xs">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full min-w-[760px] text-left border-collapse">
                       <thead>
                         <tr className="border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50/80">
                           <th className="p-3.5 rounded-l-xl">Clause & Title</th>
                           <th className="p-3.5">Auditee Office</th>
+                          <th className="p-3.5">Risk Level</th>
                           <th className="p-3.5">Evidences</th>
                           <th className="p-3.5">Status</th>
                           <th className="p-3.5 text-right rounded-r-xl">Actions</th>
@@ -1489,6 +1586,11 @@ export const IsoTabContent = ({
                               )}
                             </td>
                             <td className="p-3.5 text-gray-600 font-medium">{clause.auditee_office || 'Campus-Wide'}</td>
+                            <td className="p-3.5">
+                              <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-md border ${isoRiskBadgeClass(clause.risk_level)}`}>
+                                {isoRiskLabel(clause.risk_level)}
+                              </span>
+                            </td>
                             <td className="p-3.5 font-semibold text-gray-700">{clause.evidences?.length || 0} file(s)</td>
                             <td className="p-3.5">
                               <span className={`px-2 py-0.5 text-[10px] font-medium rounded-md uppercase border ${
@@ -1498,7 +1600,7 @@ export const IsoTabContent = ({
                               </span>
                             </td>
                             <td className="p-3.5 text-right space-x-1" onClick={(e) => e.stopPropagation()}>
-                              {!isUnassignedFaculty && (
+                              {!isUnassignedFaculty && !isIsoCycleClosed && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setSelectedIsoReqForUpload(clause); setShowIsoUploadEvidenceModal(true); }}
                                   className="px-2.5 py-1.5 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 font-medium rounded-lg text-xs transition-colors cursor-pointer shadow-2xs"
@@ -1506,7 +1608,7 @@ export const IsoTabContent = ({
                                   Upload Proof
                                 </button>
                               )}
-                              {hasCapability("governance.manage") && (
+                              {hasCapability("governance.manage") && !isIsoCycleClosed && (
                                 <>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setEditingIsoReq(clause); setShowEditIsoReqModal(true); }}
@@ -1541,10 +1643,10 @@ export const IsoTabContent = ({
                       </h3>
                       <p className="text-xs text-gray-500">Annual audit cycle schedule for CTU Argao Campus offices.</p>
                     </div>
-                    {hasCapability("governance.review") && (
+                    {hasCapability("governance.review") && !isIsoCycleClosed && (
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setShowAddIqaDayModal(true)}
+                          onClick={openAddIqaDayModal}
                           className="px-3.5 py-2 bg-orange-50 hover:bg-orange-100 text-[#DD7230] border border-[#DD7230]/30 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
                         >
                           <Plus className="h-3.5 w-3.5" /> Add Audit Day
@@ -1552,6 +1654,12 @@ export const IsoTabContent = ({
                       </div>
                     )}
                   </div>
+
+                  {isIsoCycleClosed && (
+                    <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                      This audit cycle is closed. Its audit-day schedule is preserved as a read-only historical record.
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {iqaAuditDays.map((day: any) => (
@@ -1564,7 +1672,7 @@ export const IsoTabContent = ({
                         </div>
                         <h4 className="font-bold text-gray-900 text-sm mb-1">{day.title}</h4>
                         <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{day.scope}</p>
-                        {hasCapability("governance.review") && (
+                        {hasCapability("governance.review") && !isIsoCycleClosed && (
                           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white/90 backdrop-blur-xs p-1 rounded-lg border border-gray-200 shadow-2xs">
                             <button
                               onClick={(e) => { e.stopPropagation(); setEditingIqaDay(day); setShowEditIqaDayModal(true); }}
@@ -1613,6 +1721,9 @@ export const IsoTabContent = ({
                   </span>
                   <span className="text-xs text-gray-400">•</span>
                   <span className="text-xs text-gray-600 font-medium">{expandedIsoClause.auditee_office || "Campus-Wide"}</span>
+                  <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-md border ${isoRiskBadgeClass(expandedIsoClause.risk_level)}`}>
+                    {isoRiskLabel(expandedIsoClause.risk_level)}
+                  </span>
                 </div>
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900 mt-0.5">{expandedIsoClause.title}</h2>
               </div>
@@ -1620,7 +1731,7 @@ export const IsoTabContent = ({
 
             <div className="flex items-center gap-2 flex-wrap shrink-0">
               {/* Quick Compliance Action Buttons for Admin & IQA Auditors */}
-              {(hasCapability("governance.review")) && (
+              {(hasCapability("governance.review") && !isIsoCycleClosed) && (
                 <>
                   <button
                     onClick={() => confirmIsoStatusUpdate && confirmIsoStatusUpdate(expandedIsoClause.id, "Compliant", `${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}`)}
@@ -1635,7 +1746,7 @@ export const IsoTabContent = ({
                     <Check className="h-4 w-4" /> Approve Clause
                   </button>
                   
-                  {expandedIsoClause.status !== "Not Compliant" && (
+                  {hasCapability("car.issue") && expandedIsoClause.status !== "Not Compliant" && (
                     <button
                       onClick={() => {
                         setNewCarForm((prev: any) => ({...prev, area: expandedIsoClause.auditee_office || "", iso_clause_id: expandedIsoClause.id || "", findings: `Non-conformity under ${expandedIsoClause.iso_clause}: ${expandedIsoClause.title}. ${expandedIsoClause.description || ""}`}));
@@ -1650,7 +1761,7 @@ export const IsoTabContent = ({
                 </>
               )}
 
-              {!isUnassignedFaculty && (
+              {!isUnassignedFaculty && !isIsoCycleClosed && (
                 <button
                   onClick={() => { setSelectedIsoReqForUpload(expandedIsoClause); setShowIsoUploadEvidenceModal(true); }}
                   className="px-3.5 py-2 bg-[#DD7230] hover:bg-[#c45e22] text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
@@ -1797,8 +1908,8 @@ export const IsoTabContent = ({
                         <p className="text-[10px] text-gray-500 mt-1">Issued: {car.date_issued || "N/A"} • Auditor: {car.auditor_name || "N/A"}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => { setEditingCarForm(car); setShowEditCarModal(true); }} className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer">Edit CAR</button>
-                        <button onClick={() => handleExportCarForm(car)} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"><Printer className="h-3.5 w-3.5"/> Export</button>
+                        {(hasCapability("car.issue") || hasCapability("car.acknowledge") || hasCapability("car.respond") || hasCapability("car.verify")) && <button onClick={() => { setEditingCarForm(car); setShowEditCarModal(true); }} className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer">Open Workflow</button>}
+                        <button onClick={() => handleExportCarFormWithComposer(car)} className="px-3 py-1.5 border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"><FileText className="h-3.5 w-3.5"/> Generate form</button>
                       </div>
                     </div>
                   ))}
@@ -2056,9 +2167,11 @@ const ISOResultsContent = ({ showToast }: { showToast: (message: string, type?: 
                 <div><label className="block text-xs font-medium text-gray-700 mb-1.5">ISO standard version</label><input value={form.standard_version} onChange={(e) => setForm({ ...form, standard_version: e.target.value })} required placeholder="e.g. ISO 9001:2015" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
                 <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit type</label><select value={form.result_type} onChange={(e) => setForm({ ...form, result_type: e.target.value, certification_status: e.target.value === "INTERNAL_AUDIT" ? "" : form.certification_status })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">{Object.entries(ISO_RESULT_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
                 <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Auditor or certification body</label><input value={form.auditor_or_certification_body} onChange={(e) => setForm({ ...form, auditor_or_certification_body: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit start date</label><input type="date" value={form.audit_start_date} onChange={(e) => setForm({ ...form, audit_start_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
-                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit end date</label><input type="date" value={form.audit_end_date} onChange={(e) => setForm({ ...form, audit_end_date: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit start date</label><input type="date" max={form.audit_end_date || new Date().toISOString().split("T")[0]} value={form.audit_start_date} onChange={(e) => setForm({ ...form, audit_start_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
+                <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Audit end date</label><input type="date" min={form.audit_start_date || undefined} max={new Date().toISOString().split("T")[0]} value={form.audit_end_date} onChange={(e) => setForm({ ...form, audit_end_date: e.target.value })} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               </div>
+
+              <p className="text-[11px] text-gray-500">Past dates are allowed for completed audits. Future dates belong in the IQA audit schedule, not in audit results.</p>
               <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Conclusion</label><input value={form.conclusion} onChange={(e) => setForm({ ...form, conclusion: e.target.value })} required placeholder={isExternalForm ? "e.g. Certification maintained" : "e.g. QMS effective with corrective actions required"} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" /></div>
               {isExternalForm && <div><label className="block text-xs font-medium text-gray-700 mb-1.5">External certification outcome</label><select value={form.certification_status} onChange={(e) => setForm({ ...form, certification_status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"><option value="">Select an outcome</option>{["CERTIFIED", "MAINTAINED", "RECOMMENDED", "SUSPENDED", "WITHDRAWN", "NOT_CERTIFIED"].map(value => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></div>}
               <div><label className="block text-xs font-medium text-gray-700 mb-1.5">Result summary</label><textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} required rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none" placeholder="Summarize the audit scope, outcome, significant findings, and required follow-up." /></div>
@@ -2510,12 +2623,24 @@ const ProgramAssignmentRequired = () => (
 
 export function AccreditationSupport() {
   const navigate = useNavigate();
+  const { referenceData, profile } = useRole();
   const userRole = sessionStorage.getItem('userRole') || 'STUDENT';
   const userDept = sessionStorage.getItem('userDepartment') || '';
   const userName = sessionStorage.getItem('userName') || 'Faculty User';
   const userAdminOffice = sessionStorage.getItem('userAdministrativeOffice') || '';
   const userIsIqaAuditor = sessionStorage.getItem('isIqaAuditor') === 'true';
   const isQualityAssuranceOrAuditor = hasCapability("governance.cross_office");
+  const canIssueCar = hasCapability("car.issue");
+  const canAcknowledgeCar = hasCapability("car.acknowledge");
+  const canRespondCar = hasCapability("car.respond");
+  const canVerifyCar = hasCapability("car.verify");
+  const allowedCarTransitionsForUser = (currentStatus: string) =>
+    (CAR_STATUS_TRANSITIONS[currentStatus] || []).filter((nextStatus) => {
+      if (["Issued", "Returned", "Closed", "Void"].includes(nextStatus)) return canIssueCar || canVerifyCar;
+      if (nextStatus === "Acknowledged") return canAcknowledgeCar;
+      if (["Response Submitted", "In Progress", "Awaiting Verification"].includes(nextStatus)) return canRespondCar;
+      return false;
+    });
   const allowedIsoProcesses: string[] = (() => {
     try { return JSON.parse(sessionStorage.getItem('allowedIsoProcesses') || '[]'); }
     catch { return []; }
@@ -2524,12 +2649,13 @@ export function AccreditationSupport() {
     try { return JSON.parse(sessionStorage.getItem('allowedPrograms') || '[]'); }
     catch { return []; }
   })();
+  const livePrograms = referenceData.programs.map(program => ({ code: program.code, label: program.name, college: program.college_name || "Academic Program" }));
   const visiblePrograms = isQualityAssuranceOrAuditor
-    ? CAMPUS_PROGRAMS
-    : CAMPUS_PROGRAMS.filter((program) => allowedPrograms.includes(program.code));
+    ? livePrograms
+    : livePrograms.filter((program) => allowedPrograms.includes(program.code));
   const canSelectProgram = visiblePrograms.length > 1;
   const isOfficeRestricted = !isQualityAssuranceOrAuditor && allowedIsoProcesses.length > 0;
-  const workflowOffices = isQualityAssuranceOrAuditor ? ISO_OFFICES_16 : allowedIsoProcesses;
+  const workflowOffices = isQualityAssuranceOrAuditor ? referenceData.iso_process_groups.map(group => group.name) : allowedIsoProcesses;
   const hasProgramAssignment = visiblePrograms.length > 0;
   const isUnassignedFaculty = !isQualityAssuranceOrAuditor && !userAdminOffice && allowedIsoProcesses.length === 0;
 
@@ -2539,8 +2665,13 @@ export function AccreditationSupport() {
   const [isLoading, setIsLoading] = useState(true);
   
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
-  const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
-    setToast({ message, type });
+  const showToast = (message: unknown, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
+    const normalizedMessage = Array.isArray(message)
+      ? message.map((item: any) => item?.msg || String(item)).filter(Boolean).join(" ")
+      : typeof message === "object" && message !== null
+      ? String((message as any).msg || (message as any).detail || "The request could not be completed.")
+      : String(message || "The request could not be completed.");
+    setToast({ message: normalizedMessage, type });
     const duration = type === 'error' ? 5000 : type === 'warning' ? 4000 : 3000;
     setTimeout(() => setToast(null), duration);
   };
@@ -2635,6 +2766,7 @@ export function AccreditationSupport() {
   const [isoOfficeFilter, setIsoOfficeFilter] = useState("all");
   const [isoFilterCategory, setIsoFilterCategory] = useState("all");
   const [isoStatusFilter, setIsoStatusFilter] = useState("all");
+  const [isoRiskFilter, setIsoRiskFilter] = useState("all");
   const [isoSearchQuery, setIsoSearchQuery] = useState("");
 
   const availableIsoOffices = useMemo(() => {
@@ -2649,9 +2781,13 @@ export function AccreditationSupport() {
   const [isoCycleOptions, setIsoCycleOptions] = useState<string[]>(() => {
     return isoCyclesCache || ["2026 Recertification", "2025 Surveillance", "2024 Initial Audit"];
   });
+  const [isoCycleRecords, setIsoCycleRecords] = useState<any[]>([]);
   const [showAddIsoCycleModal, setShowAddIsoCycleModal] = useState(false);
   const [newIsoCycleName, setNewIsoCycleName] = useState("");
   const [isCreatingCycle, setIsCreatingCycle] = useState(false);
+  const [showEditIsoCycleModal, setShowEditIsoCycleModal] = useState(false);
+  const [editingIsoCycle, setEditingIsoCycle] = useState<any>(null);
+  const [isUpdatingIsoCycle, setIsUpdatingIsoCycle] = useState(false);
   const [expandedIsoClause, setExpandedIsoClause] = useState<any>(null);
 
   // Add ISO Requirement States
@@ -2703,6 +2839,7 @@ export function AccreditationSupport() {
   const [isExtractingCar, setIsExtractingCar] = useState(false);
   // --- CAR FORMS STATES (Form 1 & Form 3 Logsheet) ---
   const [carForms, setCarForms] = useState<any[]>([]);
+  const [carReportSummary, setCarReportSummary] = useState<any>(null);
   const [isLoadingCarForms, setIsLoadingCarForms] = useState(false);
   const [showAddCarModal, setShowAddCarModal] = useState(false);
   const [showEditCarModal, setShowEditCarModal] = useState(false);
@@ -2714,19 +2851,59 @@ export function AccreditationSupport() {
   const [carFormToDelete, setCarFormToDelete] = useState<any>(null);
   const [newCarForm, setNewCarForm] = useState({
     iso_clause_id: "", car_no: "", date_issued: "", revision: "", finding_category: "UNKNOWN",
-    type_of_non_conformity: "QMS Related", auditor_name: "", initiator: sessionStorage.getItem('userName') || "", acknowledged_by: "", campus: "",
-    area: "", findings: "", root_cause: "", immediate_action: "", corrective_measure: "",
-    measures_proposed_by: "", target_date: "", status: "Open",
-    follow_up_result: "", follow_up_date: "", comments_remarks: "", non_conformity_closed: false
+    type_of_non_conformity: "", auditor_name: "", initiator: sessionStorage.getItem('userName') || "", acknowledged_by: "", campus: "",
+    area: "", findings: "", requirement_reference: "", objective_evidence: "", nonconformity_statement: "", root_cause: "", immediate_action: "", corrective_measure: "",
+    measures_proposed_by: "", target_date: "", status: "Issued",
+    follow_up_result: "", follow_up_date: "", comments_remarks: "", non_conformity_closed: false,
+    assigned_to_id: "", source_file_path: "", source_file_name: "", source_mime_type: "", source_file_size: 0,
+    source_sha256: "", ocr_model: "", ocr_version: "", ocr_extracted_at: "", ocr_raw_json: {}, ocr_confidence_json: {}, human_verified: false
   });
+  const [carAssignees, setCarAssignees] = useState<any[]>([]);
+  const [carClassificationRules, setCarClassificationRules] = useState<any[]>([]);
+  const [verificationEvidenceFile, setVerificationEvidenceFile] = useState<File | null>(null);
+  const [verificationEvidenceNotes, setVerificationEvidenceNotes] = useState("");
+  const [isUploadingVerificationEvidence, setIsUploadingVerificationEvidence] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
+
+  useEffect(() => {
+    apiClient.get("/car-forms/classification-rules")
+      .then(({ data }) => setCarClassificationRules(data || []))
+      .catch(() => setCarClassificationRules([]));
+  }, []);
+
+  const loadCarAssignees = async (office?: string) => {
+    if (!office?.trim()) {
+      setCarAssignees([]);
+      return;
+    }
+    try {
+      const { data } = await apiClient.get(`/car-forms/eligible-assignees?office=${encodeURIComponent(office)}`);
+      setCarAssignees(data || []);
+    } catch {
+      setCarAssignees([]);
+    }
+  };
+
+  useEffect(() => {
+    const office = showEditCarModal
+      ? (editingCarForm?.responsible_office || editingCarForm?.area)
+      : showAddCarModal ? newCarForm.area : "";
+    if (office) void loadCarAssignees(office);
+    else setCarAssignees([]);
+  }, [showAddCarModal, showEditCarModal, newCarForm.area, editingCarForm?.area, editingCarForm?.responsible_office]);
 
   const fetchCarForms = async (cycleYear: string) => {
     setIsLoadingCarForms(true);
     try {
-      const { data } = await apiClient.get(`/car-forms?cycle_year=${encodeURIComponent(cycleYear)}`);
-      setCarForms(data);
+      const [formsResponse, summaryResponse] = await Promise.all([
+        apiClient.get(`/car-forms?cycle_year=${encodeURIComponent(cycleYear)}`),
+        apiClient.get(`/car-reports/summary?cycle_year=${encodeURIComponent(cycleYear)}`),
+      ]);
+      setCarForms(formsResponse.data || []);
+      setCarReportSummary(summaryResponse.data || null);
     } catch (error) {
       console.error("Failed to fetch CAR forms", error);
+      setCarReportSummary(null);
     } finally {
       setIsLoadingCarForms(false);
     }
@@ -2736,28 +2913,46 @@ export function AccreditationSupport() {
     fetchCarForms(selectedIsoCycleYear);
   }, [selectedIsoCycleYear]);
 
-  const handleCreateCarSubmit = async (e: React.FormEvent) => {
+  const handleCreateCarSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!newCarForm.findings.trim()) {
-      showToast("Statement of findings is required.", "error");
-      return;
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const requestedStatus = submitter?.value === "Draft" ? "Draft" : "Issued";
+    if (requestedStatus === "Issued") {
+      const rule = carClassificationRules.find(rule => rule.category === newCarForm.finding_category);
+      if (!rule?.is_active || !rule?.requires_car) {
+        showToast("The selected finding classification is not configured to require a CAR.", "error");
+        return;
+      }
+      if (!newCarForm.requirement_reference.trim() || !newCarForm.objective_evidence.trim() || !newCarForm.nonconformity_statement.trim()) {
+        showToast("Complete the requirement, objective evidence, and nonconformity statement before issuance.", "error");
+        return;
+      }
+      if (!newCarForm.source_file_path || !newCarForm.source_sha256 || !newCarForm.human_verified) {
+        showToast("Attach the original scan and confirm the human review before issuance.", "error");
+        return;
+      }
     }
     setIsAddingCar(true);
     try {
-      await apiClient.post("/car-forms", { ...newCarForm, cycle_year: selectedIsoCycleYear });
-      showToast("CAR Form 1 created successfully!", "success");
+      await apiClient.post("/car-forms", { ...newCarForm, status: requestedStatus, cycle_year: selectedIsoCycleYear });
+      showToast(requestedStatus === "Draft" ? "CAR draft saved." : "CAR issued successfully.", "success");
       setShowAddCarModal(false);
       setNewCarForm({
         iso_clause_id: "", car_no: "", date_issued: "", revision: "", finding_category: "UNKNOWN",
-        type_of_non_conformity: "QMS Related", auditor_name: "", initiator: sessionStorage.getItem('userName') || "", acknowledged_by: "", campus: "",
-        area: "", findings: "", root_cause: "", immediate_action: "", corrective_measure: "",
-        measures_proposed_by: "", target_date: "", status: "Open",
-        follow_up_result: "", follow_up_date: "", comments_remarks: "", non_conformity_closed: false
+        type_of_non_conformity: "", auditor_name: "", initiator: sessionStorage.getItem('userName') || "", acknowledged_by: "", campus: "",
+        area: "", findings: "", requirement_reference: "", objective_evidence: "", nonconformity_statement: "", root_cause: "", immediate_action: "", corrective_measure: "",
+        measures_proposed_by: "", target_date: "", status: "Issued",
+        follow_up_result: "", follow_up_date: "", comments_remarks: "", non_conformity_closed: false,
+        assigned_to_id: "", source_file_path: "", source_file_name: "", source_mime_type: "", source_file_size: 0,
+        source_sha256: "", ocr_model: "", ocr_version: "", ocr_extracted_at: "", ocr_raw_json: {}, ocr_confidence_json: {}, human_verified: false
       });
       setAttachedCarFile(null);
+      if (carSourcePreviewUrl) URL.revokeObjectURL(carSourcePreviewUrl);
+      setCarSourcePreviewUrl("");
+      setCarConfidenceWarnings([]);
       fetchCarForms(selectedIsoCycleYear);
-    } catch (error) {
-      showToast("Failed to create CAR Form.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to create CAR Form.", "error");
     } finally {
       setIsAddingCar(false);
     }
@@ -2773,10 +2968,45 @@ export function AccreditationSupport() {
       setShowEditCarModal(false);
       setEditingCarForm(null);
       fetchCarForms(selectedIsoCycleYear);
-    } catch (error) {
-      showToast("Failed to update CAR Form.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update CAR Form.", "error");
     } finally {
       setIsEditingCar(false);
+    }
+  };
+
+  const uploadVerificationEvidence = async () => {
+    if (!editingCarForm || !verificationEvidenceFile) return;
+    setIsUploadingVerificationEvidence(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", verificationEvidenceFile);
+      formData.append("notes", verificationEvidenceNotes);
+      const { data } = await apiClient.post(`/car-forms/${editingCarForm.id}/verification-evidence`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+      setEditingCarForm({...editingCarForm, verification_evidences:[...(editingCarForm.verification_evidences || []), data]});
+      setVerificationEvidenceFile(null);
+      setVerificationEvidenceNotes("");
+      showToast("Verification evidence attached.", "success");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Unable to attach verification evidence.", "error");
+    } finally {
+      setIsUploadingVerificationEvidence(false);
+    }
+  };
+
+  const reopenClosedCar = async () => {
+    if (!editingCarForm || reopenReason.trim().length < 10) {
+      showToast("Enter a reopening reason of at least 10 characters.", "error");
+      return;
+    }
+    try {
+      const { data } = await apiClient.post(`/car-forms/${editingCarForm.id}/reopen`, { reason: reopenReason.trim() });
+      setEditingCarForm(data);
+      setReopenReason("");
+      fetchCarForms(selectedIsoCycleYear);
+      showToast("CAR reopened with a recorded reason.", "success");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Unable to reopen this CAR.", "error");
     }
   };
 
@@ -2799,6 +3029,8 @@ export function AccreditationSupport() {
   const handleExportCarForm = async (car: any) => {
     try {
       showToast("Redirecting to Document Studio...", "info");
+      const reportResponse = await apiClient.get(`/car-forms/${car.id}/report-data`);
+      car = reportResponse.data.car;
   
       // 1. Fetch the template HTML
       const resp = await apiClient.get(`/documents/${encodeURIComponent("CAR Form 1 Template")}/content`);
@@ -2874,9 +3106,18 @@ export function AccreditationSupport() {
     }
   };
 
+  const handleExportCarFormWithComposer = (car: any) => {
+    if (!car?.id) {
+      showToast("The CAR record is unavailable.", "error");
+      return;
+    }
+    navigate(`/app/document-composer?carId=${encodeURIComponent(car.id)}`);
+  };
+
   const handleExportCarForm3 = async () => {
     try {
-      if (!carForms || carForms.length === 0) {
+      const { data: masterLog } = await apiClient.get(`/car-reports/master-log?cycle_year=${encodeURIComponent(selectedIsoCycleYear)}`);
+      if (!masterLog || masterLog.length === 0) {
         throw new Error("No CAR Forms available to export for this cycle.");
       }
       showToast("Redirecting to Document Studio...", "info");
@@ -2901,16 +3142,16 @@ export function AccreditationSupport() {
       // 2. Build rows
       // Minimum 35 rows to match the physical logsheet height
       let rowsHtml = "";
-      const MAX_ROWS = Math.max(35, carForms.length);
+      const MAX_ROWS = Math.max(35, masterLog.length);
       for (let i = 0; i < MAX_ROWS; i++) {
-        const car = carForms[i];
+        const car = masterLog[i];
         if (car) {
           rowsHtml += `<tr>
             <td style="font-weight: bold;">${car.car_no || ""}</td>
             <td>${car.date_issued || ""}</td>
             <td>${car.area || ""}</td>
-            <td>${car.auditee_name || ""}</td>
-            <td>${car.auditor_name || ""}</td>
+            <td>${car.responsible_office || ""}</td>
+            <td>${car.issued_by || ""}</td>
             <td style="font-weight: bold;">${car.status || ""}</td>
           </tr>`;
         } else {
@@ -2933,6 +3174,26 @@ export function AccreditationSupport() {
     } catch (err: any) {
       console.error("handleExportCarForm3 error:", err);
       showToast(err.message || "Failed to route to Document Studio.", "error");
+    }
+  };
+
+  const handleComposeCarForm3 = () => {
+    navigate(`/app/document-composer?carLogCycle=${encodeURIComponent(selectedIsoCycleYear)}`);
+  };
+
+  const handleDownloadAuditPackage = async (car: any) => {
+    try {
+      const response = await apiClient.get(`/car-forms/${car.id}/audit-package`, { responseType: "blob" });
+      const disposition = response.headers["content-disposition"] || "";
+      const matchedName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+      const fileName = matchedName || `${car.car_no || "CAR"}_audit_package.zip`;
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url; link.download = fileName; document.body.appendChild(link); link.click(); link.remove();
+      URL.revokeObjectURL(url);
+      showToast("Complete CAR audit-history package downloaded.", "success");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Unable to generate the audit-history package.", "error");
     }
   };
   
@@ -3118,8 +3379,15 @@ export function AccreditationSupport() {
       showToast(err.message || "Failed to export MRC Form 6.", "error");
     }
   };
+
+  const handleComposeMrcForm = (templateName: string) => {
+    navigate(`/app/document-composer?template=${encodeURIComponent(templateName)}&sourceReference=${encodeURIComponent(selectedIsoCycleYear)}`);
+  };
 const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
+const [carSourcePreviewUrl, setCarSourcePreviewUrl] = useState("");
+const [carConfidenceWarnings, setCarConfidenceWarnings] = useState<any[]>([]);
   const [newQmsPlan, setNewQmsPlan] = useState({
+    car_id: "",
     auditee_office: "HRMO",
     process_area: "",
     opportunity_type: "Process",
@@ -3129,6 +3397,9 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
         corrective_measure: "",
     target_date: "",
     personnel_responsible: "",
+    owner_user_id: "",
+    action_type: "CORRECTIVE_ACTION",
+    expected_evidence: "",
     status: "In Progress"
   });
 
@@ -3204,6 +3475,15 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     scope: ""
   });
   const [isSavingIqaDay, setIsSavingIqaDay] = useState(false);
+  const selectedIsoCycleRecord = isoCycleRecords.find((cycle: any) => cycle.name === selectedIsoCycleYear);
+  const isSelectedIsoCycleClosed = selectedIsoCycleRecord?.status === "CLOSED";
+  const openAddIqaDayModal = () => {
+    const usedDayNumbers = new Set(iqaDays.map((day: any) => Number(day.day_number)));
+    let nextDayNumber = 1;
+    while (usedDayNumbers.has(nextDayNumber)) nextDayNumber += 1;
+    setIqaDayForm({ day_number: nextDayNumber, day_date: "", title: "", scope: "" });
+    setShowAddIqaDayModal(true);
+  };
 
   // Dynamic AACCUP Program Accreditation & Upgrade Modal (Dynamic Level & History)
   const [programAccreditation, setProgramAccreditation] = useState<any>(null);
@@ -3484,12 +3764,12 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   };
 
   const fetchIsoCycles = async (force = false) => {
-    if (!force && isoCyclesCache && isoCyclesCache.length > 0) {
-      setIsoCycleOptions(isoCyclesCache);
-      return;
-    }
     try {
-      const res = await apiClient.get("/iso/cycles");
+      const [res, recordsResponse] = await Promise.all([
+        apiClient.get("/iso/cycles"),
+        apiClient.get("/iso/audit-cycles"),
+      ]);
+      setIsoCycleRecords(recordsResponse.data || []);
       if (res.data && res.data.length > 0) {
         isoCyclesCache = res.data;
         setIsoCycleOptions(res.data);
@@ -3579,7 +3859,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
 
   const handleCreateQmsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQmsPlan.findings.trim() || !newQmsPlan.corrective_measure.trim() || !newQmsPlan.target_date.trim()) {
+    if (!newQmsPlan.car_id || !newQmsPlan.findings.trim() || !newQmsPlan.corrective_measure.trim() || !newQmsPlan.target_date.trim() || !newQmsPlan.owner_user_id || !newQmsPlan.expected_evidence.trim()) {
       showToast("Please fill out all required fields.", "error");
       return;
     }
@@ -3608,6 +3888,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       showToast("Digital QMS Action Plan created and evidence linked!", "success");
       setShowAddQmsModal(false);
       setNewQmsPlan({
+        car_id: "",
         auditee_office: sessionStorage.getItem('userAdministrativeOffice') || "HRMO",
         process_area: "",
         opportunity_type: "Process",
@@ -3617,6 +3898,9 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
         corrective_measure: "",
         target_date: "",
         personnel_responsible: "",
+        owner_user_id: "",
+        action_type: "CORRECTIVE_ACTION",
+        expected_evidence: "",
         status: "In Progress"
       });
       setAttachedCarFile(null);
@@ -3796,11 +4080,62 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       setSelectedIsoCycleYear(cycleName);
       setShowAddIsoCycleModal(false);
       setNewIsoCycleName("");
+      await fetchIsoCycles(true);
       await fetchIsoData(cycleName, true);
     } catch (error) {
       showToast("Failed to initialize new audit cycle.", "error");
     } finally {
       setIsCreatingCycle(false);
+    }
+  };
+
+  const openEditIsoCycleModal = () => {
+    const cycle = isoCycleRecords.find((item: any) => item.name === selectedIsoCycleYear);
+    if (!cycle) {
+      showToast("The selected audit cycle record could not be found.", "error");
+      return;
+    }
+    if (cycle.status === "CLOSED") {
+      showToast("Closed audit cycles are preserved as read-only historical records.", "warning");
+      return;
+    }
+    setEditingIsoCycle({ ...cycle });
+    setShowEditIsoCycleModal(true);
+  };
+
+  const handleUpdateIsoCycle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingIsoCycle) return;
+    const oldName = selectedIsoCycleYear;
+    setIsUpdatingIsoCycle(true);
+    try {
+      const response = await apiClient.put(`/iso/audit-cycles/${editingIsoCycle.id}`, {
+        name: editingIsoCycle.name,
+        standard_version: editingIsoCycle.standard_version,
+        status: editingIsoCycle.status,
+      });
+      const updatedCycle = response.data;
+      isoRequirementsCache.delete(scopeCacheKey(oldName));
+      isoRequirementsCache.delete(scopeCacheKey(updatedCycle.name));
+      isoCyclesCache = null;
+      setSelectedIsoCycleYear(updatedCycle.name);
+      setShowEditIsoCycleModal(false);
+      setEditingIsoCycle(null);
+      showToast(
+        updatedCycle.status === "CLOSED"
+          ? "Audit cycle closed and preserved as a historical record."
+          : "Audit cycle updated successfully.",
+        "success",
+      );
+      await fetchIsoCycles(true);
+      await fetchIsoData(updatedCycle.name, true);
+      await fetchIqaDays(updatedCycle.name, true);
+      await fetchQmsActionPlans(updatedCycle.name, true);
+      await fetchCarForms(updatedCycle.name);
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update the audit cycle.", "error");
+    } finally {
+      setIsUpdatingIsoCycle(false);
     }
   };
 
@@ -3900,8 +4235,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       setUploadForm({ fileName: "", requirementTarget: "" });
       setSelectedFile(null); setShowUploadModal(false);
       showToast("Evidence uploaded! It is now pending Admin approval.", "success");
-    } catch (error) {
-      showToast("Failed to save evidence.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to save evidence.", "error");
     } finally {
       setIsUploading(false);
     }
@@ -3965,8 +4300,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       setShowFeedbackModal(false);
       setFeedbackText("");
       await refreshData();
-    } catch (error) {
-      showToast("Failed to process review.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to process review.", "error");
     } finally {
       setIsReviewing(false);
     }
@@ -4159,8 +4494,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       setShowChedReviewModal(false);
       setPendingChedReview(null);
       fetchChedData();
-    } catch (error) {
-      showToast("Failed to update CHED requirement status.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update CHED requirement status.", "error");
     } finally {
       setIsReviewing(false);
     }
@@ -4185,8 +4520,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       }));
 
       fetchChedData();
-    } catch (error) {
-      showToast("Failed to update CHED evidence status.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update CHED evidence status.", "error");
     } finally {
       setIsReviewing(false);
     }
@@ -4319,8 +4654,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       setShowIsoFeedbackModal(false);
       setIsoFeedbackText("");
       setIsoFeedbackDoc(null);
-    } catch (error) {
-      showToast("Failed to update evidence status.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update evidence status.", "error");
     } finally {
       setIsReviewing(false);
     }
@@ -4440,8 +4775,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       setShowAddIqaDayModal(false);
       setIqaDayForm({ day_number: iqaDays.length + 1, day_date: "", title: "", scope: "" });
       fetchIqaDays(selectedIsoCycleYear, true);
-    } catch (error) {
-      showToast("Failed to add IQA Audit Day.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to add IQA Audit Day.", "error");
     } finally {
       setIsSavingIqaDay(false);
     }
@@ -4462,8 +4797,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       setShowEditIqaDayModal(false);
       setEditingIqaDay(null);
       fetchIqaDays(selectedIsoCycleYear, true);
-    } catch (error) {
-      showToast("Failed to update IQA Audit Day.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to update IQA Audit Day.", "error");
     } finally {
       setIsSavingIqaDay(false);
     }
@@ -4478,8 +4813,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       setShowDeleteIqaDayModal(false);
       setDeletingIqaDay(null);
       fetchIqaDays(selectedIsoCycleYear, true);
-    } catch (error) {
-      showToast("Failed to remove IQA Audit Day.", "error");
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || "Failed to remove IQA Audit Day.", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -4490,6 +4825,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     const matchesOffice = isOfficeMatch(req.auditee_office, isoOfficeFilter);
     const matchesCategory = isoFilterCategory === "all" || getIsoProcessCategory(req) === isoFilterCategory;
     const matchesStatus = isoStatusFilter === "all" || (req.status || "Not Compliant").toLowerCase() === isoStatusFilter.toLowerCase();
+    const normalizedRiskLevel = normalizeIsoRiskLevel(req.risk_level);
+    const matchesRisk = isoRiskFilter === "all" || normalizedRiskLevel === isoRiskFilter;
     const q = isoSearchQuery.toLowerCase().trim();
     const matchesQuery = !q ||
       (req.iso_clause && req.iso_clause.toLowerCase().includes(q)) ||
@@ -4497,7 +4834,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       (req.description && req.description.toLowerCase().includes(q)) ||
       (req.auditee_office && req.auditee_office.toLowerCase().includes(q)) ||
       (req.risk_level && req.risk_level.toLowerCase().includes(q));
-    return matchesOffice && matchesCategory && matchesStatus && matchesQuery;
+    return matchesOffice && matchesCategory && matchesStatus && matchesRisk && matchesQuery;
   });
   const isoTotalCount = filteredIsoReqs.length;
   const isoCompliantCount = filteredIsoReqs.filter(r => r.status === 'Compliant').length;
@@ -4539,17 +4876,23 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   const compositeQaScore = Math.round((aaccupScore * 0.40) + (chedScore * 0.30) + (isoScore * 0.30));
   
   // COMBINE AACCUP, CHED, AND ISO PENDING DOCS FOR THE TOP QUEUE
-  const chedPendingDocs = chedRequirements.filter(r => r.status === 'Pending').map(r => ({
-    id: r.id,
-    type: 'CHED',
-    name: r.evidences && r.evidences.length > 0 ? r.evidences[0].document_name : 'Attached Evidence',
-    target: r.description,
-    program: r.program,
-    area_code: r.cmo_name,
-    uploaded_by: r.evidences && r.evidences.length > 0 ? r.evidences[0].uploaded_by : 'Unknown',
-    date: r.evidences && r.evidences.length > 0 ? r.evidences[0].upload_date.split('T')[0] : 'Recently',
-    url: r.evidences && r.evidences.length > 0 ? r.evidences[0].file_url : '#'
-  }));
+  const chedPendingDocs = chedRequirements.filter(r => r.status === 'Pending').map(r => {
+    const latestEvidence = [...(r.evidences || [])].sort((left: any, right: any) =>
+      String(right.upload_date || "").localeCompare(String(left.upload_date || ""))
+    )[0];
+    return {
+      id: r.id,
+      type: 'CHED',
+      name: latestEvidence?.document_name || 'Attached Evidence',
+      target: r.description,
+      program: r.program,
+      area_code: r.cmo_name,
+      uploaded_by: latestEvidence?.uploaded_by || 'Unknown',
+      date: latestEvidence?.upload_date ? latestEvidence.upload_date.split('T')[0] : 'Recently',
+      uploaded_at: latestEvidence?.upload_date || "",
+      url: latestEvidence?.file_url || '#'
+    };
+  });
   
   // Derive any locally loaded ISO pending evidences as fallback or realtime sync
   const localIsoPendingDocs = isoRequirements.flatMap((req: any) => 
@@ -4564,6 +4907,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
         area_code: req.auditee_office || 'Global',
         uploaded_by: ev.uploaded_by || 'Faculty / Staff',
         date: ev.upload_date ? ev.upload_date.split('T')[0] : 'Recently',
+        uploaded_at: ev.upload_date || "",
         url: ev.file_url
       }))
   );
@@ -4578,7 +4922,11 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
     ...pendingDocs.map(d => ({...d, type: 'AACCUP'})), 
     ...chedPendingDocs,
     ...combinedIsoPendingDocs
-  ];
+  ].sort((left: any, right: any) => {
+    const rightTime = Date.parse(right.uploaded_at || right.date || "") || 0;
+    const leftTime = Date.parse(left.uploaded_at || left.date || "") || 0;
+    return rightTime - leftTime;
+  });
 
   const accreditationCycles = [...(programAccreditation?.cycles || [])].sort((left: any, right: any) => {
     if (left.status === "ACTIVE" && right.status !== "ACTIVE") return -1;
@@ -4594,7 +4942,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
   );
 
   if (isLoading && currentData.areas.length === 0) {
-    return <div className="flex justify-center items-center h-64 text-gray-500"><Loader2 className="h-8 w-8 animate-spin text-[#DD7230]" /></div>;
+    return <ModuleSkeleton />;
   }
 
   return (
@@ -4643,7 +4991,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm sm:text-base font-semibold text-gray-900">Admin Review Queue</h2>
+                  <h2 className="text-sm sm:text-base font-semibold text-gray-900">Evidence Review Queue</h2>
                   {allPendingReviews.length > 0 && (
                     <span className="px-2 py-0.5 text-[11px] font-medium rounded-md border border-amber-200/80 bg-amber-50 text-amber-800">
                       {allPendingReviews.length} pending
@@ -4944,6 +5292,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             showIsoYearFilter={showIsoYearFilter}
             setShowIsoYearFilter={setShowIsoYearFilter}
             isoCycleOptions={isoCycleOptions}
+            isIsoCycleClosed={isSelectedIsoCycleClosed}
+            selectedIsoCycleStatus={selectedIsoCycleRecord?.status || "ACTIVE"}
             expandedIsoClause={expandedIsoClause}
             setExpandedIsoClause={setExpandedIsoClause}
             isoClauseEvidences={expandedIsoClause?.evidences || []}
@@ -4954,6 +5304,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             setIsoFilterOffice={setIsoOfficeFilter}
             isoStatusFilter={isoStatusFilter}
             setIsoStatusFilter={setIsoStatusFilter}
+            isoRiskFilter={isoRiskFilter}
+            setIsoRiskFilter={setIsoRiskFilter}
             availableIsoOffices={availableIsoOffices}
             isoSearchQuery={isoSearchQuery}
             setIsoSearchQuery={setIsoSearchQuery}
@@ -4980,6 +5332,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             isoSubTab={isoSubTab}
             setIsoSubTab={setIsoSubTab}
             setShowAddIsoCycleModal={setShowAddIsoCycleModal}
+            openEditIsoCycleModal={openEditIsoCycleModal}
             setShowAddIsoReqModal={setShowAddIsoReqModal}
             setEditingIsoReq={setEditingIsoReq}
             setShowEditIsoReqModal={setShowEditIsoModal}
@@ -4991,6 +5344,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             setShowDeleteIsoEvidenceModal={setShowDeleteIsoEvidenceModal}
             setShowEditIqaModal={setShowEditIqaModal}
             setShowAddIqaDayModal={setShowAddIqaDayModal}
+            openAddIqaDayModal={openAddIqaDayModal}
             setEditingIqaDay={setEditingIqaDay}
             setShowEditIqaDayModal={setShowEditIqaDayModal}
             setDeletingIqaDay={setDeletingIqaDay}
@@ -5022,14 +5376,19 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             setCarFormToDelete={setCarFormToDelete}
             newCarForm={newCarForm}
             setNewCarForm={setNewCarForm}
+            handleExportCarFormWithComposer={handleExportCarFormWithComposer}
             handleExportCarForm={handleExportCarForm}
             handleExportCarForm3={handleExportCarForm3}
+            handleComposeCarForm3={handleComposeCarForm3}
+            handleDownloadAuditPackage={handleDownloadAuditPackage}
+            carReportSummary={carReportSummary}
             handleExportMrcForm6={handleExportMrcForm6}
             setShowMrcExportModal={setShowMrcExportModal}
             setSelectedMrcFormType={setSelectedMrcFormType}
             handleExportMrcForm4={handleExportMrcForm4}
             handleExportMrcForm5={handleExportMrcForm5}
             handleExportMrcForm7={handleExportMrcForm7}
+            handleComposeMrcForm={handleComposeMrcForm}
           />
         </TabsContent>
 
@@ -5768,7 +6127,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   >
                     <option value="High">High Risk</option>
                     <option value="Medium">Medium Risk</option>
-                    <option value="Low Risk">Low Risk</option>
+                    <option value="Low">Low Risk</option>
                   </select>
                 </div>
               </div>
@@ -6157,6 +6516,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                     required
                     className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                   />
+                  <p className="text-[11px] text-gray-500 mt-1.5">Past dates are allowed when recording an actual audit. Day numbers must remain in chronological order.</p>
                 </div>
               </div>
 
@@ -6242,6 +6602,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                     required
                     className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
                   />
+                  <p className="text-[11px] text-gray-500 mt-1.5">Past dates are allowed; the sequence must still match the numbered audit days.</p>
                 </div>
               </div>
 
@@ -6442,6 +6803,74 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
         }
       />
 
+      {/* Edit ISO Audit Cycle Modal */}
+      {showEditIsoCycleModal && editingIsoCycle && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB]">
+              <div>
+                <h2 className="text-lg font-bold text-[#1F2937]">Edit Audit Cycle</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Update cycle details or close the completed cycle</p>
+              </div>
+              <button onClick={() => setShowEditIsoCycleModal(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 cursor-pointer" aria-label="Close edit audit cycle dialog">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateIsoCycle} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Audit cycle name</label>
+                <input
+                  value={editingIsoCycle.name}
+                  onChange={(e) => setEditingIsoCycle({ ...editingIsoCycle, name: e.target.value })}
+                  required
+                  maxLength={100}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                />
+                <p className="text-[11px] text-gray-500 mt-1.5">Renaming also updates the linked clauses, audit days, action plans, and CAR records.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">ISO standard version</label>
+                <input
+                  value={editingIsoCycle.standard_version}
+                  onChange={(e) => setEditingIsoCycle({ ...editingIsoCycle, standard_version: e.target.value })}
+                  required
+                  maxLength={100}
+                  placeholder="ISO 9001:2015"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Cycle status</label>
+                <select
+                  value={editingIsoCycle.status}
+                  onChange={(e) => setEditingIsoCycle({ ...editingIsoCycle, status: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#DD7230] cursor-pointer"
+                >
+                  <option value="PLANNED">Planned</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="CLOSED">Closed</option>
+                </select>
+                {editingIsoCycle.status === "CLOSED" && (
+                  <p className="text-[11px] text-rose-700 mt-1.5">Closing is permanent. The cycle and its schedules become read-only historical records.</p>
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowEditIsoCycleModal(false)} disabled={isUpdatingIsoCycle} className="px-4 py-2.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isUpdatingIsoCycle || !editingIsoCycle.name.trim() || !editingIsoCycle.standard_version.trim()} className="px-4 py-2.5 text-xs font-semibold text-white bg-[#DD7230] rounded-xl disabled:opacity-50 flex items-center gap-2 cursor-pointer">
+                  {isUpdatingIsoCycle ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : "Save Cycle"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Start New ISO Audit Cycle Modal */}
       {showAddIsoCycleModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
@@ -6502,6 +6931,38 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             </div>
 
             <form onSubmit={handleCreateQmsSubmit} className="p-6 space-y-4 overflow-y-auto flex-grow">
+              <div>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
+                  Parent CAR <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={newQmsPlan.car_id}
+                  onChange={(e) => {
+                    const car = carForms.find((item: any) => item.id === e.target.value);
+                    void loadCarAssignees(car?.responsible_office || car?.area || "");
+                    setNewQmsPlan((previous: any) => ({
+                      ...previous,
+                      car_id: e.target.value,
+                      auditee_office: car?.responsible_office || car?.area || previous.auditee_office,
+                      process_area: car?.area || car?.responsible_office || previous.process_area,
+                      findings: car?.findings || previous.findings,
+                      owner_user_id: car?.assigned_to_id || "",
+                    }));
+                  }}
+                  className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900"
+                >
+                  <option value="">Select a CAR ready for corrective action</option>
+                  {carForms
+                    .filter((car: any) => ["Acknowledged", "Response Submitted", "Returned", "In Progress"].includes(car.status))
+                    .map((car: any) => (
+                      <option key={car.id} value={car.id}>
+                        {car.car_no || "Unnumbered CAR"} — {car.responsible_office || car.area} ({car.action_plan_count || 0} action{car.action_plan_count === 1 ? "" : "s"})
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1">Action plans are subordinate to an existing CAR and cannot be created as independent cases.</p>
+              </div>
               {/* --- OCR AUTO-FILL SECTION --- */}
               <div className="p-4 bg-orange-50/50 border border-[#DD7230]/30 rounded-xl">
                 <label className="text-xs font-bold text-[#DD7230] uppercase tracking-wider flex items-center gap-1.5 mb-2">
@@ -6521,8 +6982,6 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                         formData.append("file", file);
                         const res = await apiClient.post("/api/extract-car-form", formData);
                         const data = res.data;
-                        const combinedOpportunity = `FINDINGS:\n${data.findings}\n\nROOT CAUSE:\n${data.root_cause}`;
-                        const combinedAction = `IMMEDIATE ACTION:\n${data.immediate_action}\n\nPROPOSED CORRECTIVE MEASURE:\n${data.corrective_measure}`;
                         setNewQmsPlan((prev: any) => ({
                           ...prev,
                           opportunity_type: "Process",
@@ -6540,7 +6999,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                             comments_remarks: data.comments_remarks || "",
                             non_conformity_closed: data.non_conformity_closed || false
                         }));
-                        showToast("CAR Form successfully extracted and populated!", "success");
+                        setAttachedCarFile(file);
+                        showToast("Extraction complete. Review every populated field before saving.", "success");
                       } catch {
                         showToast("Failed to parse CAR form. Please fill manually.", "error");
                       } finally {
@@ -6553,7 +7013,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   {isExtractingCar && <Loader2 className="h-4 w-4 animate-spin text-[#DD7230] shrink-0" />}
                 </div>
                 <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">
-                  Upload a scanned CAR Form 1 (PDF or image). The AI will automatically extract Findings, Root Causes, Immediate Actions, and Corrective Measures into the fields below.
+                  Upload a scanned CAR Form 1. The AI reads the entire page, including corrective actions and follow-up fields when present. Verify all extracted information before saving.
                 </p>
               </div>
               {/* --- END OCR AUTO-FILL SECTION --- */}
@@ -6680,17 +7140,20 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
 
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">
-                    Personnel Responsible <span className="text-red-500">*</span>
+                    Action Owner <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
-                    value={newQmsPlan.personnel_responsible}
-                    onChange={(e) => setNewQmsPlan({ ...newQmsPlan, personnel_responsible: e.target.value })}
-                    placeholder="e.g. HR Director / CAS Dean"
+                    value={newQmsPlan.owner_user_id}
+                    onChange={(e) => { const owner = carAssignees.find((person: any) => person.id === e.target.value); setNewQmsPlan({ ...newQmsPlan, owner_user_id: e.target.value, personnel_responsible: owner?.full_name || "" }); }}
                     className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#DD7230]"
-                  />
+                  ><option value="">Select responsible personnel</option>{carAssignees.map((person: any) => <option key={person.id} value={person.id}>{person.full_name}</option>)}</select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div><label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">Action Type</label><select value={newQmsPlan.action_type} onChange={(e) => setNewQmsPlan({...newQmsPlan, action_type: e.target.value})} className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm"><option value="CORRECTIVE_ACTION">Recurrence-preventing corrective action</option><option value="CORRECTION_CONTAINMENT">Correction / containment</option></select></div>
+                <div><label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">Expected Implementation Evidence <span className="text-red-500">*</span></label><textarea required rows={2} value={newQmsPlan.expected_evidence} onChange={(e) => setNewQmsPlan({...newQmsPlan, expected_evidence: e.target.value})} placeholder="Example: approved procedure, photos, attendance record, monitoring report" className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" /></div>
               </div>
 
               <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
@@ -6820,6 +7283,11 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div><label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">Action Type</label><select value={editingQmsPlan.action_type || "CORRECTIVE_ACTION"} onChange={(e) => setEditingQmsPlan({...editingQmsPlan, action_type: e.target.value})} className="w-full px-4 py-2.5 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm"><option value="CORRECTIVE_ACTION">Recurrence-preventing corrective action</option><option value="CORRECTION_CONTAINMENT">Correction / containment</option></select></div>
+                <div><label className="block text-xs font-semibold text-[#1F2937] mb-1 uppercase tracking-wider">Expected Implementation Evidence</label><textarea required rows={2} value={editingQmsPlan.expected_evidence || ""} onChange={(e) => setEditingQmsPlan({...editingQmsPlan, expected_evidence: e.target.value})} className="w-full px-4 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" /></div>
+              </div>
+
               <div className="pt-3 border-t border-gray-100 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => setShowEditQmsModal(false)} disabled={isEditingQms} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors uppercase tracking-widest cursor-pointer">
                   Cancel
@@ -6862,7 +7330,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
       {/* === ADD CAR FORM 1 MODAL === */}
       {showAddCarModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl max-w-6xl w-full shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#F9FAFB] shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-[#1F2937]">Issue Corrective Action Request (CAR Form 1)</h2>
@@ -6879,6 +7347,17 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             </div>
 
             <form onSubmit={handleCreateCarSubmit} className="overflow-y-auto flex-grow">
+              <div className="lg:grid lg:grid-cols-[38%_62%] lg:items-start">
+                <aside className="border-b border-gray-200 bg-gray-50 p-4 lg:sticky lg:top-0 lg:h-[calc(90vh-170px)] lg:border-b-0 lg:border-r">
+                  <p className="mb-2 text-xs font-semibold text-gray-900">Original CAR Form 1</p>
+                  {carSourcePreviewUrl ? (
+                    attachedCarFile?.type === "application/pdf"
+                      ? <object data={carSourcePreviewUrl} type="application/pdf" className="h-[320px] w-full rounded-lg border bg-white lg:h-[calc(100%-76px)]"><a href={carSourcePreviewUrl} target="_blank" rel="noreferrer">Open source PDF</a></object>
+                      : <img src={carSourcePreviewUrl} alt="Original scanned CAR Form 1" className="max-h-[320px] w-full rounded-lg border bg-white object-contain lg:max-h-[calc(100%-76px)]" />
+                  ) : <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white px-6 text-center text-xs text-gray-500">Upload a scan to compare it with the extracted fields.</div>}
+                  {carConfidenceWarnings.length > 0 && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-[11px] font-semibold text-amber-900">Fields requiring careful review</p><ul className="mt-1 space-y-1 text-[10px] text-amber-800">{carConfidenceWarnings.map((warning, index) => <li key={`${warning.field}-${index}`}>• {warning.message}</li>)}</ul></div>}
+                </aside>
+                <div className="min-w-0">
               {/* --- SECTION 1: AUDITOR FINDINGS (SCANNED TOP HALF) --- */}
               <div className="p-6 space-y-4 border-b-2 border-dashed border-orange-200">
                 <div className="flex items-center gap-2 mb-1">
@@ -6887,7 +7366,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Section 1: Auditor Findings</h3>
-                    <p className="text-[10px] text-gray-500">Scanned from the top half of the physical CAR Form 1</p>
+                    <p className="text-[10px] text-gray-500">Extracted from the complete physical CAR Form 1 and subject to human verification</p>
                   </div>
                 </div>
 
@@ -6912,22 +7391,43 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                           setNewCarForm((prev: any) => ({
                             ...prev,
                             car_no: data.car_no || "",
-                            date_issued: (() => {
-                                const rawDate = data.date_issued || data.date || "";
-                                if (!rawDate) return "";
-                                const d = new Date(rawDate);
-                                return isNaN(d.getTime()) ? "" : d.toISOString().split('T')[0];
-                              })(),
+                            revision: data.revision || "",
+                            date_issued: data.date_issued || "",
                             campus: data.campus || "",
                             area: data.area || prev.area || "",
                             findings: data.findings || prev.findings || "",
+                            nonconformity_statement: data.findings || prev.nonconformity_statement || "",
                             finding_category: data.finding_category || "UNKNOWN",
                             auditor_name: data.auditor_name || "",
                             acknowledged_by: data.acknowledged_by || "",
-                            type_of_non_conformity: data.type_of_non_conformity || "QMS Related"
+                            type_of_non_conformity: data.type_of_non_conformity || "",
+                            root_cause: data.root_cause || "",
+                            immediate_action: data.immediate_action || "",
+                            corrective_measure: data.corrective_measure || "",
+                            measures_proposed_by: data.measures_proposed_by || "",
+                            target_date: data.target_date || "",
+                            follow_up_result: data.follow_up_result || "",
+                            follow_up_date: data.follow_up_date || "",
+                            comments_remarks: data.comments_remarks || "",
+                            non_conformity_closed: data.non_conformity_closed === true,
+                            source_file_path: data.source_file_path || "",
+                            source_file_name: data.source_file_name || file.name,
+                            source_mime_type: data.source_mime_type || file.type,
+                            source_file_size: data.source_file_size || file.size,
+                            source_sha256: data.source_sha256 || "",
+                            ocr_model: data.ocr_model || "",
+                            ocr_version: data.ocr_version || "",
+                            ocr_extracted_at: data.ocr_extracted_at || "",
+                            ocr_raw_json: data.ocr_raw_json || {},
+                            ocr_confidence_json: data.ocr_confidence_json || {},
+                            human_verified: false,
+                            status: "Issued"
                           }));
                           setAttachedCarFile(file);
-                          showToast("CAR Form scanned and fields populated!", "success");
+                          if (carSourcePreviewUrl) URL.revokeObjectURL(carSourcePreviewUrl);
+                          setCarSourcePreviewUrl(URL.createObjectURL(file));
+                          setCarConfidenceWarnings(data.confidence_warnings || []);
+                          showToast("Extraction complete. Review every populated field before issuing the CAR.", "success");
                         } catch {
                           showToast("Failed to parse CAR form. Please fill manually.", "error");
                         } finally {
@@ -6941,10 +7441,14 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#1F2937] mb-1">CAR No.</label>
-                    <input type="text" value={newCarForm.car_no} onChange={(e) => setNewCarForm({...newCarForm, car_no: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="e.g. 23-001" />
+                    <input disabled type="text" value="Assigned automatically when issued" className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm text-gray-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Form Revision</label>
+                    <input type="text" value={newCarForm.revision} onChange={(e) => setNewCarForm({...newCarForm, revision: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="e.g. 3" />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#1F2937] mb-1">Date Issued</label>
@@ -6953,10 +7457,8 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   <div>
                     <label className="block text-xs font-semibold text-[#1F2937] mb-1">Finding Category</label>
                     <select value={newCarForm.finding_category} onChange={(e) => setNewCarForm({...newCarForm, finding_category: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
-                      <option value="MAJOR">MAJOR</option>
-                      <option value="MINOR">MINOR</option>
-                      <option value="OBSERVATION">OBSERVATION</option>
-                      <option value="UNKNOWN">UNKNOWN</option>
+                      <option value="UNKNOWN">Select classification</option>
+                      {carClassificationRules.filter(rule => rule.is_active).map(rule => <option key={rule.category} value={rule.category}>{rule.display_name}{rule.requires_car ? " — CAR required" : " — no CAR required"}</option>)}
                     </select>
                   </div>
                 </div>
@@ -6965,6 +7467,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   <div>
                     <label className="block text-xs font-semibold text-[#1F2937] mb-1">Type of Non-Conformity</label>
                     <select value={newCarForm.type_of_non_conformity} onChange={(e) => setNewCarForm({...newCarForm, type_of_non_conformity: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
+                      <option value="">Not marked / Select type</option>
                       <option value="QMS Related">QMS Related</option>
                       <option value="Security Related">Security Related</option>
                       <option value="Customer Feedback">Customer Feedback</option>
@@ -6995,10 +7498,26 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                     <input type="text" value={newCarForm.acknowledged_by} onChange={(e) => setNewCarForm({...newCarForm, acknowledged_by: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Designated Responsible Person</label>
+                  <select value={newCarForm.assigned_to_id} onChange={(e) => setNewCarForm({...newCarForm, assigned_to_id: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
+                    <option value="">Assign before acknowledgement</option>
+                    {carAssignees.map((person: any) => <option key={person.id} value={person.id}>{person.full_name} — {person.assignments.join(" / ")}</option>)}
+                  </select>
+                  <p className="text-[10px] text-gray-500 mt-1">Only active heads or members of the responsible office are available.</p>
+                </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Statement of Finding(s) <span className="text-red-500">*</span></label>
-                  <textarea required rows={3} value={newCarForm.findings} onChange={(e) => setNewCarForm({...newCarForm, findings: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="Describe the non-conformity or audit finding..." />
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Requirement / Clause</label>
+                  <textarea rows={2} value={newCarForm.requirement_reference} onChange={(e) => setNewCarForm({...newCarForm, requirement_reference: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="State the applicable ISO clause or documented requirement." />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Objective Evidence</label>
+                  <textarea rows={3} value={newCarForm.objective_evidence} onChange={(e) => setNewCarForm({...newCarForm, objective_evidence: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="Record what was observed, reviewed, sampled, or verified." />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Statement of Nonconformity</label>
+                  <textarea rows={3} value={newCarForm.nonconformity_statement} onChange={(e) => setNewCarForm({...newCarForm, nonconformity_statement: e.target.value, findings: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="Explain how the evidence fails to meet the requirement." />
                 </div>
               </div>
 
@@ -7019,7 +7538,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                   <textarea rows={2} value={newCarForm.root_cause} onChange={(e) => setNewCarForm({...newCarForm, root_cause: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm" placeholder="Analyze the underlying root cause..." />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Immediate Action(s)</label>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Correction / Containment Taken</label>
                   <textarea rows={2} value={newCarForm.immediate_action} onChange={(e) => setNewCarForm({...newCarForm, immediate_action: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm" placeholder="Short-term containment actions taken..." />
                 </div>
                 <div>
@@ -7071,11 +7590,24 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                 </div>
               </div>
 
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 bg-white p-6">
+                <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <input type="checkbox" checked={newCarForm.human_verified} onChange={(e) => setNewCarForm({...newCarForm, human_verified: e.target.checked})} className="mt-0.5 h-4 w-4 rounded text-[#DD7230]" />
+                  <span><span className="block text-xs font-semibold text-gray-900">I compared the extracted fields with the original scan.</span><span className="mt-1 block text-[11px] text-gray-500">Required before issuance. Your account and verification time will be recorded.</span></span>
+                </label>
+              </div>
+
               <div className="p-6 border-t border-gray-100 flex justify-end shrink-0 gap-3">
                 <button type="button" onClick={() => { setShowAddCarModal(false); setAttachedCarFile(null); }} className="px-5 py-2.5 text-xs font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">Cancel</button>
-                <button type="submit" disabled={isAddingCar} className="px-6 py-2.5 bg-[#DD7230] text-white rounded-xl font-bold text-sm hover:bg-[#c45e22] transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer">
+                <button type="submit" value="Draft" disabled={isAddingCar} className="px-5 py-2.5 text-xs font-bold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 cursor-pointer">
+                  Save as Draft
+                </button>
+                <button type="submit" value="Issued" disabled={isAddingCar} className="px-6 py-2.5 bg-[#DD7230] text-white rounded-xl font-bold text-sm hover:bg-[#c45e22] transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer">
                   {isAddingCar && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Save CAR Form 1
+                  Issue CAR
                 </button>
               </div>
             </form>
@@ -7096,6 +7628,7 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                     <AlertTriangle className="h-3 w-3" /> Linked to ISO Clause
                   </div>
                 )}
+                {editingCarForm?.source_file_path && <button type="button" onClick={async () => { try { const { data } = await apiClient.get(`/car-forms/${editingCarForm.id}/source-url`); window.open(data.url, "_blank", "noopener,noreferrer"); } catch (error: any) { showToast(error.response?.data?.detail || "Unable to open the preserved source scan.", "error"); } }} className="ml-2 inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold text-gray-700 hover:bg-gray-50"><Eye className="h-3 w-3" /> View original scan</button>}
               </div>
               <button onClick={() => setShowEditCarModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer text-gray-500">
                 <X className="h-5 w-5" />
@@ -7103,63 +7636,103 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
             </div>
 
             <form onSubmit={handleEditCarSubmit} className="p-6 space-y-4 overflow-y-auto flex-grow">
+              {editingCarForm.ocr_model && <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-[11px] text-blue-900"><span className="font-semibold">OCR provenance:</span> {editingCarForm.ocr_model} · {editingCarForm.ocr_version || "version unavailable"} · {editingCarForm.ocr_extracted_at ? new Date(editingCarForm.ocr_extracted_at).toLocaleString("en-PH") : "date unavailable"}<br/><span className="font-semibold">Human verification:</span> {editingCarForm.human_verified_by_name || "Pending"}{editingCarForm.human_verified_at ? ` · ${new Date(editingCarForm.human_verified_at).toLocaleString("en-PH")}` : ""}</div>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Status</label>
-                  <select value={editingCarForm.status} onChange={(e) => setEditingCarForm({...editingCarForm, status: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-bold text-[#DD7230]">
-                    <option value="Open">Open</option>
-                    <option value="Under Review">Under Review</option>
-                    <option value="Closed">Closed</option>
+                  <select disabled={allowedCarTransitionsForUser(editingCarForm.status).length === 0} value={editingCarForm.status} onChange={(e) => setEditingCarForm({...editingCarForm, status: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm font-bold text-[#DD7230] disabled:opacity-60">
+                    <option value={editingCarForm.status}>{editingCarForm.status}</option>
+                    {allowedCarTransitionsForUser(editingCarForm.status).map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
                   </select>
+                  {allowedCarTransitionsForUser(editingCarForm.status).length === 0 && (
+                    <p className="text-[10px] text-gray-500 mt-1">No workflow transition is available for your current assignment.</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">CAR No.</label>
-                  <input type="text" value={editingCarForm.car_no || ""} onChange={(e) => setEditingCarForm({...editingCarForm, car_no: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  <input disabled type="text" value={editingCarForm.car_no || "Assigned when issued"} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm opacity-60" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Category</label>
-                  <select value={editingCarForm.finding_category} onChange={(e) => setEditingCarForm({...editingCarForm, finding_category: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
-                    <option value="MAJOR">MAJOR</option>
-                    <option value="MINOR">MINOR</option>
-                    <option value="OBSERVATION">OBSERVATION</option>
-                    <option value="UNKNOWN">UNKNOWN</option>
+                  <select disabled={!canIssueCar} value={editingCarForm.finding_category} onChange={(e) => setEditingCarForm({...editingCarForm, finding_category: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60">
+                    <option value="UNKNOWN">Select classification</option>
+                    {carClassificationRules.filter(rule => rule.is_active).map(rule => <option key={rule.category} value={rule.category}>{rule.display_name}</option>)}
                   </select>
                 </div>
               </div>
+              {editingCarForm.status === "Void" && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <label className="mb-1 block text-xs font-semibold text-red-900">Reason for voiding</label>
+                  <textarea required minLength={10} rows={2} value={editingCarForm.void_reason || ""} onChange={(e) => setEditingCarForm({...editingCarForm, void_reason:e.target.value})} className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm" placeholder="Explain why this issued CAR must be voided. The record will remain in the audit trail." />
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Dept / Area</label>
-                  <input type="text" value={editingCarForm.area || ""} onChange={(e) => setEditingCarForm({...editingCarForm, area: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  <input disabled={!canIssueCar} type="text" value={editingCarForm.area || ""} onChange={(e) => setEditingCarForm({...editingCarForm, area: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Initiator / Auditor-in-Charge</label>
-                  <input type="text" value={editingCarForm.initiator || ""} onChange={(e) => setEditingCarForm({...editingCarForm, initiator: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  <input disabled={!canIssueCar} type="text" value={editingCarForm.initiator || ""} onChange={(e) => setEditingCarForm({...editingCarForm, initiator: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Auditor / Complainant</label>
-                  <input type="text" value={editingCarForm.auditor_name || ""} onChange={(e) => setEditingCarForm({...editingCarForm, auditor_name: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  <input disabled={!canIssueCar} type="text" value={editingCarForm.auditor_name || ""} onChange={(e) => setEditingCarForm({...editingCarForm, auditor_name: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Acknowledged By</label>
-                  <input type="text" value={editingCarForm.acknowledged_by || ""} onChange={(e) => setEditingCarForm({...editingCarForm, acknowledged_by: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  <input disabled type="text" value={editingCarForm.acknowledged_by_name || editingCarForm.acknowledged_by || "Pending acknowledgement"} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm opacity-60" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Statement of Finding(s)</label>
-                <textarea rows={2} value={editingCarForm.findings || ""} onChange={(e) => setEditingCarForm({...editingCarForm, findings: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Designated Responsible Person</label>
+                <select
+                  value={editingCarForm.assigned_to_id || ""}
+                  disabled={!(canIssueCar || canAcknowledgeCar)}
+                  onChange={(e) => setEditingCarForm({...editingCarForm, assigned_to_id: e.target.value})}
+                  className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60"
+                >
+                  <option value="">Not yet assigned</option>
+                  {carAssignees.map((person: any) => <option key={person.id} value={person.id}>{person.full_name} — {person.assignments.join(" / ")}</option>)}
+                </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Root Cause(s)</label>
-                <textarea rows={2} value={editingCarForm.root_cause || ""} onChange={(e) => setEditingCarForm({...editingCarForm, root_cause: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Requirement / Clause</label>
+                <textarea disabled={!canIssueCar} rows={2} value={editingCarForm.requirement_reference || ""} onChange={(e) => setEditingCarForm({...editingCarForm, requirement_reference: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Objective Evidence</label>
+                <textarea disabled={!canIssueCar} rows={2} value={editingCarForm.objective_evidence || ""} onChange={(e) => setEditingCarForm({...editingCarForm, objective_evidence: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Statement of Nonconformity</label>
+                <textarea disabled={!canIssueCar} rows={3} value={editingCarForm.nonconformity_statement || editingCarForm.findings || ""} onChange={(e) => setEditingCarForm({...editingCarForm, nonconformity_statement: e.target.value, findings: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#1F2937] mb-1">Root-Cause Analysis Method</label>
+                <select disabled={!canRespondCar} value={editingCarForm.root_cause_method || ""} onChange={(e) => setEditingCarForm({...editingCarForm, root_cause_method: e.target.value, root_cause_analysis: e.target.value === "FIVE_WHYS" ? {whys:["", "", "", "", ""]} : e.target.value === "FISHBONE" ? {categories:{People:"", Method:"", Machine:"", Material:"", Measurement:"", Environment:""}} : {narrative: editingCarForm.root_cause || ""}})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60"><option value="">Select analysis method</option><option value="FIVE_WHYS">Five Whys</option><option value="FISHBONE">Fishbone categories</option><option value="FREE_FORM">Free-form analysis</option></select>
+              </div>
+              {editingCarForm.root_cause_method === "FIVE_WHYS" && <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">{[0,1,2,3,4].map((index) => <div key={index}><label className="mb-1 block text-[11px] font-semibold text-gray-600">Why {index + 1}</label><input disabled={!canRespondCar} value={editingCarForm.root_cause_analysis?.whys?.[index] || ""} onChange={(e) => { const whys = [...(editingCarForm.root_cause_analysis?.whys || ["", "", "", "", ""])]; whys[index] = e.target.value; setEditingCarForm({...editingCarForm, root_cause_analysis:{whys}, root_cause:whys.filter(Boolean).join(" → ")}); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm disabled:opacity-60" /></div>)}</div>}
+              {editingCarForm.root_cause_method === "FISHBONE" && <div className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:grid-cols-2">{["People","Method","Machine","Material","Measurement","Environment"].map((category) => <div key={category}><label className="mb-1 block text-[11px] font-semibold text-gray-600">{category}</label><textarea disabled={!canRespondCar} rows={2} value={editingCarForm.root_cause_analysis?.categories?.[category] || ""} onChange={(e) => { const categories = {...(editingCarForm.root_cause_analysis?.categories || {}), [category]:e.target.value}; setEditingCarForm({...editingCarForm, root_cause_analysis:{categories}, root_cause:Object.entries(categories).filter(([,value]) => value).map(([key,value]) => `${key}: ${value}`).join("; ")}); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm disabled:opacity-60" /></div>)}</div>}
+              {editingCarForm.root_cause_method === "FREE_FORM" && <div><label className="block text-xs font-semibold text-[#1F2937] mb-1">Root-Cause Analysis</label><textarea disabled={!canRespondCar} rows={3} value={editingCarForm.root_cause_analysis?.narrative || editingCarForm.root_cause || ""} onChange={(e) => setEditingCarForm({...editingCarForm, root_cause:e.target.value, root_cause_analysis:{narrative:e.target.value}})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" /></div>}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Immediate Action(s)</label>
-                  <textarea rows={2} value={editingCarForm.immediate_action || ""} onChange={(e) => setEditingCarForm({...editingCarForm, immediate_action: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  <textarea disabled={!canRespondCar} rows={2} value={editingCarForm.immediate_action || ""} onChange={(e) => setEditingCarForm({...editingCarForm, immediate_action: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Corrective Measure(s)</label>
-                  <textarea rows={2} value={editingCarForm.corrective_measure || ""} onChange={(e) => setEditingCarForm({...editingCarForm, corrective_measure: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                  <textarea disabled={!canRespondCar} rows={2} value={editingCarForm.corrective_measure || ""} onChange={(e) => setEditingCarForm({...editingCarForm, corrective_measure: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Responsible Person</label>
+                  <input disabled={!canRespondCar} type="text" value={editingCarForm.measures_proposed_by || ""} onChange={(e) => setEditingCarForm({...editingCarForm, measures_proposed_by: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1F2937] mb-1">Target Date</label>
+                  <input disabled={!canRespondCar} type="date" value={editingCarForm.target_date || ""} onChange={(e) => setEditingCarForm({...editingCarForm, target_date: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
                 </div>
                 
                 <div className="flex items-center gap-2 mt-4 pb-2 border-b border-gray-100">
@@ -7172,31 +7745,41 @@ const [attachedCarFile, setAttachedCarFile] = useState<File | null>(null);
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Follow-Up Action Result</label>
-                    <select value={editingCarForm.follow_up_result || ""} onChange={(e) => setEditingCarForm({...editingCarForm, follow_up_result: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm">
-                      <option value="">-- Select Result --</option>
-                      <option value="Measures complete and effective">Measures complete and effective</option>
-                      <option value="Measures ineffective">Measures ineffective & for re-follow up</option>
+                    <label className="block text-xs font-semibold text-[#1F2937] mb-1">Effectiveness Outcome</label>
+                    <select disabled={!canVerifyCar} value={editingCarForm.effectiveness_outcome || ""} onChange={(e) => { const labels: Record<string,string> = {EFFECTIVE:"Measures complete and effective",PARTIALLY_EFFECTIVE:"Measures partially effective",INEFFECTIVE:"Measures ineffective",ADDITIONAL_EVIDENCE_REQUIRED:"Additional evidence required"}; setEditingCarForm({...editingCarForm, effectiveness_outcome:e.target.value, follow_up_result:labels[e.target.value] || ""}); }} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60">
+                      <option value="">Select verification outcome</option>
+                      <option value="EFFECTIVE">Effective</option>
+                      <option value="PARTIALLY_EFFECTIVE">Partially Effective</option>
+                      <option value="INEFFECTIVE">Ineffective</option>
+                      <option value="ADDITIONAL_EVIDENCE_REQUIRED">Additional Evidence Required</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#1F2937] mb-1">Follow-Up / Re-evaluation Date</label>
-                    <input type="date" value={editingCarForm.follow_up_date || ""} onChange={(e) => setEditingCarForm({...editingCarForm, follow_up_date: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" />
+                    <input disabled={!canVerifyCar} type="date" value={editingCarForm.follow_up_date || ""} onChange={(e) => setEditingCarForm({...editingCarForm, follow_up_date: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" />
                   </div>
                 </div>
                 
                 <div>
                   <label className="block text-xs font-semibold text-[#1F2937] mb-1">Comments / Remarks</label>
-                  <textarea rows={2} value={editingCarForm.comments_remarks || ""} onChange={(e) => setEditingCarForm({...editingCarForm, comments_remarks: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm" placeholder="Auditor remarks upon verification..." />
+                  <textarea disabled={!canVerifyCar} rows={2} value={editingCarForm.comments_remarks || ""} onChange={(e) => setEditingCarForm({...editingCarForm, comments_remarks: e.target.value})} className="w-full px-3 py-2 bg-[#F5F7FA] border border-gray-200 rounded-xl text-sm disabled:opacity-60" placeholder="Auditor remarks upon verification..." />
                 </div>
                 
-                <div className="flex items-center gap-2 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 mb-2">
-                  <input type="checkbox" id="closeout_edit" checked={editingCarForm.non_conformity_closed || false} onChange={(e) => setEditingCarForm({...editingCarForm, non_conformity_closed: e.target.checked})} className="h-4 w-4 text-emerald-600 rounded" />
-                  <label htmlFor="closeout_edit" className="text-sm font-bold text-emerald-900 cursor-pointer">Non-Conformity Officially Closed</label>
+                <div className="sm:col-span-2 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <div><p className="text-xs font-semibold text-gray-900">QA Verification Evidence</p><p className="text-[10px] text-gray-500">At least one verification record is required before closure.</p></div>
+                  {(editingCarForm.verification_evidences || []).map((evidence: any) => <button type="button" key={evidence.id} onClick={async () => { try { const {data} = await apiClient.get(`/car-verification-evidence/${evidence.id}/url`); window.open(data.url,"_blank","noopener,noreferrer"); } catch { showToast("Unable to open verification evidence.","error"); } }} className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs text-gray-700 hover:bg-gray-50"><span><span className="font-semibold">{evidence.file_name}</span>{evidence.notes && <span className="ml-2 text-gray-500">{evidence.notes}</span>}</span><Eye className="h-3.5 w-3.5" /></button>)}
+                  {editingCarForm.status === "Awaiting Verification" && canVerifyCar && <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"><input type="file" onChange={(e) => setVerificationEvidenceFile(e.target.files?.[0] || null)} className="text-xs file:mr-2 file:rounded-md file:border-0 file:bg-white file:px-2 file:py-1.5"/><input value={verificationEvidenceNotes} onChange={(e) => setVerificationEvidenceNotes(e.target.value)} placeholder="Verification note" className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs"/><button type="button" disabled={!verificationEvidenceFile || isUploadingVerificationEvidence} onClick={uploadVerificationEvidence} className="rounded-lg bg-[#DD7230] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{isUploadingVerificationEvidence ? "Uploading…" : "Attach"}</button></div>}
+                </div>
+
+                <div className="sm:col-span-2 flex items-center gap-2 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 mb-2">
+                  <input disabled type="checkbox" checked={editingCarForm.status === "Closed"} className="h-4 w-4 text-emerald-600 rounded" />
+                  <span className="text-sm font-bold text-emerald-900">Closure is applied automatically after an Effective decision passes all requirements.</span>
                 </div>
               </div>
+              {editingCarForm.status === "Closed" && canVerifyCar && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><label className="mb-1 block text-xs font-semibold text-amber-900">Reason for reopening</label><textarea rows={2} value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm" placeholder="Explain the new evidence or condition requiring renewed corrective action."/><div className="mt-2 flex justify-end"><button type="button" onClick={reopenClosedCar} disabled={reopenReason.trim().length < 10} className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 disabled:opacity-50">Reopen CAR</button></div></div>}
               <div className="pt-4 border-t border-gray-100 flex justify-end shrink-0">
-                <button type="submit" disabled={isEditingCar} className="px-6 py-2.5 bg-[#DD7230] text-white rounded-xl font-bold text-sm hover:bg-[#c45e22] transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer">
+                {editingCarForm.status === "Draft" && canIssueCar && <label className="mr-auto flex max-w-md items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3"><input type="checkbox" checked={editingCarForm.human_verified === true || Boolean(editingCarForm.human_verified_at)} disabled={Boolean(editingCarForm.human_verified_at)} onChange={(e) => setEditingCarForm({...editingCarForm, human_verified: e.target.checked})} className="mt-0.5 h-4 w-4 rounded text-[#DD7230]"/><span className="text-[11px] text-gray-600"><span className="block font-semibold text-gray-900">Source scan reviewed</span>Confirm the draft fields match the preserved original before changing its status to Issued.</span></label>}
+                <button type="submit" disabled={isEditingCar || !(canIssueCar || canAcknowledgeCar || canRespondCar || canVerifyCar)} className="px-6 py-2.5 bg-[#DD7230] text-white rounded-xl font-bold text-sm hover:bg-[#c45e22] transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer">
                   {isEditingCar && <Loader2 className="h-4 w-4 animate-spin" />}
                   Save Changes
                 </button>

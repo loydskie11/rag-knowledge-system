@@ -259,6 +259,10 @@ def permissions_for(user):
         "paper_trail.read": admin or personnel,
         "paper_trail.control": admin or (personnel and has_assignment(user, "DOCUMENT_CONTROLLER")),
         "survey.analytics": admin or (personnel and has_assignment(user, "OFFICE_HEAD", "SURVEY_ANALYST", "QA_HEAD", "IQA_AUDITOR")),
+        "car.issue": personnel and reviewer,
+        "car.acknowledge": personnel and has_assignment(user, "OFFICE_HEAD", "OFFICE_MEMBER"),
+        "car.respond": personnel and has_assignment(user, "OFFICE_HEAD", "OFFICE_MEMBER"),
+        "car.verify": personnel and reviewer,
         "survey.cross_office": admin or (personnel and any(
             a.get("assignment_type") in {"QA_HEAD", "IQA_AUDITOR", "SURVEY_ANALYST"} and a.get("scope_type") == "CAMPUS"
             for a in assignments_of(user)

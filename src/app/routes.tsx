@@ -21,6 +21,7 @@ const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.S
 const ProfileSettings = lazy(() => import("./pages/ProfileSettings").then(m => ({ default: m.ProfileSettings })));
 const BroadcastAnnouncement = lazy(() => import("./pages/BroadcastAnnouncement").then(m => ({ default: m.BroadcastAnnouncement })));
 const DocumentGenerator = lazy(() => import("./pages/DocumentGenerator").then(m => ({ default: m.DocumentGenerator })));
+const TemplateDocumentComposer = lazy(() => import("./pages/TemplateDocumentComposer").then(m => ({ default: m.TemplateDocumentComposer })));
 const GradeEvaluation = lazy(() => import("./pages/GradeEvaluation").then(m => ({ default: m.GradeEvaluation })));
 const ClientSatisfactionSurvey = lazy(() => import("./pages/ClientSatisfactionSurvey").then(m => ({ default: m.ClientSatisfactionSurvey })));
 const CssDashboard = lazy(() => import("./pages/CssDashboard/Dashboard").then(m => ({ default: m.Dashboard })));
@@ -139,8 +140,16 @@ export const router = createBrowserRouter([
           {
             path: "document-generator",
             element: (
-              <ProtectedRoute permission="canAccessDocumentGenerator">
+              <ProtectedRoute permission="canAccessDocumentGenerator" allowedRoles={["SYSTEM_ADMIN"]}>
                 {withSuspense(DocumentGenerator)}
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "document-composer",
+            element: (
+              <ProtectedRoute permission="canAccessDocumentGenerator">
+                {withSuspense(TemplateDocumentComposer)}
               </ProtectedRoute>
             ),
           },

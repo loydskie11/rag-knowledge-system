@@ -20,6 +20,7 @@ import { PageHeader } from "../components/PageHeader";
 import { assignmentLabel } from "../constants/academicScopes";
 import { useRole } from "../contexts/RoleContext";
 import type { PersonnelAssignment } from "../contexts/RoleContext";
+import { DashboardSkeleton } from "../components/loading/SkeletonLayouts";
 
 type ProgramSummary = {
   code: string;
@@ -114,10 +115,7 @@ export function PersonnelDashboard() {
   }, [data, selectedAssignment]);
 
   if (loading) {
-    return <div className="flex min-h-[55vh] flex-col items-center justify-center gap-3">
-      <Loader2 className="h-7 w-7 animate-spin text-[#DD7230]" />
-      <p className="text-sm text-gray-500">Loading your personnel workspace…</p>
-    </div>;
+    return <DashboardSkeleton />;
   }
 
   if (error || !data) {
@@ -178,10 +176,10 @@ export function PersonnelDashboard() {
       )}
     </section>
 
-    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {stats.map(({ label, value, icon: Icon, path }) => <button key={label} onClick={() => navigate(path)} className="group rounded-xl border border-gray-200 bg-white p-4 text-left shadow-2xs transition hover:border-orange-300 hover:shadow-sm">
+    <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {stats.map(({ label, value, icon: Icon, path }) => <button key={label} onClick={() => navigate(path)} className="group min-w-0 rounded-xl border border-gray-200 bg-white p-3 text-left shadow-2xs transition hover:border-orange-300 hover:shadow-sm sm:p-4">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-500">{label}</span>
+          <span className="break-words pr-1 text-[11px] font-medium leading-4 text-gray-500 sm:text-xs">{label}</span>
           <span className="rounded-lg bg-orange-50 p-2 text-[#DD7230]"><Icon className="h-4 w-4" /></span>
         </div>
         <p className="mt-3 text-2xl font-bold text-gray-900">{value}</p>
@@ -244,7 +242,7 @@ export function PersonnelDashboard() {
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-2xs">
         <h2 className="text-sm font-semibold text-gray-900">Quick actions</h2>
         <div className="mt-3 space-y-2">
-          <button onClick={() => navigate("/app/ask-policy")} className="flex w-full items-center justify-between rounded-lg border border-gray-200 p-3 text-left text-sm text-gray-700 hover:border-orange-300"><span className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-[#DD7230]" /> Ask the AI Assistant</span><ArrowRight className="h-4 w-4 text-gray-400" /></button>
+          <button onClick={() => navigate("/app/ask-policy")} className="flex w-full items-center justify-between rounded-lg border border-gray-200 p-3 text-left text-sm text-gray-700 hover:border-orange-300"><span className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-[#DD7230]" /> AskPolicy AI Assistant</span><ArrowRight className="h-4 w-4 text-gray-400" /></button>
           <button onClick={() => navigate("/app/knowledge-repository")} className="flex w-full items-center justify-between rounded-lg border border-gray-200 p-3 text-left text-sm text-gray-700 hover:border-orange-300"><span className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-[#DD7230]" /> Browse documents</span><ArrowRight className="h-4 w-4 text-gray-400" /></button>
           {permissions["governance.access"] && <button onClick={() => navigate("/app/accreditation-support")} className="flex w-full items-center justify-between rounded-lg border border-gray-200 p-3 text-left text-sm text-gray-700 hover:border-orange-300"><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#DD7230]" /> Open assigned QA work</span><ArrowRight className="h-4 w-4 text-gray-400" /></button>}
         </div>

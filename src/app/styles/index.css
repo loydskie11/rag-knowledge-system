@@ -1,3 +1,54 @@
 @import "tailwindcss";
 @import './fonts.css';
 @import './theme.css';
+
+/* Shared mobile safeguards for every application page. */
+html,
+body,
+#root {
+  min-width: 0;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  /* Native controls remain comfortable to use without forcing desktop widths. */
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  /* Make intentionally scrollable data regions obvious and reliable on touch. */
+  .overflow-x-auto,
+  .overflow-auto,
+  .table-wrapper {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
+  }
+
+  /* Prevent long names, emails, URLs, and generated text from widening pages. */
+  main p,
+  main dd,
+  main td,
+  main a,
+  [role="dialog"] p {
+    overflow-wrap: anywhere;
+  }
+
+  /* Dialogs should fit the dynamic mobile viewport and scroll internally. */
+  [role="dialog"] {
+    max-height: 100dvh;
+  }
+}

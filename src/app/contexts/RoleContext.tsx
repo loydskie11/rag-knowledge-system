@@ -15,6 +15,7 @@ export interface PersonnelAssignment {
 }
 
 export interface AuthProfile {
+  id: string;
   role: UserRole;
   email: string;
   full_name?: string;
@@ -23,6 +24,14 @@ export interface AuthProfile {
   allowed_programs?: string[];
   allowed_iso_processes?: string[];
 }
+export interface ReferenceItem { id: string; code: string; name: string; college_unit_id?: string; college_name?: string }
+export interface ReferenceData {
+  offices: ReferenceItem[];
+  colleges: ReferenceItem[];
+  programs: ReferenceItem[];
+  iso_process_groups: ReferenceItem[];
+}
+const emptyReferenceData: ReferenceData = { offices: [], colleges: [], programs: [], iso_process_groups: [] };
 
 interface RoleContextType {
   userRole: UserRole | null;
@@ -32,6 +41,8 @@ interface RoleContextType {
   permissions: Partial<Record<BackendCapability, boolean>>;
   profile: AuthProfile | null;
   assignments: PersonnelAssignment[];
+  referenceData: ReferenceData;
+  refreshReferenceData: () => Promise<void>;
 }
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
@@ -42,6 +53,15 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const refreshId = useRef(0);
   const [permissions, setPermissions] = useState<Partial<Record<BackendCapability, boolean>>>({});
   const [profile, setProfile] = useState<AuthProfile | null>(null);
+  const [referenceData, setReferenceData] = useState<ReferenceData>(emptyReferenceData);
+  const refreshReferenceData = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get('/public/reference-data');
+      setReferenceData({ ...emptyReferenceData, ...data });
+    } catch {
+      setReferenceData(emptyReferenceData);
+    }
+  }, []);
   const refresh = useCallback(async () => {
     const id = ++refreshId.current;
     try {
@@ -77,10 +97,16 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     void refresh();
+    void refreshReferenceData();
     const onFocus = () => { void refresh(); };
+    const onReferencesChanged = () => { void refreshReferenceData(); };
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [refresh]);
+    window.addEventListener('reference-data-updated', onReferencesChanged);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('reference-data-updated', onReferencesChanged);
+    };
+  }, [refresh, refreshReferenceData]);
   const setUserRole = async (_role: UserRole) => {
     setReady(false);
     return (await refresh()) === true;
@@ -93,6 +119,8 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     accessScope,
     profile,
     assignments: profile?.assignments || [],
+    referenceData,
+    refreshReferenceData,
   }}>{children}</RoleContext.Provider>;
 }
 export function useRole() {

@@ -3,6 +3,7 @@ import { Search, Download, Loader2, X, Calendar, CheckCircle2, AlertCircle } fro
 import axios from "axios";
 import { apiClient } from "../api/client";
 import { PageHeader } from "../components/PageHeader";
+import { Skeleton } from "../components/ui/skeleton";
 
 type TabType = "queries" | "access" | "versions" | "system";
 
@@ -239,8 +240,8 @@ export function AuditTrail() {
         {/* Dynamic Content Area */}
         <div className="overflow-x-auto min-h-[360px]">
           {isLoading ? (
-             <div className="flex justify-center items-center h-[360px]">
-                <Loader2 className="h-6 w-6 animate-spin text-[#DD7230]" />
+             <div className="divide-y divide-gray-100" aria-busy="true" aria-label="Loading audit records">
+                {Array.from({ length: 7 }).map((_, row) => <div key={row} className="grid grid-cols-4 gap-5 px-4 py-4"><Skeleton className="h-4 w-3/4 bg-gray-200/80" /><Skeleton className="h-4 w-full bg-gray-200/80" /><Skeleton className="h-4 w-2/3 bg-gray-200/80" /><Skeleton className="h-4 w-16 bg-gray-200/80" /></div>)}
              </div>
           ) : activeTab === "queries" ? (
             <table className="w-full text-left whitespace-nowrap table-fixed min-w-[800px]">

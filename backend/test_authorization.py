@@ -4,7 +4,7 @@ import inspect
 import re
 import unittest
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace as User
 from typing import Optional, List
@@ -22,7 +22,7 @@ from permissions import *
 
 
 def user(role="PERSONNEL", office="Library Office", department="BSIT", **extra):
-    account = User(role=role, administrative_office=office, department=department, email="head@example.edu", status="Active", is_iqa_auditor=False)
+    account = User(id=uuid.uuid4(), role=role, administrative_office=office, department=department, email="head@example.edu", status="Active", is_iqa_auditor=False)
     account._accessible_iso_processes = {"Library Office": ["University Library"], "Human Resource and Management Office": ["HR & Records Management"]}.get(office, [])
     if role in {"SYSTEM_ADMIN", "STUDENT", "UNKNOWN"}:
         account._effective_assignments = []
@@ -97,7 +97,10 @@ def load_routes():
         "get_governance_reviewer", "get_campus_governance_reviewer",
         "get_current_faculty_or_admin", "get_document_manager", "require_document_office", "require_document_name_access",
         "protect_last_system_admin", "get_auth_profile", "register_user", "get_iso_requirements",
+        "update_iso_audit_cycle",
         "create_iso_requirement", "update_iso_requirement", "delete_iso_requirement", "upload_iso_evidence",
+        "require_editable_iso_audit_cycle",
+        "validate_iqa_day_chronology", "validate_iso_result_payload",
         "update_iso_evidence_status", "update_iso_status", "delete_iso_evidence",
         "get_pending_iso_evidences", "get_pending_accreditation", "review_accreditation",
         "get_qms_action_plans", "create_qms_action_plan", "update_qms_action_plan",
@@ -108,13 +111,24 @@ def load_routes():
         "_paper_trail_is_current_custodian", "_require_paper_trail_custody",
         "get_current_document_controller", "get_paper_trail_detail",
         "get_private_storage_path", "require_private_storage_reference",
+        "car_assignment_types", "is_car_reviewer", "is_car_office_head", "is_car_office_participant", "require_car_reviewer",
+        "CAR_STATUS_TRANSITIONS", "validate_car_status_transition", "apply_car_lifecycle_timestamp",
+        "authorize_car_status_transition", "validate_car_verification_decision",
         "resolve_accreditation_cycle", "load_aaccup_evidence_chunks", "require_active_aaccup_evidence",
         "normalize_document_identity", "document_scope_key", "_safe_duplicate_record",
         "classify_document_duplicate", "duplicate_http_exception",
+        "TEMPLATE_PLACEHOLDERS", "UNSAFE_TEMPLATE_PATTERNS", "validate_dynamic_field_schema",
+        "validate_template_html", "validate_safe_generated_html", "can_manage_templates",
+        "require_template_manager", "require_generated_document_access",
         "PersonnelAssignmentRequest", "UserCreateRequest", "UserUpdateRequest", "ISOEvidenceReviewRequest", "AccreditationReviewRequest",
     }
     nodes = []
     for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id in names for target in node.targets
+        ):
+            nodes.append(node)
+            continue
         if getattr(node, "name", None) in names:
             node.decorator_list = []
             nodes.append(node)
@@ -156,7 +170,9 @@ class AuthorizationTests(unittest.TestCase):
 
     def test_every_base_role_and_assignment_has_the_expected_capabilities(self):
         capability_keys = set(permissions_for(user("SYSTEM_ADMIN")))
-        self.assertTrue(all(permissions_for(user("SYSTEM_ADMIN")).values()))
+        admin_permissions = permissions_for(user("SYSTEM_ADMIN"))
+        self.assertTrue(all(admin_permissions[key] for key in capability_keys - {"car.issue", "car.acknowledge", "car.respond", "car.verify"}))
+        self.assertFalse(any(admin_permissions[key] for key in {"car.issue", "car.acknowledge", "car.respond", "car.verify"}))
         self.assertFalse(any(permissions_for(user("STUDENT")).values()))
 
         unassigned = permissions_for(user("PERSONNEL", office=None, department=None))
@@ -164,9 +180,9 @@ class AuthorizationTests(unittest.TestCase):
 
         expected = {
             ("OFFICE_HEAD", "OFFICE", "Library Office"): {
-                "governance.access", "governance.manage", "documents.manage", "paper_trail.read", "survey.analytics",
+                "governance.access", "governance.manage", "documents.manage", "paper_trail.read", "survey.analytics", "car.acknowledge", "car.respond",
             },
-            ("OFFICE_MEMBER", "OFFICE", "Library Office"): {"governance.access", "paper_trail.read"},
+            ("OFFICE_MEMBER", "OFFICE", "Library Office"): {"governance.access", "paper_trail.read", "car.acknowledge", "car.respond"},
             ("COLLEGE_DEAN", "COLLEGE", "COTE"): {
                 "governance.access", "governance.manage", "documents.manage", "paper_trail.read",
             },
@@ -179,14 +195,14 @@ class AuthorizationTests(unittest.TestCase):
             ("FACULTY_MEMBER", "PROGRAM", "BSIT"): {"governance.access", "paper_trail.read"},
             ("QA_HEAD", "CAMPUS", "ARGAO"): {
                 "governance.access", "governance.review", "governance.manage", "governance.cross_office",
-                "paper_trail.read", "survey.analytics", "survey.cross_office",
+                "paper_trail.read", "survey.analytics", "survey.cross_office", "car.issue", "car.verify",
             },
             ("IQA_AUDITOR", "CAMPUS", "ARGAO"): {
                 "governance.access", "governance.review", "governance.manage", "governance.cross_office",
-                "paper_trail.read", "survey.analytics", "survey.cross_office",
+                "paper_trail.read", "survey.analytics", "survey.cross_office", "car.issue", "car.verify",
             },
             ("IQA_AUDITOR", "OFFICE", "DOI Office"): {
-                "governance.access", "governance.review", "governance.manage", "paper_trail.read", "survey.analytics",
+                "governance.access", "governance.review", "governance.manage", "paper_trail.read", "survey.analytics", "car.issue", "car.verify",
             },
             ("SURVEY_ANALYST", "CAMPUS", "ARGAO"): {
                 "paper_trail.read", "survey.analytics", "survey.cross_office",
@@ -434,13 +450,107 @@ class AuthorizationTests(unittest.TestCase):
 
     def test_iso_create_and_update_check_destination_office(self):
         payload = schemas.ISORequirementCreate(program="GLOBAL", iso_clause="7.1", title="T", description="D", auditee_office="Registrar")
-        db = self.db_for(User(auditee_office="University Library"))
+        db = self.db_for(User(auditee_office="University Library", cycle_year="2025 Surveillance", status="ACTIVE"))
         self.denied(lambda: self.routes["create_iso_requirement"](payload, db, user()))
         self.denied(lambda: self.routes["update_iso_requirement"]("id", payload, db, user()))
         db.commit.assert_not_called()
 
+    def test_iso_risk_level_is_normalized_and_validated(self):
+        low = schemas.ISORequirementCreate(
+            program="GLOBAL",
+            iso_clause="6.1",
+            title="Risk actions",
+            description="D",
+            auditee_office="Registrar",
+            risk_level="Low Risk",
+        )
+        self.assertEqual(low.risk_level, "Low")
+
+        with self.assertRaises(ValueError):
+            schemas.ISORequirementCreate(
+                program="GLOBAL",
+                iso_clause="6.1",
+                title="Risk actions",
+                description="D",
+                auditee_office="Registrar",
+                risk_level="Critical",
+            )
+
+    def test_closed_iso_audit_cycle_cannot_be_edited(self):
+        closed_cycle = User(
+            id=uuid.uuid4(),
+            name="2026 Recertification",
+            standard_version="ISO 9001:2015",
+            status="CLOSED",
+        )
+        db = self.db_for(closed_cycle)
+        payload = schemas.ISOAuditCycleUpdate(
+            name="2026 Recertification Updated",
+            standard_version="ISO 9001:2015",
+            status="ACTIVE",
+        )
+
+        with self.assertRaises(HTTPException) as caught:
+            self.routes["update_iso_audit_cycle"](
+                str(closed_cycle.id), payload, db, user("SYSTEM_ADMIN")
+            )
+
+        self.assertEqual(caught.exception.status_code, 409)
+        db.commit.assert_not_called()
+
+    def test_iso_audit_cycle_status_is_validated(self):
+        with self.assertRaises(ValueError):
+            schemas.ISOAuditCycleUpdate(
+                name="2027 Surveillance",
+                standard_version="ISO 9001:2015",
+                status="ARCHIVED",
+            )
+
+    def test_governance_date_rules_allow_backdating_but_reject_invalid_order(self):
+        backdated_day = schemas.IQADayScheduleCreate(
+            cycle_year="2025 Surveillance",
+            day_number=1,
+            day_date="2024-01-15",
+            title="Opening audit",
+            scope="Campus",
+        )
+        self.assertEqual(backdated_day.day_date, "2024-01-15")
+
+        with self.assertRaises(ValueError):
+            schemas.CARFormCreate(
+                date_issued="2026-03-10",
+                target_date="2026-03-09",
+            )
+        with self.assertRaises(ValueError):
+            schemas.QMSActionPlanCreate(
+                auditee_office="Registrar",
+                process_area="Records",
+                findings="Finding",
+                corrective_measure="Correct",
+                target_date="2026-03-20",
+                personnel_responsible="Registrar",
+                actual_completion_date="2026-03-15",
+                assessment_date="2026-03-14",
+            )
+
+    def test_iqa_day_numbers_must_follow_date_order(self):
+        db = MagicMock()
+        db.query.return_value.filter.return_value.all.return_value = [
+            User(id=uuid.uuid4(), day_number=1, day_date="2026-02-10")
+        ]
+        payload = schemas.IQADayScheduleCreate(
+            cycle_year="2026 Recertification",
+            day_number=2,
+            day_date="2026-02-09",
+            title="Second day",
+            scope="Campus",
+        )
+        with self.assertRaises(HTTPException) as caught:
+            self.routes["validate_iqa_day_chronology"](db, payload)
+        self.assertEqual(caught.exception.status_code, 400)
+
     def test_iso_mutation_cannot_target_another_office(self):
-        db = self.db_for(User(auditee_office="Registrar"))
+        db = self.db_for(User(auditee_office="Registrar", cycle_year="2025 Surveillance", status="ACTIVE"))
         self.denied(lambda: self.routes["delete_iso_requirement"]("id", db, user()))
         db.delete.assert_not_called()
 
@@ -466,6 +576,22 @@ class AuthorizationTests(unittest.TestCase):
 
         self.assertEqual([item["name"] for item in result], ["BSIT Evidence"])
 
+    def test_aaccup_pending_queue_is_newest_first(self):
+        cycle_id = uuid.uuid4()
+        backend = MagicMock()
+        backend.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+            {"metadata": {"accreditation_evidence_id": str(uuid.uuid4()), "accreditation_cycle_id": str(cycle_id), "name": "Older", "category": "Accreditation Evidence", "status": "Pending", "program": "BSIT", "upload_date": "2026-11-01T08:00:00"}},
+            {"metadata": {"accreditation_evidence_id": str(uuid.uuid4()), "accreditation_cycle_id": str(cycle_id), "name": "Newest", "category": "Accreditation Evidence", "status": "Pending", "program": "BSIT", "upload_date": "2026-11-09T08:00:00"}},
+        ]
+        self.routes["get_pending_accreditation"].__globals__["supabase"] = backend
+        db = MagicMock()
+        db.query.return_value.filter.return_value.all.return_value = [User(id=cycle_id)]
+
+        result = self.routes["get_pending_accreditation"](db, office_iqa(programs=["BSIT"]))
+
+        self.assertEqual([item["name"] for item in result], ["Newest", "Older"])
+        self.assertEqual(result[0]["uploaded_at"], "2026-11-09T08:00:00")
+
     def test_aaccup_review_checks_every_matching_chunk_before_update(self):
         evidence_id = uuid.uuid4()
         chunks = [{"id": 1, "metadata": {
@@ -480,6 +606,41 @@ class AuthorizationTests(unittest.TestCase):
 
         self.denied(lambda: self.routes["review_accreditation"](request, MagicMock(), office_iqa(programs=["BSIT"])))
         backend.table.return_value.update.assert_not_called()
+
+    def test_aaccup_upload_creates_stable_id_and_cleans_partial_artifacts(self):
+        tree = ast.parse(Path(__file__).with_name("main.py").read_text(encoding="utf-8"))
+        upload = next(
+            node for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "upload_accreditation_evidence"
+        )
+        source = ast.unparse(upload)
+        self.assertLess(
+            source.index("evidence_id = uuid.uuid4()"),
+            source.index("'accreditation_evidence_id': str(evidence_id)"),
+        )
+        self.assertIn("chunks_count = vector_store.add_to_vector_db", source)
+        self.assertIn("if chunks_count <= 0", source)
+        self.assertIn("metadata->>accreditation_evidence_id", source)
+        self.assertIn("supabase.storage.from_('documents').remove([stored_file_reference])", source)
+
+    def test_iqa_days_reject_duplicates_and_closed_cycles(self):
+        project = Path(__file__).parents[1]
+        tree = ast.parse(Path(__file__).with_name("main.py").read_text(encoding="utf-8"))
+        functions = {
+            node.name: ast.unparse(node)
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        for handler in ("create_iqa_schedule_day", "update_iqa_schedule_day", "delete_iqa_schedule_day"):
+            self.assertIn("require_editable_iso_audit_cycle", functions[handler])
+        self.assertIn("models.IQADaySchedule.id != item.id", functions["update_iqa_schedule_day"])
+        migration = (project / "supabase" / "20261109_unique_iqa_audit_day_number.sql").read_text(encoding="utf-8").lower()
+        self.assertIn("unique index", migration)
+        self.assertIn("program, cycle_year, day_number", migration)
+        frontend = (project / "src" / "app" / "pages" / "AccreditationSupport.tsx").read_text(encoding="utf-8")
+        self.assertIn("while (usedDayNumbers.has(nextDayNumber))", frontend)
+        self.assertIn("isSelectedIsoCycleClosed", frontend)
 
     def test_ched_review_status_checks_parent_program(self):
         requirement = User(program="BSHM", status="Pending")
@@ -503,7 +664,7 @@ class AuthorizationTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in result], ["Allowed"])
 
     def test_iso_evidence_review_checks_parent_office_before_update(self):
-        evidence = User(requirement=User(auditee_office="HR & Records Management"), status="Pending", admin_feedback="")
+        evidence = User(requirement=User(auditee_office="HR & Records Management", cycle_year="2025 Surveillance"), status="Pending", admin_feedback="")
         db = self.db_for(evidence)
         payload = self.routes["ISOEvidenceReviewRequest"](status="Approved", feedback="Checked")
 
@@ -512,25 +673,25 @@ class AuthorizationTests(unittest.TestCase):
         db.commit.assert_not_called()
 
     def test_qms_update_checks_old_and_new_office(self):
-        db = self.db_for(User(auditee_office="Registrar"))
+        db = self.db_for(User(auditee_office="Registrar", car=User(status="Acknowledged", assigned_to_id=None, responsible_office="Registrar")))
         self.denied(lambda: self.routes["update_qms_action_plan"]("id", schemas.QMSActionPlanUpdate(corrective_measure="Edit"), db, user()))
-        db = self.db_for(User(auditee_office="University Library"))
-        self.denied(lambda: self.routes["update_qms_action_plan"]("id", schemas.QMSActionPlanUpdate(auditee_office="Registrar"), db, user()))
+        db = self.db_for(User(auditee_office="University Library", car=User(status="Acknowledged", assigned_to_id=None, responsible_office="University Library")))
+        self.denied(lambda: self.routes["update_qms_action_plan"]("id", schemas.QMSActionPlanUpdate(auditee_office="Registrar"), db, user()), 409)
         db.commit.assert_not_called()
 
     def test_qms_assessment_is_reviewer_only(self):
-        db = self.db_for(User(auditee_office="University Library"))
+        db = self.db_for(User(auditee_office="University Library", assessment_notes=None, assessment_date=None, car=User(status="Acknowledged", assigned_to_id=None, responsible_office="University Library")))
         self.denied(lambda: self.routes["update_qms_action_plan"]("id", schemas.QMSActionPlanUpdate(assessment_notes="Verified"), db, user()))
 
     def test_qms_own_office_update_succeeds(self):
-        record = User(auditee_office="Library Office", corrective_measure="Old")
+        record = User(auditee_office="Library Office", corrective_measure="Old", car=User(status="Acknowledged", assigned_to_id=None, responsible_office="Library Office"))
         db = self.db_for(record)
         self.routes["update_qms_action_plan"]("id", schemas.QMSActionPlanUpdate(corrective_measure="New"), db, user())
         self.assertEqual(record.corrective_measure, "New")
         db.commit.assert_called_once()
 
     def test_unchanged_empty_assessment_fields_do_not_block_office_edits(self):
-        record = User(auditee_office="Library Office", corrective_measure="Old", assessment_notes=None, assessment_date=None)
+        record = User(auditee_office="Library Office", corrective_measure="Old", assessment_notes=None, assessment_date=None, car=User(status="Acknowledged", assigned_to_id=None, responsible_office="Library Office"))
         db = self.db_for(record)
         self.routes["update_qms_action_plan"]("id", schemas.QMSActionPlanUpdate(corrective_measure="New", assessment_notes="", assessment_date=""), db, user())
         db.commit.assert_called_once()
@@ -569,6 +730,84 @@ class AuthorizationTests(unittest.TestCase):
         self.denied(lambda: self.routes["update_car_form"]("id", schemas.CARFormUpdate(root_cause="x"), db, user()))
         db = self.db_for(User(iso_clause_id=None, area="Library Services"))
         self.denied(lambda: self.routes["update_car_form"]("id", schemas.CARFormUpdate(non_conformity_closed=True), db, user()))
+
+    def test_every_car_status_transition_matches_the_controlled_state_graph(self):
+        transitions = self.routes["CAR_STATUS_TRANSITIONS"]
+        validate = self.routes["validate_car_status_transition"]
+        statuses = set(transitions)
+
+        for current, allowed in transitions.items():
+            validate(current, current)
+            for requested in statuses - {current}:
+                if requested in allowed:
+                    validate(current, requested)
+                else:
+                    with self.assertRaises(HTTPException) as raised:
+                        validate(current, requested)
+                    self.assertEqual(raised.exception.status_code, 409)
+
+    def test_car_transition_roles_are_restricted_by_workflow_responsibility(self):
+        authorize = self.routes["authorize_car_status_transition"]
+        car = User(responsible_office="Library Office", assigned_to_id=None)
+        reviewer = assigned_personnel("QA_HEAD", "CAMPUS", "ARGAO")
+        office_head = assigned_personnel("OFFICE_HEAD", "OFFICE", "Library Office")
+        office_member = assigned_personnel("OFFICE_MEMBER", "OFFICE", "Library Office")
+        unrelated_head = assigned_personnel("OFFICE_HEAD", "OFFICE", "Registrar's Office")
+
+        authorize(reviewer, car, "Issued")
+        authorize(office_head, car, "Acknowledged")
+        authorize(office_member, car, "Response Submitted")
+        authorize(office_member, car, "In Progress")
+        authorize(office_member, car, "Awaiting Verification")
+        authorize(reviewer, car, "Returned")
+        authorize(reviewer, car, "Closed")
+        authorize(reviewer, car, "Void")
+
+        self.denied(lambda: authorize(office_head, car, "Issued"))
+        self.denied(lambda: authorize(unrelated_head, car, "Acknowledged"))
+        self.denied(lambda: authorize(unrelated_head, car, "Response Submitted"))
+        self.denied(lambda: authorize(office_member, car, "Closed"))
+
+    def test_complete_car_issuance_to_closure_scenario(self):
+        validate_transition = self.routes["validate_car_status_transition"]
+        authorize = self.routes["authorize_car_status_transition"]
+        stamp = self.routes["apply_car_lifecycle_timestamp"]
+        verify = self.routes["validate_car_verification_decision"]
+        reviewer = assigned_personnel("IQA_AUDITOR", "CAMPUS", "ARGAO")
+        office_head = assigned_personnel("OFFICE_HEAD", "OFFICE", "Library Office")
+        office_member = assigned_personnel("OFFICE_MEMBER", "OFFICE", "Library Office")
+        action = User(status="Completed", evidences=[User(id="implementation-evidence")])
+        car = User(
+            status="Draft", responsible_office="Library Office", assigned_to_id=None,
+            action_plan=[action], verification_evidences=[User(id="verification-evidence")],
+        )
+        actors = {
+            "Issued": reviewer,
+            "Acknowledged": office_head,
+            "Response Submitted": office_member,
+            "In Progress": office_member,
+            "Awaiting Verification": office_member,
+            "Closed": reviewer,
+        }
+
+        for requested in ("Issued", "Acknowledged", "Response Submitted", "In Progress", "Awaiting Verification"):
+            validate_transition(car.status, requested)
+            authorize(actors[requested], car, requested)
+            stamp(car, requested)
+            car.status = requested
+
+        verify(car, "Closed", "EFFECTIVE", "2026-11-15", "Implementation verified as effective.")
+        validate_transition(car.status, "Closed")
+        authorize(actors["Closed"], car, "Closed")
+        stamp(car, "Closed")
+        car.status = "Closed"
+
+        self.assertEqual(car.status, "Closed")
+        self.assertIsNotNone(car.issued_at)
+        self.assertIsNotNone(car.acknowledged_at)
+        self.assertIsNotNone(car.in_progress_at)
+        self.assertIsNotNone(car.awaiting_verification_at)
+        self.assertIsNotNone(car.closed_at)
 
     def test_paper_trail_direct_id_access_and_custody(self):
         record = User(sender_email="a@example.edu", recipient_email=None, office="Registrar", current_location="Registrar", origin_office="Finance", is_controlled_document=False, status="Received")
@@ -669,7 +908,7 @@ class AuthorizationTests(unittest.TestCase):
         frontend = (
             Path(__file__).parent.parent / "src" / "app" / "pages" / "PaperTrail.tsx"
         ).read_text(encoding="utf-8")
-        self.assertIn("const { userRole, assignments } = useRole()", frontend)
+        self.assertIn("const { userRole, assignments, referenceData } = useRole()", frontend)
         self.assertIn('assignment.scope_type === "OFFICE"', frontend)
         self.assertNotIn('sessionStorage.getItem("userAdministrativeOffice")', frontend)
         self.assertNotIn("ISO_OFFICES_16", frontend)
@@ -797,6 +1036,13 @@ class AuthorizationTests(unittest.TestCase):
         expected_guards = {
             ("GET", "/users"): "Depends(get_current_admin)",
             ("GET", "/settings"): "Depends(get_current_admin)",
+            ("GET", "/settings/reference-data"): "Depends(get_current_admin)",
+            ("POST", "/settings/organizational-units"): "Depends(get_current_admin)",
+            ("PUT", "/settings/organizational-units/{unit_id}"): "Depends(get_current_admin)",
+            ("POST", "/settings/programs"): "Depends(get_current_admin)",
+            ("PUT", "/settings/programs/{program_id}"): "Depends(get_current_admin)",
+            ("PUT", "/settings/iso-mappings/{office_id}"): "Depends(get_current_admin)",
+            ("GET", "/settings/configuration-history"): "Depends(get_current_admin)",
             ("POST", "/ask-policy"): "Depends(get_current_user)",
             ("GET", "/documents/file-url"): "Depends(get_current_user)",
             ("GET", "/paper-trail"): "Depends(get_current_paper_trail_reader)",
@@ -964,6 +1210,42 @@ class AuthorizationTests(unittest.TestCase):
             with self.subTest(handler=handler):
                 self.assertIn(handler, functions)
                 self.assertIn(scope_check, functions[handler])
+
+    def test_document_composer_rejects_active_and_external_content(self):
+        validate = self.routes["validate_safe_generated_html"]
+        attacks = [
+            '<script>alert(1)</script>',
+            '<img src="https://attacker.example/pixel.png">',
+            '<img src=x onerror="alert(1)">',
+            '<meta http-equiv="refresh" content="0;url=https://attacker.example">',
+            '<div style="background:url(//attacker.example/a.png)">x</div>',
+            '<a href="javascript:alert(1)">click</a>',
+            '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+        ]
+        for attack in attacks:
+            with self.subTest(attack=attack):
+                self.denied(lambda value=attack: validate(value), 422)
+        self.assertEqual(validate('<html><body><table><tr><td>Safe</td></tr></table></body></html>'), '<html><body><table><tr><td>Safe</td></tr></table></body></html>')
+
+    def test_document_template_dynamic_schema_requires_exact_detected_fields(self):
+        validate = self.routes["validate_template_html"]
+        result = validate("NEW_FORM", "<p>[TITLE]</p><p>[DATE]</p>", [
+            {"key": "TITLE", "label": "Title", "type": "text", "required": True},
+            {"key": "DATE", "label": "Date", "type": "date", "required": True},
+        ])
+        self.assertTrue(result["valid"])
+        self.assertEqual({field["key"] for field in result["field_schema"]}, {"TITLE", "DATE"})
+        self.denied(lambda: validate("NEW_FORM", "<p>[TITLE]</p><p>[DATE]</p>", [
+            {"key": "TITLE", "label": "Title", "type": "text"},
+        ]), 422)
+
+    def test_generated_document_access_is_owner_scoped(self):
+        owner = user("PERSONNEL")
+        other = user("PERSONNEL")
+        record = User(created_by_id=owner.id)
+        self.routes["require_generated_document_access"](record, owner)
+        self.routes["require_generated_document_access"](record, user("SYSTEM_ADMIN"))
+        self.denied(lambda: self.routes["require_generated_document_access"](record, other), 403)
 
 
 if __name__ == "__main__":

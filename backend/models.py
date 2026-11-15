@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, ForeignKey, Integer, BigInteger, Float, UniqueConstraint, CheckConstraint, Index, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
@@ -186,7 +186,9 @@ class SystemSettings(Base):
     otp_expiration = Column(Integer, default=10)
     
     # AI Engine Settings
+    ai_provider = Column(String(20), default="local")
     ai_model = Column(String(100), default="qwen2.5")
+    groq_model = Column(String(100), default="qwen/qwen3.8-27b")
     ai_temperature = Column(Float, default=0.3)
     ai_system_prompt = Column(Text, default="You are the friendly and professional AI Policy Assistant for Cebu Technological University (CTU) Argao Campus. INSTRUCTIONS: 1. If the question is about university rules, grades, or handbooks, use the CONTEXT provided below to answer. 2. If NO CONTEXT is found, apologize and direct them to the campus office.")
     rag_max_chunks = Column(Integer, default=5)
@@ -290,6 +292,27 @@ class ISOAuditCycle(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     results = relationship("ISOAuditResult", back_populates="cycle", cascade="all, delete-orphan")
+    audit_findings = relationship("ISOAuditFinding", back_populates="cycle")
+
+
+class ISOAuditFinding(Base):
+    __tablename__ = "iso_audit_findings"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cycle_id = Column(UUID(as_uuid=True), ForeignKey("iso_audit_cycles.id", ondelete="RESTRICT"), nullable=False)
+    iso_clause_id = Column(UUID(as_uuid=True), ForeignKey("iso_requirements.id", ondelete="SET NULL"), nullable=True)
+    responsible_office = Column(String(255), nullable=False)
+    finding_text = Column(Text, nullable=False)
+    requirement_reference = Column(Text, nullable=True)
+    objective_evidence = Column(Text, nullable=True)
+    nonconformity_statement = Column(Text, nullable=True)
+    finding_category = Column(String(50), default="UNKNOWN", nullable=False)
+    source_type = Column(String(30), default="MANUAL", nullable=False)
+    source_record_key = Column(String(100), unique=True, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    cycle = relationship("ISOAuditCycle", back_populates="audit_findings")
+    iso_requirement = relationship("ISORequirement")
+    car_form = relationship("CARForm", back_populates="audit_finding", uselist=False)
 
 
 class ISOAuditResult(Base):
@@ -384,6 +407,11 @@ class IQADaySchedule(Base):
 class QMSActionPlan(Base):
     __tablename__ = "qms_action_plans"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    car_id = Column(UUID(as_uuid=True), ForeignKey("car_forms.id", ondelete="RESTRICT"), nullable=False)
+    sequence_number = Column(Integer, nullable=False)
+    action_type = Column(String(30), default="CORRECTIVE_ACTION", nullable=False)
+    expected_evidence = Column(Text, nullable=False)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     cycle_year = Column(String(50), default="2025 Surveillance", nullable=False)
     auditee_office = Column(String(255), nullable=False)
     process_area = Column(String(255), nullable=False)
@@ -403,6 +431,24 @@ class QMSActionPlan(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     evidences = relationship("QMSEvidence", back_populates="action_plan", cascade="all, delete-orphan")
+    car = relationship("CARForm", back_populates="action_plan")
+    owner_user = relationship("User", foreign_keys=[owner_user_id])
+
+    @property
+    def owner_name(self):
+        return self.owner_user.full_name if self.owner_user else self.personnel_responsible
+
+    @property
+    def car_no(self):
+        return self.car.car_no if self.car else None
+
+    @property
+    def car_status(self):
+        return self.car.status if self.car else None
+
+    @property
+    def iso_clause_id(self):
+        return self.car.iso_clause_id if self.car else None
 
 
 class QMSEvidence(Base):
@@ -416,6 +462,27 @@ class QMSEvidence(Base):
     upload_date = Column(DateTime, default=datetime.utcnow)
 
     action_plan = relationship("QMSActionPlan", back_populates="evidences")
+
+
+class CARVerificationEvidence(Base):
+    __tablename__ = "car_verification_evidences"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    car_id = Column(UUID(as_uuid=True), ForeignKey("car_forms.id", ondelete="CASCADE"), nullable=False)
+    file_name = Column(Text, nullable=False)
+    storage_path = Column(Text, nullable=False)
+    mime_type = Column(String(120), nullable=True)
+    file_size = Column(BigInteger, nullable=False)
+    sha256 = Column(String(64), nullable=False)
+    notes = Column(Text, nullable=True)
+    uploaded_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    uploaded_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    car = relationship("CARForm", back_populates="verification_evidences")
+    uploaded_by_user = relationship("User", foreign_keys=[uploaded_by_id])
+
+    @property
+    def uploaded_by_name(self):
+        return self.uploaded_by_user.full_name if self.uploaded_by_user else None
 
 
 # --- NEW: PROGRAM ACCREDITATION TABLES ---
@@ -524,11 +591,26 @@ class CssResponse(Base):
     full_name = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True)
 
+class SurveySyncRun(Base):
+    __tablename__ = "survey_sync_runs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String(20), nullable=False, default="running")
+    fetched_count = Column(Integer, nullable=False, default=0)
+    inserted_count = Column(Integer, nullable=False, default=0)
+    skipped_count = Column(Integer, nullable=False, default=0)
+    max_cloud_created_at = Column(DateTime(timezone=True), nullable=True)
+    error_message = Column(Text, nullable=True)
+    triggered_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
 class CARForm(Base):
     __tablename__ = "car_forms"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     cycle_year = Column(String(50), default="2025 Surveillance", nullable=False)
+    cycle_id = Column(UUID(as_uuid=True), ForeignKey("iso_audit_cycles.id", ondelete="RESTRICT"), nullable=False)
     iso_clause_id = Column(UUID(as_uuid=True), ForeignKey("iso_requirements.id", ondelete="SET NULL"), nullable=True)
+    audit_finding_id = Column(UUID(as_uuid=True), ForeignKey("iso_audit_findings.id", ondelete="RESTRICT"), nullable=False, unique=True)
     car_no = Column(String(100), nullable=True)
     date_issued = Column(String(50), nullable=True)
     revision = Column(String(50), nullable=True)
@@ -539,15 +621,221 @@ class CARForm(Base):
     acknowledged_by = Column(String(255), nullable=True)
     campus = Column(String(255), nullable=True)
     area = Column(String(255), nullable=True)
+    responsible_office = Column(String(255), nullable=False)
+    issued_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    acknowledged_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    verified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    source_file_path = Column(Text, nullable=True)
+    source_file_name = Column(Text, nullable=True)
+    source_mime_type = Column(String(120), nullable=True)
+    source_file_size = Column(BigInteger, nullable=True)
+    source_sha256 = Column(String(64), nullable=True)
+    ocr_model = Column(String(120), nullable=True)
+    ocr_version = Column(String(80), nullable=True)
+    ocr_extracted_at = Column(DateTime(timezone=True), nullable=True)
+    ocr_raw_json = Column(JSONB, nullable=True)
+    ocr_confidence_json = Column(JSONB, nullable=True)
+    human_verified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    human_verified_at = Column(DateTime(timezone=True), nullable=True)
+    root_cause_method = Column(String(30), nullable=True)
+    root_cause_analysis = Column(JSONB, nullable=True)
+    response_submitted_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    response_submitted_at = Column(DateTime(timezone=True), nullable=True)
+    effectiveness_outcome = Column(String(50), nullable=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    reopened_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reopened_at = Column(DateTime(timezone=True), nullable=True)
+    reopen_reason = Column(Text, nullable=True)
+    reopen_count = Column(Integer, default=0, nullable=False)
     findings = Column(Text, nullable=True)
     root_cause = Column(Text, nullable=True)
     immediate_action = Column(Text, nullable=True)
     corrective_measure = Column(Text, nullable=True)
     measures_proposed_by = Column(String(255), nullable=True)
     target_date = Column(String(50), nullable=True)
-    status = Column(String(50), default="Open")
+    status = Column(String(50), default="Issued")
     follow_up_result = Column(String(255), nullable=True)
     follow_up_date = Column(String(50), nullable=True)
     comments_remarks = Column(Text, nullable=True)
     non_conformity_closed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    issued_at = Column(DateTime(timezone=True), nullable=True)
+    acknowledged_at = Column(DateTime(timezone=True), nullable=True)
+    in_progress_at = Column(DateTime(timezone=True), nullable=True)
+    awaiting_verification_at = Column(DateTime(timezone=True), nullable=True)
+    returned_at = Column(DateTime(timezone=True), nullable=True)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    voided_at = Column(DateTime(timezone=True), nullable=True)
+    voided_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    void_reason = Column(Text, nullable=True)
+
+    cycle = relationship("ISOAuditCycle")
+    audit_finding = relationship("ISOAuditFinding", back_populates="car_form")
+    action_plan = relationship("QMSActionPlan", back_populates="car", cascade="all, delete-orphan")
+    issued_by_user = relationship("User", foreign_keys=[issued_by_id])
+    acknowledged_by_user = relationship("User", foreign_keys=[acknowledged_by_id])
+    assigned_to_user = relationship("User", foreign_keys=[assigned_to_id])
+    verified_by_user = relationship("User", foreign_keys=[verified_by_id])
+    human_verified_by_user = relationship("User", foreign_keys=[human_verified_by_id])
+    response_submitted_by_user = relationship("User", foreign_keys=[response_submitted_by_id])
+    reopened_by_user = relationship("User", foreign_keys=[reopened_by_id])
+    voided_by_user = relationship("User", foreign_keys=[voided_by_id])
+    verification_evidences = relationship("CARVerificationEvidence", back_populates="car", cascade="all, delete-orphan")
+    status_history = relationship("CARStatusHistory", back_populates="car", cascade="all, delete-orphan", order_by="CARStatusHistory.changed_at")
+    revision_history = relationship("CARRevisionHistory", back_populates="car", cascade="all, delete-orphan", order_by="CARRevisionHistory.changed_at")
+
+    @property
+    def action_plan_id(self):
+        return self.action_plan[0].id if self.action_plan else None
+
+    @property
+    def action_plan_count(self):
+        return len(self.action_plan or [])
+
+    @property
+    def response_submitted_by_name(self):
+        return self.response_submitted_by_user.full_name if self.response_submitted_by_user else None
+
+    @property
+    def reopened_by_name(self):
+        return self.reopened_by_user.full_name if self.reopened_by_user else None
+
+    @property
+    def voided_by_name(self):
+        return self.voided_by_user.full_name if self.voided_by_user else None
+
+    @property
+    def issued_by_name(self):
+        return self.issued_by_user.full_name if self.issued_by_user else None
+
+    @property
+    def acknowledged_by_name(self):
+        return self.acknowledged_by_user.full_name if self.acknowledged_by_user else None
+
+    @property
+    def assigned_to_name(self):
+        return self.assigned_to_user.full_name if self.assigned_to_user else None
+
+    @property
+    def verified_by_name(self):
+        return self.verified_by_user.full_name if self.verified_by_user else None
+
+    @property
+    def human_verified_by_name(self):
+        return self.human_verified_by_user.full_name if self.human_verified_by_user else None
+
+    @property
+    def requirement_reference(self):
+        return self.audit_finding.requirement_reference if self.audit_finding else None
+
+    @property
+    def objective_evidence(self):
+        return self.audit_finding.objective_evidence if self.audit_finding else None
+
+    @property
+    def nonconformity_statement(self):
+        return self.audit_finding.nonconformity_statement if self.audit_finding else self.findings
+
+    @property
+    def days_overdue(self):
+        if self.status in {"Closed", "Void"} or not self.target_date:
+            return 0
+        try:
+            target = datetime.strptime(self.target_date, "%Y-%m-%d").date()
+            return max(0, (datetime.utcnow().date() - target).days)
+        except (TypeError, ValueError):
+            return 0
+
+    @property
+    def is_overdue(self):
+        return self.days_overdue > 0
+
+
+class CARNumberCounter(Base):
+    __tablename__ = "car_number_counters"
+    cycle_id = Column(UUID(as_uuid=True), ForeignKey("iso_audit_cycles.id", ondelete="CASCADE"), primary_key=True)
+    next_number = Column(Integer, nullable=False, default=1)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class CARStatusHistory(Base):
+    __tablename__ = "car_status_history"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    car_id = Column(UUID(as_uuid=True), ForeignKey("car_forms.id", ondelete="CASCADE"), nullable=False)
+    from_status = Column(String(50), nullable=True)
+    to_status = Column(String(50), nullable=False)
+    reason = Column(Text, nullable=True)
+    changed_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    changed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    car = relationship("CARForm", back_populates="status_history")
+    changed_by_user = relationship("User")
+
+    @property
+    def changed_by_name(self):
+        return self.changed_by_user.full_name if self.changed_by_user else None
+
+
+class CARRevisionHistory(Base):
+    __tablename__ = "car_revision_history"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    car_id = Column(UUID(as_uuid=True), ForeignKey("car_forms.id", ondelete="CASCADE"), nullable=False)
+    changed_fields = Column(JSONB, nullable=False)
+    changed_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    changed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    car = relationship("CARForm", back_populates="revision_history")
+    changed_by_user = relationship("User")
+
+    @property
+    def changed_by_name(self):
+        return self.changed_by_user.full_name if self.changed_by_user else None
+
+
+class CARNotificationEvent(Base):
+    __tablename__ = "car_notification_events"
+    __table_args__ = (UniqueConstraint("car_id", "event_key", "recipient_email", name="uq_car_notification_event"),)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    car_id = Column(UUID(as_uuid=True), ForeignKey("car_forms.id", ondelete="CASCADE"), nullable=False)
+    event_key = Column(String(120), nullable=False)
+    recipient_email = Column(Text, nullable=False)
+    sent_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+
+class GeneratedDocument(Base):
+    __tablename__ = "generated_documents"
+    __table_args__ = (
+        CheckConstraint("status in ('DRAFT','FINALIZED','SUPERSEDED','VOIDED')", name="generated_documents_status_valid"),
+        CheckConstraint("source_type in ('NONE','CAR_FORM','CAR_MASTER_LOG','ISO_AUDIT_CYCLE','MRC_RECORD')", name="generated_documents_source_type_valid"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(Text, nullable=False)
+    template_name = Column(Text, nullable=False)
+    template_code = Column(Text, nullable=False)
+    template_version = Column(Text, nullable=False)
+    status = Column(String(20), default="DRAFT", nullable=False)
+    field_values = Column(JSONB, default=dict, nullable=False)
+    rendered_html = Column(Text, nullable=False)
+    source_type = Column(String(30), default="NONE", nullable=False)
+    source_id = Column(UUID(as_uuid=True), nullable=True)
+    source_reference = Column(Text, nullable=True)
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    last_edited_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    finalized_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    supersedes_id = Column(UUID(as_uuid=True), ForeignKey("generated_documents.id", ondelete="RESTRICT"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    finalized_at = Column(DateTime(timezone=True), nullable=True)
+    voided_at = Column(DateTime(timezone=True), nullable=True)
+    void_reason = Column(Text, nullable=True)
+
+
+class GeneratedDocumentEvent(Base):
+    __tablename__ = "generated_document_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    generated_document_id = Column(UUID(as_uuid=True), ForeignKey("generated_documents.id", ondelete="CASCADE"), nullable=False)
+    event_type = Column(String(30), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_email = Column(Text, nullable=False)
+    details = Column(JSONB, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

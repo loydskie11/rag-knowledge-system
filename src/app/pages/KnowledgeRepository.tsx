@@ -3,8 +3,6 @@ import { useState, useRef, useEffect } from "react"
 import { Search, Filter, Upload, Download, Edit, Archive, Clock, Eye, CheckCircle, FileText, UploadCloud, X, Loader2, AlertCircle, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react"
 import axios from "axios"
 import { useRole } from "../contexts/RoleContext"
-import { ISO_OFFICES_16 } from "./UsersRoles"
-import { CAMPUS_OFFICES, CAMPUS_PROGRAMS } from "../constants/academicScopes"
 import { useUploadQueue } from "../contexts/UploadQueueContext"
 import { apiClient } from "../api/client";
 
@@ -53,7 +51,7 @@ async function sha256File(file: File): Promise<string> {
 }
 
 export function KnowledgeRepository() {
-  const { userRole } = useRole()
+  const { userRole, referenceData } = useRole()
   const currentRole = userRole || "STUDENT"
 
   const canUpload = hasPermission(currentRole, "canUploadDocuments")
@@ -62,10 +60,11 @@ export function KnowledgeRepository() {
   const assignedOffices = assignments.filter((item) => item.scope_type === "OFFICE").map((item) => item.scope_name).filter(Boolean)
   const allowedPrograms: string[] = (() => { try { return JSON.parse(sessionStorage.getItem("allowedPrograms") || "[]") } catch { return [] } })()
   const documentOffices = currentRole === "SYSTEM_ADMIN"
-    ? [...CAMPUS_OFFICES]
+    ? referenceData.offices.map(item => item.name)
     : assignedOffices
   const defaultOffice = documentOffices[0] || ""
-  const selectablePrograms = currentRole === "SYSTEM_ADMIN" ? CAMPUS_PROGRAMS : CAMPUS_PROGRAMS.filter((program) => allowedPrograms.includes(program.code))
+  const livePrograms = referenceData.programs.map(program => ({ code: program.code, label: program.name, college: program.college_name || "Academic Program" }))
+  const selectablePrograms = currentRole === "SYSTEM_ADMIN" ? livePrograms : livePrograms.filter((program) => allowedPrograms.includes(program.code))
   const defaultProgram = selectablePrograms[0]?.code || ""
   const availableScopeTypes: RepositoryScopeType[] = currentRole === "SYSTEM_ADMIN"
     ? ["CAMPUS", "OFFICE", "PROGRAM"]
@@ -123,7 +122,7 @@ export function KnowledgeRepository() {
   const [formData, setFormData] = useState({
     name: "",
     category: "Policy",
-    office: defaultScopeType === "OFFICE" ? defaultOffice : defaultScopeType === "PROGRAM" ? CAMPUS_PROGRAMS.find(item => item.code === defaultProgram)?.college || "Academic Program" : "Campus-wide",
+    office: defaultScopeType === "OFFICE" ? defaultOffice : defaultScopeType === "PROGRAM" ? livePrograms.find(item => item.code === defaultProgram)?.college || "Academic Program" : "Campus-wide",
     program: defaultScopeType === "PROGRAM" ? defaultProgram : "GLOBAL",
     scopeType: defaultScopeType,
     scopeCode: defaultScopeCode,
@@ -134,7 +133,7 @@ export function KnowledgeRepository() {
   const scopeValues = (data: typeof formData) => {
     if (data.scopeType === "OFFICE") return { office: data.scopeCode, program: "GLOBAL" }
     if (data.scopeType === "PROGRAM") {
-      const program = CAMPUS_PROGRAMS.find(item => item.code === data.scopeCode)
+      const program = livePrograms.find(item => item.code === data.scopeCode)
       return { office: program?.college || "Academic Program", program: data.scopeCode }
     }
     return { office: "Campus-wide", program: "GLOBAL" }
@@ -142,7 +141,7 @@ export function KnowledgeRepository() {
 
   const resetForm = () => setFormData({
     name: "", category: "Policy",
-    office: defaultScopeType === "OFFICE" ? defaultOffice : defaultScopeType === "PROGRAM" ? CAMPUS_PROGRAMS.find(item => item.code === defaultProgram)?.college || "Academic Program" : "Campus-wide",
+    office: defaultScopeType === "OFFICE" ? defaultOffice : defaultScopeType === "PROGRAM" ? livePrograms.find(item => item.code === defaultProgram)?.college || "Academic Program" : "Campus-wide",
     program: defaultScopeType === "PROGRAM" ? defaultProgram : "GLOBAL",
     scopeType: defaultScopeType, scopeCode: defaultScopeCode,
     version: "", effectivityDate: "",
@@ -655,7 +654,7 @@ export function KnowledgeRepository() {
   }
 
   return (
-    <div className="space-y-6 flex flex-col h-[calc(100vh-6rem)] relative">
+    <div className="relative flex min-h-[calc(100dvh-6rem)] flex-col space-y-6 md:h-[calc(100vh-6rem)] md:min-h-0">
       
       {/* TOAST NOTIFICATION */}
       {toast && (
@@ -821,9 +820,9 @@ export function KnowledgeRepository() {
                 onChange={(e) => setSelectedOffice(e.target.value)}
               >
                 <option value="all">All Offices</option>
-                {ISO_OFFICES_16.map((office) => (
-                  <option key={office} value={office}>
-                    {office}
+                {referenceData.iso_process_groups.map((group) => (
+                  <option key={group.id} value={group.name}>
+                    {group.name}
                   </option>
                 ))}
               </select>
@@ -859,8 +858,54 @@ export function KnowledgeRepository() {
         </div>
       )}
 
-      <div className="flex-1 h-auto bg-white rounded-xl border border-gray-200 shadow-2xs flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 h-auto overflow-auto">
+      <div className="flex h-auto min-h-0 flex-1 flex-col rounded-xl border border-gray-200 bg-white shadow-2xs md:overflow-hidden">
+        <div className="divide-y divide-gray-100 md:hidden">
+          {filteredDocuments.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-gray-400">No documents found matching your search criteria.</div>
+          ) : filteredDocuments.map((doc, idx) => (
+            <article key={doc.id || `${doc.name}-${doc.version || '1.0'}-${idx}`} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="break-words text-sm font-semibold leading-5 text-gray-900">{doc.name}</h2>
+                  <p className="mt-0.5 text-xs text-gray-400">
+                    {doc.status === "Archived" ? "Historical Record" : doc.status === "Superseded" ? "Replaced by newer version" : "Repository File"}
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-medium ${
+                  doc.status === "Archived" || doc.status === "Superseded"
+                    ? "border-gray-200 bg-gray-100 text-gray-600"
+                    : doc.status === "Approved"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : doc.status === "Needs Revision"
+                        ? "border-rose-200 bg-rose-50 text-rose-700"
+                        : "border-amber-200 bg-amber-50 text-amber-700"
+                }`}>{doc.status || "Active"}</span>
+              </div>
+
+              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                <div className="min-w-0"><dt className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Category</dt><dd className="mt-1 break-words text-gray-700">{doc.category}</dd></div>
+                <div className="min-w-0"><dt className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Office</dt><dd className="mt-1 break-words text-gray-700">{doc.office || "Not assigned"}</dd></div>
+                <div><dt className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Program</dt><dd className="mt-1"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-medium ${doc.program && doc.program !== "GLOBAL" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-gray-200 bg-gray-100 text-gray-600"}`}>{doc.program && doc.program !== "GLOBAL" ? doc.program : "Global"}</span></dd></div>
+                <div><dt className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Version · Effectivity</dt><dd className="mt-1 text-gray-700">v{doc.version} · {doc.effectivity_date || "N/A"}</dd></div>
+              </dl>
+
+              {doc.status === "Needs Revision" && doc.admin_feedback && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{doc.admin_feedback}</p>}
+
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+                <button onClick={() => handleView(doc)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700"><Eye className="h-3.5 w-3.5" /> View</button>
+                <button onClick={() => handleDownload(doc)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700"><Download className="h-3.5 w-3.5" /> Download</button>
+                {canEdit && doc.can_manage && doc.status !== "Archived" && <>
+                  <button onClick={() => handleUpdateVersionClick(doc)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700"><UploadCloud className="h-3.5 w-3.5" /> Version</button>
+                  <button onClick={() => handleEditClick(doc)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600" aria-label={`Edit ${doc.name}`}><Edit className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => handleArchiveClick(doc)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-rose-600" aria-label={`Archive ${doc.name}`}><Archive className="h-3.5 w-3.5" /></button>
+                </>}
+                {doc.can_manage && doc.status === "Pending Review" && <button onClick={() => approveDocument(doc)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700"><CheckCircle className="h-3.5 w-3.5" /> Approve</button>}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden flex-1 h-auto overflow-auto md:block">
           <table className="w-full whitespace-nowrap relative table-fixed">
             <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 z-20">
               <tr>

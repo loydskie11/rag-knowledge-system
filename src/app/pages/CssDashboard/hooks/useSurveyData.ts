@@ -37,6 +37,18 @@ interface UseSurveyDataReturn {
   resetFilters: () => void;
   refetch: () => void;
   lastUpdated: Date | null;
+  syncStatus: SurveySyncStatus | null;
+  syncing: boolean;
+  syncNow: () => Promise<void>;
+}
+
+export interface SurveySyncStatus {
+  configured: boolean;
+  status: 'never' | 'running' | 'success' | 'failed';
+  last_sync?: string | null;
+  inserted_count?: number;
+  skipped_count?: number;
+  error_message?: string | null;
 }
 
 export function useSurveyData(): UseSurveyDataReturn {
@@ -46,6 +58,8 @@ export function useSurveyData(): UseSurveyDataReturn {
   const [connected, setConnected] = useState(false);
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SurveySyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -64,9 +78,55 @@ export function useSurveyData(): UseSurveyDataReturn {
     }
   }, []);
 
+  const fetchSyncStatus = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/api/css-responses/sync-status');
+      const status = response.data as SurveySyncStatus;
+      setSyncStatus(status);
+      return status;
+    } catch {
+      // Cloud status must never prevent access to already-local responses.
+      return null;
+    }
+  }, []);
+
+  const syncNow = useCallback(async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const response = await apiClient.post('/api/css-responses/sync');
+      setSyncStatus(response.data as SurveySyncStatus);
+      await fetchData();
+    } catch (err: any) {
+      await fetchSyncStatus();
+      throw err;
+    } finally {
+      setSyncing(false);
+    }
+  }, [fetchData, fetchSyncStatus, syncing]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    let active = true;
+    const checkForCloudResponses = async () => {
+      const status = await fetchSyncStatus();
+      if (!active || !status?.configured || status.status === 'running') return;
+      const lastSync = status.last_sync ? new Date(status.last_sync).getTime() : 0;
+      const stale = !lastSync || Date.now() - lastSync > 5 * 60 * 1000;
+      if (stale) {
+        try { await syncNow(); } catch { /* Existing local data remains usable offline. */ }
+      }
+    };
+    void checkForCloudResponses();
+    const interval = window.setInterval(checkForCloudResponses, 5 * 60 * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [fetchSyncStatus, syncNow]);
 
   // Derive distinct years from data + current year
   const availableYears = useMemo(() => {
@@ -131,5 +191,8 @@ export function useSurveyData(): UseSurveyDataReturn {
     resetFilters,
     refetch: fetchData,
     lastUpdated,
+    syncStatus,
+    syncing,
+    syncNow,
   };
 }

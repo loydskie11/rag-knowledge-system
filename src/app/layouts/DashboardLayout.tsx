@@ -77,16 +77,17 @@ export function DashboardLayout() {
     icon: typeof LayoutDashboard;
     permission: PermissionKey;
     isExternal?: boolean;
+    activePaths?: string[];
   }> = [
     { path: "/app",                        label: "Dashboard",                  icon: LayoutDashboard,    permission: "canAccessDashboard"             },
-    { path: "/app/ask-policy",             label: "AI Assistant",               icon: Sparkles,           permission: "canAccessAskPolicy"             },
+    { path: "/app/ask-policy",             label: "AskPolicy AI Assistant",     icon: Sparkles,           permission: "canAccessAskPolicy"             },
     { path: "/app/knowledge-repository",   label: "Knowledge Repository",       icon: Database,           permission: "canAccessKnowledgeRepository"    },
     { path: "/app/paper-trail",            label: "Document Tracking",          icon: FileCheck,          permission: "canAccessPaperTrail"             },
     { path: "/app/accreditation-support",  label: "Accreditation Support",      icon: Award,              permission: "canAccessAccreditationSupport"   },
     { path: "/app/audit-trail",            label: "Audit Trail",                icon: Clock,              permission: "canAccessAuditTrail"             },
     { path: "/app/users-roles",            label: "Users & Roles",              icon: Users,              permission: "canAccessUsersRoles"             },
     { path: "/app/broadcast-announcement", label: "Broadcast Announcement",     icon: Radio,              permission: "canAccessBroadcastAnnouncement"  },
-    { path: "/app/document-generator",     label: "Document Generator",         icon: FileText,           permission: "canAccessDocumentGenerator"      },
+    { path: "/app/document-composer",      label: "Document Generator",         icon: FileText,           permission: "canAccessDocumentGenerator" },
     { path: "/app/grade-evaluation",       label: "Grade Evaluation",           icon: ClipboardCheck,     permission: "canAccessGradeEvaluation"        },
     { 
       path: "https://ctu-client-satisfaction-survey.vercel.app/", 
@@ -255,7 +256,7 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
             <div className="flex flex-col h-full overflow-hidden">
               <div className="flex-1 overflow-y-auto pt-4.5 pb-3 px-2.5 custom-scrollbar space-y-1">
                 {menuItems.map((item: any) => {
-                  const isActive = location.pathname === item.path;
+                  const isActive = location.pathname === item.path || item.activePaths?.includes(location.pathname);
                   const Icon = item.icon;
 
                   if (item.isExternal) {
@@ -325,11 +326,11 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
 
       {/* Main Layout Body: full width on mobile, offset on desktop */}
       <main
-        className={`transition-all duration-300 pt-[61px] min-h-screen ml-0 ${
+        className={`min-h-screen min-w-0 overflow-x-clip pt-[61px] ml-0 transition-all duration-300 ${
           sidebarCollapsed ? "md:ml-16" : "md:ml-64"
         }`}
       >
-        <div className="min-w-0 p-3 sm:p-6 lg:p-8">
+        <div className="min-w-0 w-full p-3 sm:p-6 lg:p-8">
           <Outlet />
         </div>
       </main>
@@ -350,7 +351,7 @@ await apiClient.post(`/logout`, {}, { withCredentials: true });
               <div className="p-4 bg-[#DD7230] text-white flex justify-between items-center shadow-md shrink-0">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 animate-pulse text-white" />
-                  <span className="font-bold text-sm tracking-wide">AskPolicy Assistant</span>
+                  <span className="font-bold text-sm tracking-wide">AskPolicy AI Assistant</span>
                 </div>
                 <button 
                   onClick={() => setIsAIChatOpen(false)}

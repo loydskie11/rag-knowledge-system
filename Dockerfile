@@ -1,13 +1,13 @@
 ﻿# Stage 1: Build the React application
-FROM node:18-alpine AS build
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json ./
+# Copy package files first so dependency installation remains cacheable.
+COPY package.json package-lock.json ./
 
-# Install dependencies (ignoring peer dependency warnings)
-RUN npm install --legacy-peer-deps
+# Install the exact dependency versions recorded in the lockfile.
+RUN npm ci --legacy-peer-deps
 
 # Copy the rest of the frontend source code
 COPY . .

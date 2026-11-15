@@ -13,7 +13,8 @@ export type BackendCapability =
   | "broadcast.manage" | "governance.access" | "governance.review"
   | "governance.manage" | "governance.cross_office" | "documents.manage"
   | "paper_trail.read" | "paper_trail.control" | "survey.analytics"
-  | "survey.cross_office";
+  | "survey.cross_office" | "car.issue" | "car.acknowledge"
+  | "car.respond" | "car.verify";
 
 const studentPermissions: Record<PermissionKey, boolean> = {
   canAccessDashboard: true, canAccessKnowledgeRepository: true, canAccessAskPolicy: true,
@@ -74,7 +75,7 @@ export function getAccessibleRoutes(role: UserRole) {
     ["canAccessAuditTrail", "/app/audit-trail"],
     ["canAccessUsersRoles", "/app/users-roles"], ["canAccessSettings", "/app/settings"],
     ["canAccessBroadcastAnnouncement", "/app/broadcast-announcement"],
-    ["canAccessDocumentGenerator", "/app/document-generator"], ["canAccessPaperTrail", "/app/paper-trail"],
+    ["canAccessDocumentGenerator", "/app/document-composer"], ["canAccessPaperTrail", "/app/paper-trail"],
     ["canAccessGradeEvaluation", "/app/grade-evaluation"], ["canAccessClientSurvey", "/app/client-survey"],
     ["canAccessServiceSatisfaction", "/app/client-survey-dashboard"],
   ];

@@ -5,9 +5,9 @@ import {
   ChevronRight, History, QrCode, ExternalLink, ShieldCheck
 } from "lucide-react";
 import { useRole } from "../contexts/RoleContext";
-import { CAMPUS_COLLEGES, CAMPUS_OFFICES } from "../constants/academicScopes";
 import { apiClient } from "../api/client";
 import { hasCapability } from "../utils/rolePermissions";
+import { Skeleton } from "../components/ui/skeleton";
 interface PaperTrailLog {
   id: string;
   record_id: string;
@@ -46,7 +46,9 @@ interface PaperTrailRecord {
 }
 
 export function PaperTrail() {
-  const { userRole, assignments } = useRole();
+  const { userRole, assignments, referenceData } = useRole();
+  const CAMPUS_OFFICES = referenceData.offices.map(item => item.name);
+  const CAMPUS_COLLEGES = referenceData.colleges.map(item => item.name);
   const currentRole = userRole || "PERSONNEL";
   const isDocumentController = hasCapability("paper_trail.control");
   const documentControlOffice = "Document Control Office";
@@ -664,9 +666,16 @@ export function PaperTrail() {
       {/* Main Table */}
       <div className="flex-1 bg-white rounded-xl border border-gray-200/80 shadow-2xs flex flex-col overflow-hidden min-h-[300px]">
         {isLoading ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-gray-500">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400 mb-3" />
-            <p className="text-sm font-medium">Loading paper trail records...</p>
+          <div className="space-y-0" aria-busy="true" aria-label="Loading paper trail records">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="grid grid-cols-2 gap-4 border-b border-gray-100 p-4 md:grid-cols-5">
+                <Skeleton className="h-4 w-full bg-gray-200/80" />
+                <Skeleton className="h-4 w-3/4 bg-gray-200/80" />
+                <Skeleton className="hidden h-4 w-3/4 bg-gray-200/80 md:block" />
+                <Skeleton className="hidden h-4 w-24 bg-gray-200/80 md:block" />
+                <Skeleton className="h-4 w-16 justify-self-end bg-gray-200/80" />
+              </div>
+            ))}
           </div>
         ) : actionBoardRecords.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-gray-500 text-center">
@@ -684,7 +693,7 @@ export function PaperTrail() {
           </div>
         ) : (
           <div className="flex-1 overflow-auto">
-            <table className="w-full whitespace-nowrap text-left border-collapse">
+            <table className="w-full min-w-[900px] whitespace-nowrap text-left border-collapse">
               <thead className="bg-gray-50/80 text-gray-600 border-b border-gray-200 sticky top-0 z-20">
                 <tr>
                   <th className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Tracking #</th>

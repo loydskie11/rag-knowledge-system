@@ -1,0 +1,26 @@
+services:
+  backend:
+    environment:
+      SUPABASE_URL: ${LOCAL_SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${LOCAL_SUPABASE_SERVICE_KEY}
+      DATABASE_URL: ${LOCAL_DATABASE_URL}
+      AI_BASE_URL: http://host.docker.internal:11434/v1
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      COOKIE_SECURE: "false"
+      CLOUD_SURVEY_SUPABASE_URL: ${CLOUD_SURVEY_SUPABASE_URL:-}
+      CLOUD_SURVEY_SUPABASE_SERVICE_KEY: ${CLOUD_SURVEY_SUPABASE_SERVICE_KEY:-}
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    volumes:
+      - ctu-kms-huggingface-cache:/root/.cache/huggingface
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    environment:
+      VITE_API_URL: /api
+
+volumes:
+  ctu-kms-huggingface-cache:
+    name: ctu-kms-huggingface-cache
+    external: true

@@ -117,7 +117,7 @@ export function Dashboard() {
       <DashboardAnnouncements />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -218,7 +218,7 @@ export function Dashboard() {
         </button>
 
         <button className="bg-white rounded-lg shadow-md p-6 text-left hover:shadow-lg transition-shadow border-t-4 border-[#FDB913]">
-          <h3 className="text-lg mb-2 text-gray-900">Ask AI Assistant</h3>
+          <h3 className="text-lg mb-2 text-gray-900">AskPolicy AI Assistant</h3>
           <p className="text-sm text-gray-600">Get instant answers to policy and governance questions</p>
         </button>
 

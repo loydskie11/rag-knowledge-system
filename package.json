@@ -7,7 +7,22 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "local:start": "powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1",
+    "local:rebuild": "powershell -ExecutionPolicy Bypass -File scripts/rebuild-local.ps1",
+    "local:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-local.ps1",
+    "local:status": "supabase status",
+    "local:backup": "powershell -ExecutionPolicy Bypass -File scripts/backup-local.ps1",
+    "evaluate:car-ocr": "node scripts/evaluate-car-ocr.mjs",
+    "validate:car-composer": "node --experimental-strip-types scripts/validate-car-composer.mjs",
+    "validate:car-form-3": "node --experimental-strip-types scripts/validate-car-form-3.mjs",
+    "validate:mrc-templates": "node --experimental-strip-types scripts/validate-mrc-templates.mjs",
+    "validate:memo-composer": "node --experimental-strip-types scripts/validate-memorandum-composer.mjs",
+    "validate:document-lifecycle": "node scripts/validate-generated-document-lifecycle.mjs",
+    "validate:template-management": "node scripts/validate-template-management.mjs",
+    "validate:document-export": "node scripts/validate-document-export.mjs",
+    "validate:document-security": "node scripts/validate-document-security.mjs",
+    "validate:document-acceptance": "node scripts/validate-document-composer-acceptance.mjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -84,6 +99,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "4.7.0",
+    "supabase": "3.1.0",
     "tailwindcss": "4.1.12",
     "typescript": "^5.9.3",
     "vite": "^6.4.3"

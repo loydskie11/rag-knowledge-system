@@ -14,7 +14,8 @@ export function LandingPage() {
     queries: 0,
     helpfulAnswers: 0,
     users: 0,
-    isLoading: true
+    isLoading: true,
+    isAvailable: true
   });
 
   // Track scrolling
@@ -51,11 +52,12 @@ export function LandingPage() {
           queries: response.data.queries || 0,
           helpfulAnswers: response.data.helpful_answers || 0,
           users: response.data.users || 0,
-          isLoading: false
+          isLoading: false,
+          isAvailable: response.data.available !== false
         });
       } catch (error) {
         console.error("Failed to fetch system stats:", error);
-        setStats(prev => ({ ...prev, isLoading: false }));
+        setStats(prev => ({ ...prev, isLoading: false, isAvailable: false }));
       }
     };
     fetchStats();
@@ -208,7 +210,7 @@ export function LandingPage() {
                 <div className="hidden h-1 w-1 rounded-full bg-[#E5E7EB] sm:block"></div>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
-                  <span>Trusted by {stats.isLoading ? "..." : stats.users} Users</span>
+                  <span>Trusted by {stats.isLoading ? "..." : stats.isAvailable ? stats.users : "—"} Users</span>
                 </div>
               </div>
             </div>
@@ -231,7 +233,7 @@ export function LandingPage() {
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-[#1F2937]">
-                        {stats.isLoading ? "..." : stats.documents}
+                        {stats.isLoading ? "..." : stats.isAvailable ? stats.documents : "—"}
                       </div>
                       <div className="text-sm text-[#6B7280]">Documents</div>
                     </div>
@@ -245,7 +247,7 @@ export function LandingPage() {
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-[#1F2937]">
-                        {stats.isLoading ? "..." : stats.queries}
+                        {stats.isLoading ? "..." : stats.isAvailable ? stats.queries : "—"}
                       </div>
                       <div className="text-sm text-[#6B7280]">Questions answered</div>
                     </div>
@@ -311,25 +313,25 @@ export function LandingPage() {
             <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:gap-x-8 sm:gap-y-10 lg:grid-cols-4 lg:gap-12">
               <div className="text-center">
                 <div className="mb-1 text-3xl font-bold text-white sm:text-4xl md:text-5xl lg:mb-2 lg:text-6xl">
-                  {stats.isLoading ? "-" : stats.documents}
+                  {stats.isLoading ? "-" : stats.isAvailable ? stats.documents : "—"}
                 </div>
                 <div className="text-sm leading-snug text-white/80 sm:text-base">Official documents</div>
               </div>
               <div className="text-center">
                 <div className="mb-1 text-3xl font-bold text-white sm:text-4xl md:text-5xl lg:mb-2 lg:text-6xl">
-                  {stats.isLoading ? "-" : stats.queries}
+                  {stats.isLoading ? "-" : stats.isAvailable ? stats.queries : "—"}
                 </div>
                 <div className="text-sm leading-snug text-white/80 sm:text-base">Questions answered</div>
               </div>
               <div className="text-center">
                 <div className="mb-1 text-3xl font-bold text-white sm:text-4xl md:text-5xl lg:mb-2 lg:text-6xl">
-                  {stats.isLoading ? "-" : stats.helpfulAnswers}
+                  {stats.isLoading ? "-" : stats.isAvailable ? stats.helpfulAnswers : "—"}
                 </div>
                 <div className="text-sm leading-snug text-white/80 sm:text-base">Helpful answers</div>
               </div>
               <div className="text-center">
                 <div className="mb-1 text-3xl font-bold text-white sm:text-4xl md:text-5xl lg:mb-2 lg:text-6xl">
-                  {stats.isLoading ? "-" : stats.users}
+                  {stats.isLoading ? "-" : stats.isAvailable ? stats.users : "—"}
                 </div>
                 <div className="text-sm leading-snug text-white/80 sm:text-base">Community members</div>
               </div>

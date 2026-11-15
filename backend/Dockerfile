@@ -13,6 +13,13 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements file
 COPY requirements.txt .
 
+# The backend uses Ollama on the Windows host for GPU inference. Install the
+# CPU-only PyTorch wheel for embeddings so Docker does not pull the full CUDA
+# toolkit into the application image.
+RUN pip install --default-timeout=1000 --no-cache-dir \
+    torch==2.11.0 \
+    --index-url https://download.pytorch.org/whl/cpu
+
 # Install dependencies
 RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
@@ -20,7 +27,7 @@ RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 RUN pip install --default-timeout=1000 --no-cache-dir Pillow passlib python-jose ollama paddleocr paddlepaddle bcrypt
 
 # Install missing system dependencies for PaddleOCR/OpenCV instantly without breaking cache
-RUN apt-get update && apt-get install -y libgl1 libglib2.0-0 libgomp1 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libgl1 libglib2.0-0 libgomp1 tesseract-ocr tesseract-ocr-eng && rm -rf /var/lib/apt/lists/*
 
 # Fix passlib compatibility bug instantly without breaking cache
 RUN pip install --no-cache-dir bcrypt==3.2.2

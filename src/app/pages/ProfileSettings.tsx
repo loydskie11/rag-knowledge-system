@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   User, Lock, Shield, CheckCircle, AlertCircle, Loader2, Mail, BookOpen,
   LogOut, Eye, EyeOff, Check, X, GraduationCap, KeyRound, Sparkles
@@ -7,56 +7,17 @@ import { useNavigate } from "react-router";
 import { apiClient } from "../api/client";
 import { isPasswordValid as passwordChecksPass, validatePassword } from "../utils/passwordValidation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
-
-const academicPrograms = [
-  {
-    college: "College of Education (COEd)",
-    programs: [
-      { value: "BEED", label: "Bachelor of Elementary Education" },
-      { value: "BSED_MATH", label: "BSEd major in Mathematics" },
-      { value: "BSED_ENGLISH", label: "BSEd major in English" },
-      { value: "BTLED_HE", label: "BTLEd major in Home Economics" },
-    ],
-  },
-  {
-    college: "College of Arts and Sciences (CAS)",
-    programs: [
-      { value: "AB_ELS", label: "BA in English Language Studies" },
-      { value: "AB_LIT", label: "BA in Literature" },
-      { value: "AB_PSYCH", label: "BA in Psychology" },
-    ],
-  },
-  {
-    college: "College of Agriculture, Forestry, & Environmental Science (CAFES)",
-    programs: [
-      { value: "BSF", label: "Bachelor of Science in Forestry (BSF)" },
-      { value: "BSA", label: "Bachelor of Science in Agriculture (BSA)" },
-      { value: "BSES", label: "Bachelor of Science in Environmental Science (BSES)" },
-    ],
-  },
-  {
-    college: "College of Technology and Engineering (COTE)",
-    programs: [
-      { value: "BSIE", label: "BS in Industrial Engineering" },
-      { value: "BSIT", label: "BS in Information Technology" },
-      { value: "BIT_AT", label: "BIT major in Automotive Technology (BIT-AT)" },
-      { value: "BIT_CT", label: "BIT major in Computer Technology (BIT-CT)" },
-      { value: "BIT_DT", label: "BIT major in Drafting Technology (BIT-DT)" },
-      { value: "BIT_ET", label: "BIT major in Electronics Technology (BIT-ET)" },
-      { value: "BIT_GT", label: "BIT major in Garments Technology (BIT-GT)" },
-    ],
-  },
-  {
-    college: "College of Hospitality and Tourism Management (CHTM)",
-    programs: [
-      { value: "BSHM", label: "Bachelor of Science in Hospitality Management (BSHM)" },
-      { value: "BSTM", label: "Bachelor of Science in Tourism Management (BSTM)" },
-    ],
-  },
-];
+import { useRole } from "../contexts/RoleContext";
 
 export function ProfileSettings() {
   const navigate = useNavigate();
+  const { referenceData } = useRole();
+  const academicPrograms = useMemo(() => referenceData.colleges.map((college) => ({
+    college: college.name,
+    programs: referenceData.programs
+      .filter((program) => program.college_unit_id === college.id)
+      .map((program) => ({ value: program.code, label: program.name })),
+  })).filter((college) => college.programs.length > 0), [referenceData]);
   const [activeTab, setActiveTab] = useState("profile");
   const [pendingTab, setPendingTab] = useState<string | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);

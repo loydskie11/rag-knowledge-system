@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import axios from "axios";
 import { useNavigate } from "react-router";
 import { apiClient } from "../api/client";
+import { DashboardSkeleton } from "../components/loading/SkeletonLayouts";
 
 export function StudentDashboard() {
   const navigate = useNavigate();
@@ -122,12 +123,7 @@ export function StudentDashboard() {
   ];
 
   if (isLoading) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
-        <Loader2 className="h-7 w-7 animate-spin text-[#DD7230]" />
-        <p className="text-xs text-gray-500 font-medium italic">Loading Student Portal Telemetry...</p>
-      </div>
-    );
+    return <DashboardSkeleton cards={3} />;
   }
 
   return (
@@ -145,14 +141,14 @@ export function StudentDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div
               key={stat.label}
               onClick={() => stat.path && navigate(stat.path)}
-              className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs hover:border-[#DD7230] hover:shadow-xs transition-all cursor-pointer group"
+              className="group min-w-0 cursor-pointer rounded-xl border border-gray-200/80 bg-white p-3 shadow-2xs transition-all hover:border-[#DD7230] hover:shadow-xs sm:p-4"
               title={`View ${stat.label}`}
             >
               <div className="flex items-center justify-between mb-2">
@@ -164,11 +160,11 @@ export function StudentDashboard() {
                   <Icon className="h-4 w-4" style={{ color: stat.color }} />
                 </div>
               </div>
-              <div className="flex items-baseline justify-between mt-1">
+              <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
                 <h3 className="text-2xl font-bold" style={{ color: stat.color }}>
                   {stat.value}
                 </h3>
-                <span className="text-[11px] font-medium text-gray-500 group-hover:text-gray-700">{stat.subtitle}</span>
+                <span className="break-words text-[10px] font-medium leading-4 text-gray-500 group-hover:text-gray-700 sm:text-[11px]">{stat.subtitle}</span>
               </div>
             </div>
           );
@@ -313,7 +309,7 @@ export function StudentDashboard() {
               <MessageSquare className="h-5 w-5 text-white" />
             </div>
             <div className="relative z-10">
-              <h3 className="text-sm font-bold text-white mb-0.5">Ask AskPolicy AI</h3>
+              <h3 className="text-sm font-bold text-white mb-0.5">AskPolicy AI Assistant</h3>
               <p className="text-[11px] text-white/90 font-normal">Get instant policy answers</p>
             </div>
             <ArrowRight className="absolute bottom-4 right-4 h-4 w-4 text-white/60 group-hover:text-white group-hover:translate-x-1 transition-all" />

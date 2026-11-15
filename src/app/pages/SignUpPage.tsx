@@ -14,56 +14,10 @@ import {
   CheckCircle2,
   Check
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "../api/client";
-import type { UserRole } from "../contexts/RoleContext";
+import { useRole, type UserRole } from "../contexts/RoleContext";
 import { isPasswordValid as passwordChecksPass, validatePassword } from "../utils/passwordValidation";
-
-const academicPrograms = [
-  {
-    college: "College of Education (COEd)",
-    programs: [
-      { value: "BEED", label: "Bachelor of Elementary Education" },
-      { value: "BSED_MATH", label: "BSEd major in Mathematics" },
-      { value: "BSED_ENGLISH", label: "BSEd major in English" },
-      { value: "BTLED_HE", label: "BTLEd major in Home Economics" }
-    ]
-  },
-  {
-    college: "College of Arts and Sciences (CAS)",
-    programs: [
-      { value: "AB_ELS", label: "BA in English Language Studies" },
-      { value: "AB_LIT", label: "BA in Literature" },
-      { value: "AB_PSYCH", label: "BA in Psychology" }
-    ]
-  },
-  {
-    college: "College of Agriculture and Forestry (CAF)",
-    programs: [
-      { value: "BSF", label: "BS in Forestry" },
-      { value: "BSA", label: "BS in Agriculture" },
-      { value: "BSES", label: "BS in Environmental Science" }
-    ]
-  },
-  {
-    college: "College of Technology and Engineering (COTE)",
-    programs: [
-      { value: "BSIE", label: "BS in Industrial Engineering" },
-      { value: "BSIT", label: "BS in Information Technology" },
-      { value: "BIT_AT", label: "BIT major in Automotive Technology" },
-      { value: "BIT_CT", label: "BIT major in Computer Technology" },
-      { value: "BIT_DT", label: "BIT major in Drafting Technology" },
-      { value: "BIT_ET", label: "BIT major in Electronics Technology" }
-    ]
-  },
-  {
-    college: "College of Hospitality and Tourism Management (CHTM)",
-    programs: [
-      { value: "BSHM", label: "BS in Hospitality Management" },
-      { value: "BSTM", label: "BS in Tourism Management" }
-    ]
-  }
-];
 
 const years = [
   "1st Year",
@@ -76,6 +30,13 @@ const years = [
 
 export function SignUpPage() {
   const navigate = useNavigate();
+  const { referenceData } = useRole();
+  const academicPrograms = useMemo(() => referenceData.colleges.map((college) => ({
+    college: college.name,
+    programs: referenceData.programs
+      .filter((program) => program.college_unit_id === college.id)
+      .map((program) => ({ value: program.code, label: program.name })),
+  })).filter((college) => college.programs.length > 0), [referenceData]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState("");
@@ -233,18 +194,18 @@ export function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fff8f0] flex items-center justify-center p-4 sm:p-6 lg:p-0 relative">
+    <div className="min-h-[100dvh] bg-white lg:bg-[#fff8f0] flex items-center justify-center relative">
       {/* Back to Home Button */}
       <Link
         to="/"
         aria-label="Back to Home"
-        className="group absolute top-6 left-6 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-2xs hover:shadow-xs hover:border-[#DD7230] transition-all"
+        className="group absolute top-4 left-4 sm:top-6 sm:left-6 z-20 w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-2xs hover:shadow-xs hover:border-[#DD7230] transition-all"
       >
         <ArrowRight className="h-4.5 w-4.5 rotate-180 text-[#DD7230] transition-transform duration-200 group-hover:-translate-x-0.5" />
       </Link>
 
       {/* Split View Container */}
-      <div className="w-full min-h-screen flex">
+      <div className="w-full min-h-[100dvh] flex">
         
         {/* Left Branding Panel */}
         <div className="hidden lg:flex lg:w-1/2 bg-white flex-col items-center justify-center p-12 relative border-r border-gray-200/80">
@@ -271,8 +232,8 @@ export function SignUpPage() {
         </div>
 
         {/* Right Sign Up Form Panel */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-white overflow-y-auto">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 p-8 sm:p-10 my-auto">
+        <div className="w-full lg:w-1/2 flex items-start sm:items-center justify-center bg-white overflow-y-auto">
+          <div className="w-full max-w-lg bg-white border-0 p-5 pt-16 sm:my-8 sm:rounded-2xl sm:border sm:border-gray-200 sm:p-10 sm:shadow-xl lg:my-auto">
             
             {/* Mobile Header */}
             <div className="lg:hidden text-center mb-6">
@@ -312,7 +273,7 @@ export function SignUpPage() {
               {/* Account Role Selector */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Account Role</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
                   {[
                     { value: "STUDENT", label: "Student", icon: GraduationCap },
                     { value: "PERSONNEL", label: "Faculty / Instructor", icon: User }
@@ -375,7 +336,7 @@ export function SignUpPage() {
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Email Address
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <div className="relative flex-1">
                     <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
@@ -394,7 +355,7 @@ export function SignUpPage() {
                     type="button"
                     onClick={handleSendCode}
                     disabled={isSendingOtp || otpCountdown > 0 || !formData.email.trim()}
-                    className="px-4 py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#c66224] transition-all text-sm font-semibold whitespace-nowrap shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer active:scale-98"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-[#DD7230] text-white rounded-xl hover:bg-[#c66224] transition-all text-sm font-semibold whitespace-nowrap shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
                   >
                     {isSendingOtp ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -575,7 +536,7 @@ export function SignUpPage() {
               )}
 
               {/* Terms and Conditions Checkbox */}
-              <div className="flex items-center gap-2.5 pt-1.5">
+              <div className="flex items-start gap-2.5 pt-1.5">
                 <input
                   type="checkbox"
                   id="agreeToTerms"
@@ -585,7 +546,7 @@ export function SignUpPage() {
                   }
                   className="w-4 h-4 rounded border-gray-300 text-[#DD7230] focus:ring-[#DD7230] cursor-pointer shrink-0"
                 />
-                <div className="text-sm text-gray-600 select-none flex items-center gap-1">
+                <div className="min-w-0 text-sm leading-5 text-gray-600 select-none flex flex-wrap items-center gap-x-1">
                   <label htmlFor="agreeToTerms" className="cursor-pointer">
                     I agree to the
                   </label>

@@ -472,11 +472,9 @@ export async function exportMrcForm4(
   showToast?: (msg: string, type: "info" | "success" | "error" | "warning") => void
 ): Promise<void> {
   try {
-    showToast?.("Fetching MRC Form 4 Template...", "info");
-    const rawHtml = await fetchMrcTemplate("MRC Form 4 Template");
-    const resolvedHtml = resolveMrcForm4Tokens(rawHtml, data);
-    showToast?.("Redirecting to Document Studio...", "success");
-    navigate("/app/document-generator", { state: { injectedHtml: resolvedHtml } });
+    showToast?.("Opening the controlled MRC Form 4 composer...", "info");
+    const rows = (data.rows || []).map((row) => Array.isArray(row) ? { function_area: row[0] || "", objectives: row[1] || "", strategies: row[2] || "", time_frame: row[3] || "", persons: row[4] || "", budget: row[5] || "", expected_output: row[6] || "", actual_accomplishment: row[7] || "", remarks: row[8] || "" } : { function_area: row.function_area || "", objectives: row.objectives || "", strategies: row.strategies || "", time_frame: row.time_frame || "", persons: row.persons_involved || "", budget: row.budget || "", expected_output: row.expected_output || "", actual_accomplishment: row.actual_accomplishment || "", remarks: row.remarks || "" });
+    navigate("/app/document-composer", { state: { composerTemplate: "MRC_FORM_4", composerValues: { YEAR: data.year || "", LOGSHEET_ROWS: rows, PREPARED_BY: data.prepared_by || "", VP_ADMIN: data.vp_admin || "", VP_RD: data.vp_rd || "", VP_ACAD: data.vp_acad || "", VP_PEBA: data.vp_peba || "", APPROVED_BY: data.approved_by || "" }, sourceReference: data.year || "" } });
   } catch (err: any) {
     console.error("exportMrcForm4 error:", err);
     showToast?.(err.message || "Failed to export MRC Form 4.", "error");
@@ -493,11 +491,9 @@ export async function exportMrcForm5(
   showToast?: (msg: string, type: "info" | "success" | "error" | "warning") => void
 ): Promise<void> {
   try {
-    showToast?.("Fetching MRC Form 5 Template...", "info");
-    const rawHtml = await fetchMrcTemplate("MRC Form 5 Template");
-    const resolvedHtml = resolveMrcForm5Tokens(rawHtml, data);
-    showToast?.("Redirecting to Document Studio...", "success");
-    navigate("/app/document-generator", { state: { injectedHtml: resolvedHtml } });
+    showToast?.("Opening the controlled MRC Form 5 composer...", "info");
+    const rows = (data.rows || []).map((row) => Array.isArray(row) ? { issues: row[0] || "", risks: row[1] || "", impact: row[2] || "", likelihood: row[3] || "", risk_factor: row[4] || "", action: row[5] || "", target_date: row[6] || "", responsible: row[7] || "", assessment_date: row[8] || "", completion_date: row[9] || "" } : { issues: row.issues || "", risks: row.risks || "", impact: row.impact || "", likelihood: row.likelihood || "", risk_factor: row.risk_factor || "", action: row.risk_control || "", target_date: row.target_date || "", responsible: row.persons_responsible || "", assessment_date: row.date_of_assessment || "", completion_date: row.date_of_completion || "" });
+    navigate("/app/document-composer", { state: { composerTemplate: "MRC_FORM_5", composerValues: { UNIT_NAME: data.unit_name || "", OBJECTIVE_TEXT: data.objective_text || "", LOGSHEET_ROWS: rows, PREPARED_BY: data.prepared_by || "", REVIEWED_BY: data.reviewed_by || "", APPROVED_BY: data.approved_by || "" } } });
   } catch (err: any) {
     console.error("exportMrcForm5 error:", err);
     showToast?.(err.message || "Failed to export MRC Form 5.", "error");
@@ -514,11 +510,9 @@ export async function exportMrcForm7(
   showToast?: (msg: string, type: "info" | "success" | "error" | "warning") => void
 ): Promise<void> {
   try {
-    showToast?.("Fetching MRC Form 7 Template...", "info");
-    const rawHtml = await fetchMrcTemplate("MRC Form 7 Template");
-    const resolvedHtml = resolveMrcForm7Tokens(rawHtml, data);
-    showToast?.("Redirecting to Document Studio...", "success");
-    navigate("/app/document-generator", { state: { injectedHtml: resolvedHtml } });
+    showToast?.("Opening the controlled MRC Form 7 composer...", "info");
+    const rows = (data.rows || []).map((row) => Array.isArray(row) ? { interested_parties: row[0] || "", context: row[1] || "", inclusion_reason: row[2] || "", issues: row[3] || "", processes: row[4] || "", priority: row[5] || "", treatment: row[6] || "", notes: row[7] || "" } : { interested_parties: row.interested_parties || "", context: row.internal_external || "", inclusion_reason: row.reasons_for_inclusion || "", issues: row.issues_of_concern || "", processes: row.processes_affected || "", priority: row.priority || "", treatment: row.treatment_method || "", notes: row.records_references || "" });
+    navigate("/app/document-composer", { state: { composerTemplate: "MRC_FORM_7", composerValues: { LOGSHEET_ROWS: rows, PREPARED_BY: data.prepared_by || "", APPROVED_BY: data.approved_by || "" } } });
   } catch (err: any) {
     console.error("exportMrcForm7 error:", err);
     showToast?.(err.message || "Failed to export MRC Form 7.", "error");
@@ -535,11 +529,8 @@ export async function exportMrcForm2(
   showToast?: (msg: string, type: "info" | "success" | "error" | "warning") => void
 ): Promise<void> {
   try {
-    showToast?.("Fetching MRC Form 2 Template...", "info");
-    const rawHtml = await fetchMrcTemplate("MRC Form 2 Template");
-    const resolvedHtml = resolveMrcForm2Tokens(rawHtml, data);
-    showToast?.("Redirecting to Document Studio...", "success");
-    navigate("/app/document-generator", { state: { injectedHtml: resolvedHtml } });
+    showToast?.("Opening the controlled MRC Form 2 composer...", "info");
+    navigate("/app/document-composer", { state: { composerTemplate: "MRC_FORM_2", composerValues: { NO: data.no || "", DATE: data.date || "", TIME_STARTED: data.time_started || "", TIME_ADJOURNED: data.time_adjourned || "", ATTENDANCE: data.attendance || [], AGENDA: data.agenda || [], RECORDED_BY_NAME: data.recorded_by_name || "", NOTED_BY_NAME: data.noted_by_name || "" }, sourceReference: data.date || "" } });
   } catch (err: any) {
     console.error("exportMrcForm2 error:", err);
     showToast?.(err.message || "Failed to export MRC Form 2.", "error");
@@ -556,11 +547,9 @@ export async function exportMrcForm6(
   showToast?: (msg: string, type: "info" | "success" | "error" | "warning") => void
 ): Promise<void> {
   try {
-    showToast?.("Fetching MRC Form 6 Template...", "info");
-    const rawHtml = await fetchMrcTemplate("MRC Form 6 Template");
-    const resolvedHtml = resolveMrcForm6Tokens(rawHtml, data);
-    showToast?.("Redirecting to Document Studio...", "success");
-    navigate("/app/document-generator", { state: { injectedHtml: resolvedHtml } });
+    showToast?.("Opening the controlled MRC Form 6 composer...", "info");
+    const rows = (data.rows || []).map((row) => Array.isArray(row) ? { opportunity: row[0] || "", action_plan: row[1] || "", target_date: row[2] || "", responsible: row[3] || "", assessment_date: row[4] || "", completion_date: row[5] || "" } : { opportunity: row.opportunity || "", action_plan: row.action_plan || "", target_date: row.target_date || "", responsible: row.persons_responsible || "", assessment_date: row.date_of_assessment || "", completion_date: row.date_of_completion || "" });
+    navigate("/app/document-composer", { state: { composerTemplate: "MRC_FORM_6", composerValues: { UNIT_NAME: data.unit_name || "", LOGSHEET_ROWS: rows, PREPARED_BY: data.prepared_by || "", REVIEWED_BY: data.reviewed_by || "", APPROVED_BY: data.approved_by || "" } } });
   } catch (err: any) {
     console.error("exportMrcForm6 error:", err);
     showToast?.(err.message || "Failed to export MRC Form 6.", "error");

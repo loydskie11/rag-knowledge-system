@@ -1,0 +1,43 @@
+{
+  "name": "CTU CAR Form 1 anonymized baseline",
+  "captured_on": "2026-11-15",
+  "critical_fields": [
+    "car_no",
+    "revision",
+    "date_issued",
+    "finding_category",
+    "area",
+    "auditor_name",
+    "acknowledged_by",
+    "findings"
+  ],
+  "privacy_note": "Names are replaced with stable pseudonyms. The source image is deliberately excluded from the repository.",
+  "samples": [
+    {
+      "id": "CAR-EVAL-001",
+      "status": "CAPTURED",
+      "source_profile": "mobile screenshot of a partially completed whole CAR Form 1",
+      "expected": {
+        "car_no": "07-C011",
+        "revision": "3",
+        "date_issued": "2026-08-27",
+        "finding_category": "OBSERVATION",
+        "area": "Supply Office",
+        "auditor_name": "PERSON-A",
+        "acknowledged_by": "PERSON-B",
+        "findings": "The Supply Office stockroom is undersized and congested, affecting orderly storage, segregation, preservation, and accessibility of supplies and equipment."
+      },
+      "predicted": {
+        "car_no": "07-C011",
+        "revision": "3",
+        "date_issued": "2026-08-27",
+        "finding_category": "OBSERVATION",
+        "area": "",
+        "auditor_name": "",
+        "acknowledged_by": "",
+        "findings": "The Supply Office stockroom is undersized and congested, affecting orderly storage, segregation, preservation, and accessibility of supplies and equipment."
+      },
+      "capture_note": "Baseline captured from the reviewed UI result before the later label-region extraction repair. Re-run the same anonymized protocol after repair to create a comparable post-fix sample."
+    }
+  ]
+}

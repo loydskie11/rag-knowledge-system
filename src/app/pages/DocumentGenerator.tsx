@@ -53,14 +53,14 @@ import React, {
   useState, useRef, useEffect, useLayoutEffect, useMemo,
   type RefObject,
 } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Sparkles, RefreshCw, Image as ImageIcon, X, FileText, CheckCircle2, AlertCircle,
   ChevronDown, ChevronUp, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Printer, ArrowLeft, Plus, Minus, Bold, Italic,
   Underline as UnderlineIcon, Strikethrough, List, ListOrdered,
   PenTool, Calendar, Layers, FileSpreadsheet, Trash2, Check,
-  Undo, Redo, FolderOpen, UploadCloud, Eye, Search, Loader2
+  Undo, Redo, FolderOpen, UploadCloud, Eye, Search, Loader2, ShieldCheck
 } from "lucide-react";
 import {
   Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType,
@@ -1702,6 +1702,10 @@ export function DocumentGenerator() {
   const [wizardForm, setWizardForm] = useState<Record<string, string>>({});
   const [wizardTableRows, setWizardTableRows] = useState<Record<string, string[][]>>({});
   const [wizardLoading, setWizardLoading] = useState(false);
+
+  useEffect(() => {
+    apiClient.post("/legacy-document-editor/usage").catch(() => undefined);
+  }, []);
   
   useEffect(() => {
     let active = true;
@@ -3505,6 +3509,12 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Draft New Document</h1>
             <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Select a template, configure details, and let AI generate the content.</p>
           </div>
+          <Link
+            to="/app/document-composer"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            <ShieldCheck className="h-4 w-4 text-emerald-600" /> Try new template composer
+          </Link>
         </div>
 
         {errorMessage && (
@@ -3659,7 +3669,7 @@ IMPORTANT: Output the subject on the very first line prefixed with "SUBJECT:", f
                                 </button>
                               </div>
                               <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs">
+                                <table className="w-full min-w-[640px] text-left text-xs">
                                   <thead>
                                     <tr>
                                       {headers.map((h, i) => <th key={i} className="p-2 border-b border-gray-200 font-medium text-gray-600 whitespace-nowrap bg-gray-50/50">{h}</th>)}

@@ -27,6 +27,7 @@ interface Message {
   isError?: boolean;
   isRestricted?: boolean;
   failedQuestion?: string;
+  aiProvider?: "local" | "groq" | "unavailable";
 }
 
 const nowLabel = () =>
@@ -39,7 +40,7 @@ const WELCOME_MESSAGE: Message = {
   id: "welcome",
   type: "ai",
   content:
-    "Hello! I am your **CTU Policy Assistant**. Ask me anything regarding university manuals, student guidelines, academic policies, faculty procedures, and ISO standards.",
+    "Hello! I am the **AskPolicy AI Assistant**. Ask me anything regarding university manuals, student guidelines, academic policies, faculty procedures, and ISO standards.",
   timestamp: nowLabel(),
 };
 
@@ -251,6 +252,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
           followUps: response.data?.follow_ups,
           isRestricted: response.data?.restricted || false,
           isError: response.data?.is_error || false,
+          aiProvider: response.data?.ai_provider,
           timestamp: nowLabel(),
         };
 
@@ -409,8 +411,13 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
                       ? "System Notice"
                       : message.isRestricted
                       ? "Restricted Access"
-                      : "Policy Assistant"}
+                      : "AskPolicy AI Assistant"}
                   </span>
+                  {message.aiProvider && message.aiProvider !== "unavailable" && (
+                    <span className="text-[10px] text-gray-400">
+                      · {message.aiProvider === "groq" ? "Cloud AI" : "Local AI"}
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -641,12 +648,12 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
   const activeCategory = CATEGORIZED_QUESTIONS[selectedCategoryTab];
 
   return (
-    <div className="space-y-4 flex flex-col h-[calc(100vh-6.5rem)] relative pb-2">
+    <div className="relative flex h-[calc(100dvh-5.5rem)] min-h-0 flex-col space-y-4 pb-2 sm:h-[calc(100vh-6.5rem)]">
       {/* Header */}
       <div className="flex-none">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Policy Assistant</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AskPolicy AI Assistant</h1>
             <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
               Knowledge retrieval for CTU manuals, academic policies, and ISO procedures
             </p>

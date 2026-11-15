@@ -1,21 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle, Loader2, Pencil, Plus, Search, Trash2, UserPlus, X } from "lucide-react";
 import apiClient from "../api/client";
+import { Skeleton } from "../components/ui/skeleton";
 import {
-  ASSIGNMENT_SCOPE, CAMPUS_COLLEGES, CAMPUS_PROGRAMS, PERSONNEL_ASSIGNMENT_TYPES,
+  ASSIGNMENT_SCOPE, PERSONNEL_ASSIGNMENT_TYPES,
   assignmentLabel, roleLabel,
 } from "../constants/academicScopes";
-
-export { CAMPUS_COLLEGES, CAMPUS_PROGRAMS } from "../constants/academicScopes";
-
-// These are ISO/QMS process groups, not the campus organizational office directory.
-export const ISO_OFFICES_16 = [
-  "Campus Director", "Academic Affairs", "Student Affairs & Services", "Administrative & Finance",
-  "Research & Development", "Extension & Community Services", "Production & Resource Generation",
-  "Quality Assurance & Management (QAU)", "Registrar's Office", "Guidance & Placement",
-  "University Library", "Medical & Dental Clinic", "Supply & Property Unit", "HR & Records Management",
-  "MIS & Information Technology Unit", "Security & Physical Plant Unit",
-];
 
 type Scope = { id: string; code: string; name: string; college_unit_id?: string };
 type Assignment = {
@@ -169,8 +159,8 @@ export function UsersRoles() {
         <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="h-10 rounded-lg border border-gray-200 px-3 text-sm"><option value="ALL">All base roles</option><option value="SYSTEM_ADMIN">System Administrator</option><option value="PERSONNEL">Personnel</option><option value="STUDENT">Student</option></select>
       </div>
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="overflow-x-auto"><table className="min-w-full"><thead className="border-b border-gray-200 bg-gray-50"><tr>{["User", "Base role", "Assignments", "Status", "Actions"].map((label) => <th key={label} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</th>)}</tr></thead>
-          <tbody className="divide-y divide-gray-100">{loading ? <tr><td colSpan={5} className="py-14 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#DD7230]" /></td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="py-14 text-center text-sm text-gray-500">No users found.</td></tr> : filtered.map((user) => <tr key={user.id} className="align-top hover:bg-gray-50/60">
+        <div className="overflow-x-auto"><table className="min-w-[760px] w-full"><thead className="border-b border-gray-200 bg-gray-50"><tr>{["User", "Base role", "Assignments", "Status", "Actions"].map((label) => <th key={label} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</th>)}</tr></thead>
+          <tbody className="divide-y divide-gray-100">{loading ? Array.from({ length: 6 }).map((_, row) => <tr key={row}>{Array.from({ length: 5 }).map((__, column) => <td key={column} className="px-4 py-4"><Skeleton className={`h-4 bg-gray-200/80 ${column === 0 ? "w-36" : "w-24"}`} /></td>)}</tr>) : filtered.length === 0 ? <tr><td colSpan={5} className="py-14 text-center text-sm text-gray-500">No users found.</td></tr> : filtered.map((user) => <tr key={user.id} className="align-top hover:bg-gray-50/60">
             <td className="px-4 py-3"><p className="text-sm font-semibold text-gray-900">{user.full_name || "Unnamed user"}</p><p className="text-xs text-gray-500">{user.email}</p></td>
             <td className="px-4 py-3"><span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700">{roleLabel(user.role)}</span></td>
             <td className="max-w-xl px-4 py-3"><div className="flex flex-wrap gap-1.5">{(user.assignments || []).length ? user.assignments.map((a: Assignment) => <span key={a.id || `${a.assignment_type}-${a.scope_id}`} className="rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] text-orange-800">{assignmentLabel(a.assignment_type)}{a.scope_name ? ` · ${a.scope_name}` : ""}</span>) : <span className="text-xs text-gray-400">No scoped assignment</span>}</div></td>

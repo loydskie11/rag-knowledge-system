@@ -113,18 +113,18 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fff8f0] flex items-center justify-center p-4 sm:p-6 lg:p-0 relative">
+    <div className="relative flex min-h-[100dvh] items-center justify-center bg-white lg:bg-[#fff8f0]">
       {/* Back to Home Button */}
       <Link
         to="/"
         aria-label="Back to Home"
-        className="group absolute top-6 left-6 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-2xs hover:shadow-xs hover:border-[#DD7230] transition-all"
+        className="group absolute top-4 left-4 sm:top-6 sm:left-6 z-20 w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-2xs hover:shadow-xs hover:border-[#DD7230] transition-all"
       >
         <ArrowRight className="h-4.5 w-4.5 rotate-180 text-[#DD7230] transition-transform duration-200 group-hover:-translate-x-0.5" />
       </Link>
 
       {/* Split View Container */}
-      <div className="w-full min-h-screen flex">
+      <div className="flex min-h-[100dvh] w-full">
         
         {/* Left Branding Panel */}
         <div className="hidden lg:flex lg:w-1/2 bg-white flex-col items-center justify-center p-12 relative border-r border-gray-200/80">
@@ -151,8 +151,8 @@ export function LoginPage() {
         </div>
 
         {/* Right Login Form Panel */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-white overflow-y-auto">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 p-8 sm:p-10 my-auto">
+        <div className="flex w-full items-start justify-center overflow-y-auto bg-white sm:items-center lg:w-1/2">
+          <div className="w-full max-w-lg border-0 bg-white p-5 pt-16 sm:my-8 sm:rounded-2xl sm:border sm:border-gray-200 sm:p-10 sm:shadow-xl lg:my-auto">
             
             {/* Mobile Header */}
             <div className="lg:hidden text-center mb-6">
@@ -223,7 +223,7 @@ export function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex flex-col gap-3 pt-1 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-between">
                 <label className="flex items-center cursor-pointer group">
                   <input 
                     type="checkbox" 

@@ -335,7 +335,7 @@ export function StudentRecords() {
             {expandedCourse === course.code && (
               <div className="border-t border-gray-200">
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[680px]">
                     <thead className="bg-gray-50/80">
                       <tr>
                         <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Student ID</th>
