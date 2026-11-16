@@ -2,7 +2,7 @@ import smtplib
 import os
 import secrets
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
@@ -22,6 +22,10 @@ PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 10
 PASSWORD_SPECIAL_CHARACTERS = set('!@#$%^&*(),.?":{}|<>')
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", truncate_error=False)
+
+def utc_now() -> datetime:
+    """Return a naive UTC datetime for compatibility with existing DB columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 def hash_password(password: str):
     return pwd_context.hash(password)
@@ -64,7 +68,7 @@ def _send_email(target_email: str, subject: str, html: str, text: str):
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = utc_now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -81,7 +85,7 @@ def decode_access_token(token: str) -> dict:
 
 def create_password_reset_token(email: str, otp_code: str) -> str:
     """Create a short-lived token that is valid only for password reset."""
-    expire = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+    expire = utc_now() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
     return jwt.encode(
         {
             "sub": email,

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +11,9 @@ from dependencies import get_current_admin, get_current_user, supabase
 
 
 router = APIRouter(tags=["Broadcast Announcements"])
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _rollback(db: Session) -> None:
@@ -32,7 +35,7 @@ def _sent_date(schedule_date: str | None, *, default_now: bool = True) -> dateti
             return datetime.fromisoformat(schedule_date.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid announcement schedule date.")
-    return datetime.utcnow() if default_now else None
+    return utc_now() if default_now else None
 
 
 @router.post("/announcements", response_model=schemas.AnnouncementResponse)
@@ -166,7 +169,7 @@ def update_announcement(
     if req.schedule_date:
         update_data["sent_date"] = _sent_date(req.schedule_date).isoformat()
     elif req.status == "Sent":
-        update_data["sent_date"] = datetime.utcnow().isoformat()
+        update_data["sent_date"] = utc_now().isoformat()
 
     try:
         record = db.query(models.Announcement).filter(models.Announcement.id == announcement_id).first()

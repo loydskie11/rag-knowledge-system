@@ -232,10 +232,10 @@ export function PersonnelDashboard() {
       </div>}
     </section>
 
-    <section className="grid gap-4 lg:grid-cols-[1.3fr_.7fr]">
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-2xs">
+    <section className="grid items-start gap-4 lg:grid-cols-[1.3fr_.7fr]">
+      <div className="flex max-h-[24rem] min-h-0 flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-2xs sm:max-h-[28rem]">
         <h2 className="text-sm font-semibold text-gray-900">Recent document activity</h2>
-        {data.partial_errors.includes("activity") ? <p className="mt-4 text-sm text-rose-600">Recent activity is temporarily unavailable.</p> : data.recent_activity.length === 0 ? <p className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-500">No document activity has been recorded yet.</p> : <div className="mt-3 divide-y divide-gray-100">
+        {data.partial_errors.includes("activity") ? <p className="mt-4 text-sm text-rose-600">Recent activity is temporarily unavailable.</p> : data.recent_activity.length === 0 ? <p className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-500">No document activity has been recorded yet.</p> : <div className="mt-3 min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto overscroll-contain pr-2 [scrollbar-color:#D1D5DB_transparent] [scrollbar-width:thin]">
           {data.recent_activity.map((activity) => <div key={activity.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-gray-800">{activity.title}</p><p className="text-xs text-gray-500">{activity.action}</p></div><span className="shrink-0 text-[11px] text-gray-400">{formatActivityDate(activity.timestamp)}</span></div>)}
         </div>}
       </div>

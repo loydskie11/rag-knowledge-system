@@ -1,11 +1,14 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db
 
 router = APIRouter(tags=["System Health & Diagnostics"])
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 @router.get("/health")
 @router.get("/api/health")
@@ -22,7 +25,7 @@ def health_check(db: Session = Depends(get_db)):
 
     return {
         "status": "online",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": utc_now().isoformat(),
         "database": db_status,
         "ai_engine": {
             "local_ollama_url": ai_base_url,

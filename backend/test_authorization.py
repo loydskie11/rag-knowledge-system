@@ -4,7 +4,7 @@ import inspect
 import re
 import unittest
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace as User
 from typing import Optional, List
@@ -112,7 +112,7 @@ def load_routes():
         "get_current_document_controller", "get_paper_trail_detail",
         "get_private_storage_path", "require_private_storage_reference",
         "car_assignment_types", "is_car_reviewer", "is_car_office_head", "is_car_office_participant", "require_car_reviewer",
-        "CAR_STATUS_TRANSITIONS", "validate_car_status_transition", "apply_car_lifecycle_timestamp",
+        "CAR_STATUS_TRANSITIONS", "validate_car_status_transition", "apply_car_lifecycle_timestamp", "utc_now",
         "authorize_car_status_transition", "validate_car_verification_decision",
         "resolve_accreditation_cycle", "load_aaccup_evidence_chunks", "require_active_aaccup_evidence",
         "normalize_document_identity", "document_scope_key", "_safe_duplicate_record",

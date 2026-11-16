@@ -33,6 +33,12 @@ interface Message {
 const nowLabel = () =>
   new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+const cleanDisplayedAnswer = (content: string) =>
+  content
+    .trim()
+    .replace(/^(?:(?:<\|im_start\|>\s*)?(?:assistant|ai assistant|system)\s*:?(?:<\|im_end\|>)?\s*(?:\r?\n)+)+/i, "")
+    .trim();
+
 let idCounter = 0;
 const nextId = () => `msg_${Date.now()}_${idCounter++}`;
 
@@ -146,7 +152,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
             id: msg.id ? `hist_${msg.id}` : nextId(),
             responseId: msg.role === "ai" && msg.id ? Number(msg.id) : undefined,
             type: msg.role === "ai" ? "ai" : "user",
-            content: msg.content ?? "",
+            content: msg.role === "ai" ? cleanDisplayedAnswer(msg.content ?? "") : (msg.content ?? ""),
             feedback: msg.feedback || undefined,
             timestamp: msg.created_at
               ? new Date(msg.created_at).toLocaleTimeString([], {
@@ -241,7 +247,7 @@ export function AskPolicy({ isWidget = false }: { isWidget?: boolean } = {}) {
         );
 
         const rawAnswer = response.data?.answer ?? "Unable to retrieve response. Please try again.";
-        const cleanedAnswer = rawAnswer.replace(/\|FOLLOWUPS\|?[\s\S]*/i, "").trim();
+        const cleanedAnswer = cleanDisplayedAnswer(rawAnswer.replace(/\|FOLLOWUPS\|?[\s\S]*/i, ""));
 
         const aiMessage: Message = {
           id: nextId(),

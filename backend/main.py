@@ -13,7 +13,7 @@ import math
 import secrets
 import time
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 # Third-party imports
@@ -50,6 +50,10 @@ _bg_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="doc_worker"
 _request_id = contextvars.ContextVar("request_id", default="-")
 _processing_status = {}
 _log = logging.getLogger("rag_governance")
+
+def utc_now() -> datetime:
+    """Return a naive UTC datetime for compatibility with existing DB columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".docx", ".html", ".htm"}
@@ -217,7 +221,7 @@ def create_accreditation_cycle(
         cycle_label=f"{prefix} - {level_name} (Attempt {next_attempt})",
         status="ACTIVE",
         source=source,
-        opened_at=datetime.utcnow(),
+        opened_at=utc_now(),
         valid_until=valid_until,
         created_by=actor_email,
     )
@@ -247,9 +251,9 @@ def ensure_active_accreditation_cycle(
 
 def close_accreditation_cycle(cycle: "models.AccreditationCycle", actor_email: str) -> None:
     cycle.status = "CLOSED"
-    cycle.closed_at = datetime.utcnow()
+    cycle.closed_at = utc_now()
     cycle.closed_by = actor_email
-    cycle.updated_at = datetime.utcnow()
+    cycle.updated_at = utc_now()
 
 
 def serialize_iso_audit_result(result) -> dict:
@@ -535,7 +539,7 @@ def reserve_document_upload(
 def update_document_upload_registry(registry_id: str | None, status: str, **fields) -> None:
     if not registry_id:
         return
-    payload = {"status": status, "updated_at": datetime.utcnow().isoformat(), **fields}
+    payload = {"status": status, "updated_at": utc_now().isoformat(), **fields}
     try:
         supabase.table("document_uploads").update(payload).eq("id", registry_id).execute()
     except Exception:
@@ -572,7 +576,7 @@ def supersede_previous_document_versions(metadata: dict) -> None:
     registry_id = metadata.get("upload_registry_id")
     query = (
         supabase.table("document_uploads")
-        .update({"status": "SUPERSEDED", "updated_at": datetime.utcnow().isoformat()})
+        .update({"status": "SUPERSEDED", "updated_at": utc_now().isoformat()})
         .eq("normalized_name", normalize_document_identity(document_name))
         .eq("scope_key", document_scope_key(office, program, *document_scope(metadata)))
         .eq("status", "ACTIVE")
@@ -737,7 +741,7 @@ def process_document_background(
     job_id = metadata.get("job_id") or str(uuid.uuid4())
     registry_id = metadata.get("upload_registry_id")
     metadata["job_id"] = job_id
-    _processing_status[job_id] = {"job_id": job_id, "office": metadata.get("office"), "name": metadata.get("name", filename), "status": "extracting", "message": "Reading document content.", "updated_at": datetime.utcnow().isoformat()}
+    _processing_status[job_id] = {"job_id": job_id, "office": metadata.get("office"), "name": metadata.get("name", filename), "status": "extracting", "message": "Reading document content.", "updated_at": utc_now().isoformat()}
     try:
         extracted_text = ""
         filename_lower = filename.lower()
@@ -798,7 +802,7 @@ def process_document_background(
                 status="completed",
                 message="Document is ready.",
                 chunks=0,
-                updated_at=datetime.utcnow().isoformat(),
+                updated_at=utc_now().isoformat(),
             )
             supersede_previous_document_versions(metadata)
             update_document_upload_registry(registry_id, "ACTIVE", failure_reason=None)
@@ -829,7 +833,7 @@ def process_document_background(
             extracted_text = "\n".join(parts)
 
         if not extracted_text.strip():
-            _processing_status[job_id].update(status="failed", message="No readable text could be extracted from this file.", chunks=0, updated_at=datetime.utcnow().isoformat())
+            _processing_status[job_id].update(status="failed", message="No readable text could be extracted from this file.", chunks=0, updated_at=utc_now().isoformat())
             update_document_upload_registry(registry_id, "FAILED", failure_reason="No readable text could be extracted.")
             print(f"[BG] No text extracted from '{filename}' — skipping embedding.")
             return
@@ -838,14 +842,14 @@ def process_document_background(
         extracted_text = clean_ocr_text_offline(extracted_text)
 
         # ── Vector embedding ─────────────────────────────────────────────────
-        _processing_status[job_id].update(status="embedding", message="Preparing searchable content.", updated_at=datetime.utcnow().isoformat())
+        _processing_status[job_id].update(status="embedding", message="Preparing searchable content.", updated_at=utc_now().isoformat())
         chunks_count = vector_store.add_to_vector_db(extracted_text, metadata)
         if not chunks_count:
-            _processing_status[job_id].update(status="failed", message="Text was extracted, but no searchable chunks were created.", chunks=0, updated_at=datetime.utcnow().isoformat())
+            _processing_status[job_id].update(status="failed", message="Text was extracted, but no searchable chunks were created.", chunks=0, updated_at=utc_now().isoformat())
             update_document_upload_registry(registry_id, "FAILED", failure_reason="No searchable chunks were created.")
             return
         supersede_previous_document_versions(metadata)
-        _processing_status[job_id].update(status="completed", message="Document is ready and searchable.", chunks=chunks_count, updated_at=datetime.utcnow().isoformat())
+        _processing_status[job_id].update(status="completed", message="Document is ready and searchable.", chunks=chunks_count, updated_at=utc_now().isoformat())
         update_document_upload_registry(registry_id, "ACTIVE", failure_reason=None)
         print(f"[BG] '{filename}' embedded: {chunks_count} chunks.")
 
@@ -870,7 +874,7 @@ def process_document_background(
             print(f"[BG] Audit log warning: {audit_err}")
 
     except Exception as e:
-        _processing_status[job_id].update(status="failed", message="Background processing failed. Check the request ID in server logs.", error=str(e), updated_at=datetime.utcnow().isoformat())
+        _processing_status[job_id].update(status="failed", message="Background processing failed. Check the request ID in server logs.", error=str(e), updated_at=utc_now().isoformat())
         update_document_upload_registry(registry_id, "FAILED", failure_reason=str(e)[:1000])
         _log.exception("background_document_processing_failed", extra={"request_id": _request_id.get(), "job_id": job_id, "filename": filename})
         print(f"[BG] process_document_background error for '{filename}': {e}")
@@ -2046,7 +2050,7 @@ def send_otp(request: Request, req: SendOTPRequest, db: Session = Depends(get_db
 
     # 2. Generate OTP and Expiration
     otp = utils.generate_otp()
-    expiration = datetime.utcnow() + timedelta(minutes=10)
+    expiration = utc_now() + timedelta(minutes=10)
 
     # 3. Update or create OTP record
     record = db.query(models.OTPVerification).filter(models.OTPVerification.email == req.email).first()
@@ -2073,7 +2077,7 @@ def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
     if not record or record.otp_code != req.otp_code:
         raise HTTPException(status_code=400, detail="Invalid verification code.")
     
-    if datetime.utcnow() > record.expires_at:
+    if utc_now() > record.expires_at:
         raise HTTPException(status_code=400, detail="This verification code has expired. Please request a new one.")
 
     return {"message": "Email verified successfully!"}
@@ -2303,7 +2307,7 @@ def send_reset_email(
         return response
 
     otp = utils.generate_otp()
-    expiration = datetime.utcnow() + timedelta(minutes=10)
+    expiration = utc_now() + timedelta(minutes=10)
     record = db.query(models.OTPVerification).filter(models.OTPVerification.email == user.email).first()
     if record:
         record.otp_code = otp
@@ -2338,7 +2342,7 @@ def update_password(request: UpdatePasswordRequest, db: Session = Depends(get_db
     record = db.query(models.OTPVerification).filter(models.OTPVerification.email == user.email).first()
     if (
         not record
-        or datetime.utcnow() > record.expires_at
+        or utc_now() > record.expires_at
         or not utils.password_reset_token_matches_code(reset_claims, record.otp_code)
     ):
         raise HTTPException(status_code=400, detail="Invalid or expired verification code")
@@ -2382,7 +2386,7 @@ def verify_password_reset_code(
     if (
         not user
         or not record
-        or datetime.utcnow() > record.expires_at
+        or utc_now() > record.expires_at
         or not secrets.compare_digest(record.otp_code, payload.otp_code)
     ):
         raise HTTPException(status_code=400, detail="Invalid or expired verification code")
@@ -2757,7 +2761,7 @@ async def upload_document(
             storage_path=stored_file_reference,
             job_id=job_id,
         )
-        _processing_status[job_id] = {"job_id": job_id, "office": office, "name": name, "status": "queued", "message": "Upload queued for background processing.", "updated_at": datetime.utcnow().isoformat()}
+        _processing_status[job_id] = {"job_id": job_id, "office": office, "name": name, "status": "queued", "message": "Upload queued for background processing.", "updated_at": utc_now().isoformat()}
 
         # ── 2. Defer OCR + vector embedding to dedicated worker pool ─────
         background_tasks.add_task(
@@ -2822,7 +2826,7 @@ def get_document_processing_status(
     admin: models.User = Depends(get_document_manager),
 ):
     """Return recent upload states, optionally narrowed to one upload job."""
-    cutoff = datetime.utcnow().timestamp() - 3600
+    cutoff = utc_now().timestamp() - 3600
     recent = []
     for item in _processing_status.values():
         if not is_system_admin(admin) and not can_access_office(admin, item.get("office")):
@@ -3225,7 +3229,7 @@ def update_document(
                 "scope_code": scope_code,
                 "scope_key": document_scope_key(office, program, scope_type, scope_code),
                 "version": request.version,
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": utc_now().isoformat(),
             }).eq("id", registry_id).execute()
 
         for row in matching_rows:
@@ -3453,12 +3457,14 @@ def ask_policy(
     
     # Provider choice affects generation only. Retrieval and access filtering
     # always run locally before any evidence can be sent to a cloud model.
-    ai_provider = settings.ai_provider if settings else "local"
-    raw_model = settings.ai_model if settings else "llama3.1"
+    ai_provider = getattr(settings, "ai_provider", "local") if settings else "local"
+    raw_model = getattr(settings, "ai_model", "llama3.1") if settings else "llama3.1"
     ai_model = "llama3.1" if raw_model in ["qwen-2.5-32b", "qwen-2.5-7b-instruct", "llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b"] else raw_model
-    groq_model = settings.groq_model if settings else "qwen/qwen3.8-27b"
-    ai_temp = settings.ai_temperature if settings else 0.3
-    base_prompt = settings.ai_system_prompt if settings else "You are the friendly and professional AskPolicy AI Assistant for Cebu Technological University (CTU) Argao Campus."
+    groq_model = getattr(settings, "groq_model", "qwen/qwen3.8-27b") if settings else "qwen/qwen3.8-27b"
+    ai_temp = getattr(settings, "ai_temperature", 0.3) if settings else 0.3
+    base_prompt = getattr(settings, "ai_system_prompt", "") if settings else ""
+    if not base_prompt:
+        base_prompt = "You are the friendly and professional AskPolicy AI Assistant for Cebu Technological University (CTU) Argao Campus."
 
     # ==========================================
     # 2. FAST-PATH: GREETING DETECTOR
@@ -4195,7 +4201,7 @@ def get_system_stats(db: Session = Depends(get_db), current_user: models.User = 
             qms_plans = filter_office_records(current_user, db.query(models.QMSActionPlan).all())
             qms_total = len(qms_plans)
             overdue_count = 0
-            now_date_str = datetime.utcnow().strftime("%Y-%m-%d")
+            now_date_str = utc_now().strftime("%Y-%m-%d")
             for p in qms_plans:
                 if p.status == "Overdue":
                     overdue_count += 1
@@ -4212,7 +4218,7 @@ def get_system_stats(db: Session = Depends(get_db), current_user: models.User = 
             q_res.data = filter_office_records(current_user, q_res.data or [])
             if q_res.data:
                 qms_total = len(q_res.data)
-                now_date_str = datetime.utcnow().strftime("%Y-%m-%d")
+                now_date_str = utc_now().strftime("%Y-%m-%d")
                 qms_overdue = sum(1 for p in q_res.data if p.get("status") == "Overdue" or (p.get("status") != "Completed" and p.get("target_date") and str(p.get("target_date")) < now_date_str))
         except Exception:
             pass
@@ -4955,7 +4961,7 @@ def archive_aaccup_evidence(
             raise HTTPException(status_code=409, detail="Evidence chunks have inconsistent accreditation scope.")
         chunk_metadata["status"] = "Archived"
         chunk_metadata["archived_by"] = current_user.email
-        chunk_metadata["archived_at"] = datetime.utcnow().isoformat()
+        chunk_metadata["archived_at"] = utc_now().isoformat()
         supabase.table("document_sections").update({"metadata": chunk_metadata}).eq("id", chunk["id"]).execute()
     try:
         supabase.table("system_events_logs").insert({
@@ -5155,7 +5161,7 @@ def get_popular_topics(current_user: models.User = Depends(get_current_admin)):
 @app.get("/analytics/me/monthly")
 def get_my_monthly_query_activity(current_user: models.User = Depends(get_current_user)):
     """Return monthly counts for the signed-in user without exposing question text."""
-    today = datetime.utcnow()
+    today = utc_now()
     month_starts = []
     year, month = today.year, today.month
     for offset in range(5, -1, -1):
@@ -5749,7 +5755,7 @@ def generate_controlled_car_number(db, cycle):
     sequence = counter.next_number
     counter.next_number = sequence + 1
     year_match = re.search(r"\b(20\d{2})\b", cycle.name or "")
-    year = year_match.group(1) if year_match else str(datetime.utcnow().year)
+    year = year_match.group(1) if year_match else str(utc_now().year)
     return f"CTU-CAR-{year}-{sequence:04d}"
 
 
@@ -5772,7 +5778,7 @@ def record_car_status_history(db, car, from_status, to_status, actor_id, reason=
 
 
 def apply_car_lifecycle_timestamp(car, status_name, timestamp=None):
-    timestamp = timestamp or datetime.utcnow()
+    timestamp = timestamp or utc_now()
     field_by_status = {
         "Issued": "issued_at",
         "Acknowledged": "acknowledged_at",
@@ -5822,7 +5828,7 @@ def send_car_notification_once(db, car, event_key, recipients, n_type, title, me
 
 
 def run_car_monitoring(db, cars=None):
-    today = datetime.utcnow().date()
+    today = utc_now().date()
     cars = cars if cars is not None else db.query(models.CARForm).all()
     summary = {"reviewed": len(cars), "reminders_sent": 0, "overdue_sent": 0, "major_escalations_sent": 0}
     for car in cars:
@@ -6145,7 +6151,7 @@ def create_car_form(
             responsible_office=responsible_office,
             issued_by_id=current_user.id,
             human_verified_by_id=current_user.id if payload.human_verified else None,
-            human_verified_at=datetime.utcnow() if payload.human_verified else None,
+            human_verified_at=utc_now() if payload.human_verified else None,
         )
         db.add(item)
         db.flush()
@@ -6270,13 +6276,13 @@ def update_car_form(
         car.issued_by_id = current_user.id
         if payload.human_verified is True and not car.human_verified_at:
             car.human_verified_by_id = current_user.id
-            car.human_verified_at = datetime.utcnow()
+            car.human_verified_at = utc_now()
     elif payload.status == "Acknowledged" and "status" in changed_fields:
         car.acknowledged_by_id = current_user.id
         car.acknowledged_by = current_user.full_name or current_user.email
     elif payload.status == "Response Submitted" and "status" in changed_fields:
         car.response_submitted_by_id = current_user.id
-        car.response_submitted_at = datetime.utcnow()
+        car.response_submitted_at = utc_now()
         car.effectiveness_outcome = None
         car.verified_at = None
         car.non_conformity_closed = False
@@ -6285,7 +6291,7 @@ def update_car_form(
                 action.status = "In Progress"
     elif payload.status in {"Returned", "Closed"} and "status" in changed_fields:
         car.verified_by_id = current_user.id
-        car.verified_at = datetime.utcnow()
+        car.verified_at = utc_now()
         car.non_conformity_closed = payload.status == "Closed"
         if payload.status == "Returned":
             for action in car.action_plan or []:
@@ -6324,7 +6330,7 @@ def update_car_form(
             changed_fields=revision_changes,
             changed_by_id=current_user.id,
         ))
-    car.updated_at = datetime.utcnow()
+    car.updated_at = utc_now()
         
     db.commit()
     db.refresh(car)
@@ -6460,11 +6466,11 @@ def reopen_car_form(
     car.effectiveness_outcome = None
     car.verified_at = None
     car.reopened_by_id = current_user.id
-    car.reopened_at = datetime.utcnow()
+    car.reopened_at = utc_now()
     car.reopen_reason = payload.reason.strip()
     car.reopen_count = (car.reopen_count or 0) + 1
-    car.in_progress_at = datetime.utcnow()
-    car.updated_at = datetime.utcnow()
+    car.in_progress_at = utc_now()
+    car.updated_at = utc_now()
     record_car_status_history(db, car, previous_status, "In Progress", current_user.id, payload.reason)
     db.add(models.CARRevisionHistory(
         car_id=car.id,
@@ -6610,7 +6616,7 @@ def get_verified_car_report_data(
         "car": schemas.CARFormResponse.model_validate(car),
         "actions": [schemas.QMSActionPlanResponse.model_validate(action) for action in car.action_plan],
         "status_history": [schemas.CARStatusHistoryResponse.model_validate(row) for row in car.status_history],
-        "report_generated_at": datetime.utcnow(),
+        "report_generated_at": utc_now(),
         "report_generated_by": current_user.full_name or current_user.email,
     }
 
@@ -6675,7 +6681,7 @@ def download_car_audit_package(
         for evidence in car.verification_evidences:
             add_storage_file_to_zip(archive, f"verification_evidence/{evidence.file_name}", evidence.storage_path, manifest_errors)
         archive.writestr("package_manifest.json", json.dumps({
-            "car_no": car.car_no, "generated_at": datetime.utcnow().isoformat(),
+            "car_no": car.car_no, "generated_at": utc_now().isoformat(),
             "generated_by": current_user.full_name or current_user.email,
             "included_actions": len(car.action_plan),
             "included_verification_evidence": len(car.verification_evidences),
@@ -7035,7 +7041,7 @@ Return one pure JSON object with every key below:
         extracted["source_sha256"] = source_hash
         extracted["ocr_model"] = extraction_model
         extracted["ocr_version"] = "car-whole-form-v2"
-        extracted["ocr_extracted_at"] = datetime.utcnow().isoformat() + "Z"
+        extracted["ocr_extracted_at"] = utc_now().isoformat() + "Z"
         extracted["ocr_raw_json"] = raw_extraction
         extracted["ocr_confidence_json"] = {"fields": confidence, "warnings": warnings}
         extracted["confidence_warnings"] = warnings
@@ -7302,7 +7308,7 @@ def update_profile(
         record = db.query(models.OTPVerification).filter(models.OTPVerification.email == req.new_email).first()
         if not record or record.otp_code != req.otp_code:
             raise HTTPException(status_code=400, detail="Invalid verification code.")
-        if datetime.utcnow() > record.expires_at:
+        if utc_now() > record.expires_at:
             raise HTTPException(status_code=400, detail="This verification code has expired. Please request a new one.")
             
         existing_email = db.query(models.User).filter(models.User.email == req.new_email).first()
@@ -8255,7 +8261,7 @@ def fulfill_document_request(
     record.status = "Submitted / Fulfilled"
     record.current_location = record.origin_office or record.sender_name or "Director / Admin Desk"
     record.recipient_email = None
-    record.updated_at = datetime.utcnow()
+    record.updated_at = utc_now()
 
     new_log = models.PaperTrailLog(
         record_id=record.id,
@@ -8334,7 +8340,7 @@ def correct_paper_trail_metadata(
     record.remarks = payload.remarks
     if (record.current_location or "").strip().lower() == (previous_office or "").strip().lower():
         record.current_location = record.office
-    record.updated_at = datetime.utcnow()
+    record.updated_at = utc_now()
 
     db.add(models.PaperTrailLog(
         record_id=record.id,
@@ -8405,7 +8411,7 @@ def update_paper_trail_status(
         action_text = f"Status updated to {new_status}"
 
     record.status = new_status
-    record.updated_at = datetime.utcnow()
+    record.updated_at = utc_now()
 
     # Append movement log
     new_log = models.PaperTrailLog(
@@ -8692,7 +8698,7 @@ def update_iso_audit_result(
     result.record_status = record_status
     if record_status == "FINALIZED":
         result.finalized_by = reviewer.email
-        result.finalized_at = datetime.utcnow()
+        result.finalized_at = utc_now()
         cycle.status = "CLOSED"
     db.commit()
     db.refresh(result)
@@ -9540,7 +9546,7 @@ def update_qms_action_plan(
             raise HTTPException(422, "Attach implementation evidence before marking this action complete.")
         plan.status = payload.status
         if payload.status == "Completed" and not plan.actual_completion_date and not payload.actual_completion_date:
-            plan.actual_completion_date = datetime.utcnow().strftime("%Y-%m-%d")
+            plan.actual_completion_date = utc_now().strftime("%Y-%m-%d")
 
     if payload.actual_completion_date is not None: plan.actual_completion_date = payload.actual_completion_date
     if payload.assessment_date is not None: plan.assessment_date = payload.assessment_date
@@ -9759,10 +9765,10 @@ def update_program_accreditation(
             ))
         else:
             active_cycle.valid_until = parsed_date
-            active_cycle.updated_at = datetime.utcnow()
+            active_cycle.updated_at = utc_now()
         accreditation.current_level = new_level
         accreditation.valid_until = parsed_date
-        accreditation.updated_at = datetime.utcnow()
+        accreditation.updated_at = utc_now()
 
     db.commit()
     db.refresh(accreditation)
@@ -9861,7 +9867,7 @@ def upgrade_program_accreditation(
     # 2. Update the active status
     accreditation.current_level = new_level
     accreditation.valid_until = parsed_date
-    accreditation.updated_at = datetime.utcnow()
+    accreditation.updated_at = utc_now()
 
     db.commit()
     db.refresh(accreditation)
@@ -10164,7 +10170,7 @@ def create_document_template_version(payload: TemplateVersionCreateRequest, curr
     if existing:
         raise HTTPException(409, "That template version already exists.")
     repository_name = f"{payload.name.strip()} (v{payload.version.strip()})"
-    metadata = {"name": repository_name, "template_name": payload.name.strip(), "category": "Forms / Templates", "office": "Quality Assurance Office", "program": "GLOBAL", "version": payload.version.strip(), "status": "Draft", "scope_type": "CAMPUS", "scope_code": "ARGAO", "template_code": code, "template_revision": payload.revision.strip(), "page_size": payload.page_size, "orientation": payload.orientation, "original_filename": f"{repository_name}.html", "content_html": payload.content_html, "field_schema": validation.get("field_schema") or payload.field_schema, "created_by": current_user.email, "created_at": datetime.utcnow().isoformat()}
+    metadata = {"name": repository_name, "template_name": payload.name.strip(), "category": "Forms / Templates", "office": "Quality Assurance Office", "program": "GLOBAL", "version": payload.version.strip(), "status": "Draft", "scope_type": "CAMPUS", "scope_code": "ARGAO", "template_code": code, "template_revision": payload.revision.strip(), "page_size": payload.page_size, "orientation": payload.orientation, "original_filename": f"{repository_name}.html", "content_html": payload.content_html, "field_schema": validation.get("field_schema") or payload.field_schema, "created_by": current_user.email, "created_at": utc_now().isoformat()}
     response = supabase.table("document_sections").insert({"content": "", "metadata": metadata, "embedding": None}).execute()
     row = (response.data or [{}])[0]
     return {"id": str(row.get("id")), "validation": validation, "metadata": metadata}
@@ -10190,9 +10196,9 @@ def activate_document_template(section_id: str, current_user: models.User = Depe
     for active in active_rows:
         if str(active.get("id")) == str(section_id):
             continue
-        active_meta = active.get("metadata") or {}; active_meta["status"] = "Superseded"; active_meta["superseded_at"] = datetime.utcnow().isoformat()
+        active_meta = active.get("metadata") or {}; active_meta["status"] = "Superseded"; active_meta["superseded_at"] = utc_now().isoformat()
         supabase.table("document_sections").update({"metadata": active_meta}).eq("id", active.get("id")).execute()
-    meta["status"] = "Active"; meta["activated_by"] = current_user.email; meta["activated_at"] = datetime.utcnow().isoformat()
+    meta["status"] = "Active"; meta["activated_by"] = current_user.email; meta["activated_at"] = utc_now().isoformat()
     supabase.table("document_sections").update({"metadata": meta}).eq("id", row.get("id")).execute()
     return {"message": "Template version activated.", "id": str(row.get("id"))}
 
@@ -10212,7 +10218,7 @@ def archive_document_template_version(section_id: str, current_user: models.User
     references = db_count
     if references:
         raise HTTPException(409, "This template version is referenced by a finalized document and cannot be archived.")
-    meta["status"] = "Archived"; meta["archived_by"] = current_user.email; meta["archived_at"] = datetime.utcnow().isoformat()
+    meta["status"] = "Archived"; meta["archived_by"] = current_user.email; meta["archived_at"] = utc_now().isoformat()
     supabase.table("document_sections").update({"metadata": meta}).eq("id", row.get("id")).execute()
     return {"message": "Template version archived.", "id": str(row.get("id"))}
 
@@ -10346,7 +10352,7 @@ def update_generated_document(document_id: str, payload: GeneratedDocumentUpdate
         raise HTTPException(409, "Only draft documents can be edited.")
     validate_safe_generated_html(payload.rendered_html)
     record.title = payload.title.strip(); record.field_values = payload.field_values
-    record.rendered_html = payload.rendered_html; record.last_edited_by_id = current_user.id; record.updated_at = datetime.utcnow()
+    record.rendered_html = payload.rendered_html; record.last_edited_by_id = current_user.id; record.updated_at = utc_now()
     add_generated_document_event(db, record, "UPDATED", current_user)
     db.commit(); db.refresh(record)
     return generated_document_response(record)
@@ -10361,7 +10367,7 @@ def finalize_generated_document(document_id: str, db: Session = Depends(get_db),
     if record.status != "DRAFT":
         raise HTTPException(409, "Only draft documents can be finalized.")
     record.status = "FINALIZED"; record.finalized_by_id = current_user.id
-    record.finalized_at = datetime.utcnow(); record.updated_at = datetime.utcnow()
+    record.finalized_at = utc_now(); record.updated_at = utc_now()
     add_generated_document_event(db, record, "FINALIZED", current_user, {"template_version": record.template_version})
     db.commit(); db.refresh(record)
     return generated_document_response(record)
@@ -10382,7 +10388,7 @@ def reopen_generated_document(document_id: str, db: Session = Depends(get_db), c
         created_by_id=current_user.id, last_edited_by_id=current_user.id, supersedes_id=record.id,
     )
     db.add(replacement); db.flush()
-    record.status = "SUPERSEDED"; record.updated_at = datetime.utcnow()
+    record.status = "SUPERSEDED"; record.updated_at = utc_now()
     add_generated_document_event(db, record, "SUPERSEDED", current_user, {"replacement_id": str(replacement.id)})
     add_generated_document_event(db, replacement, "REOPENED", current_user, {"supersedes_id": str(record.id)})
     db.commit(); db.refresh(replacement)
@@ -10397,7 +10403,7 @@ def void_generated_document(document_id: str, payload: GeneratedDocumentVoidRequ
     require_generated_document_access(record, current_user)
     if record.status not in {"DRAFT", "FINALIZED"}:
         raise HTTPException(409, "This document can no longer be voided.")
-    record.status = "VOIDED"; record.void_reason = payload.reason.strip(); record.voided_at = datetime.utcnow(); record.updated_at = datetime.utcnow()
+    record.status = "VOIDED"; record.void_reason = payload.reason.strip(); record.voided_at = utc_now(); record.updated_at = utc_now()
     add_generated_document_event(db, record, "VOIDED", current_user, {"reason": record.void_reason})
     db.commit(); db.refresh(record)
     return generated_document_response(record)

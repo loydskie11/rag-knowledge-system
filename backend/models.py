@@ -2,8 +2,12 @@ from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from database import Base
+
+def utc_now() -> datetime:
+    """Return a naive UTC datetime for compatibility with existing DB columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 class User(Base):
     __tablename__ = "users"
@@ -19,7 +23,7 @@ class User(Base):
     created_by_admin = Column(Boolean, default=False)
     email_changed = Column(Boolean, default=False)
     status = Column(String(50), default="Active")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     student_profile = relationship("StudentProfile", back_populates="user", uselist=False)
     assignments = relationship("UserAssignment", back_populates="user", cascade="all, delete-orphan")
@@ -32,7 +36,7 @@ class OrganizationalUnit(Base):
     name = Column(String(255), unique=True, nullable=False)
     unit_type = Column(String(30), nullable=False)  # OFFICE or COLLEGE
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class AcademicProgram(Base):
@@ -42,7 +46,7 @@ class AcademicProgram(Base):
     name = Column(String(255), nullable=False)
     college_unit_id = Column(UUID(as_uuid=True), ForeignKey("organizational_units.id", ondelete="RESTRICT"), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
     college = relationship("OrganizationalUnit")
 
 
@@ -58,7 +62,7 @@ class UserAssignment(Base):
     scope_id = Column(UUID(as_uuid=True), nullable=True)
     is_primary = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
     user = relationship("User", back_populates="assignments")
 
 
@@ -147,8 +151,8 @@ class DocumentUpload(Base):
     job_id = Column(UUID(as_uuid=True), nullable=True)
     uploaded_by = Column(Text, nullable=False)
     failure_reason = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, nullable=False)
 
 # --- NEW: OTP VERIFICATION TABLE ---
 class OTPVerification(Base):
@@ -165,7 +169,7 @@ class Announcement(Base):
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
     recipients = Column(String(255), nullable=False) 
-    sent_date = Column(DateTime, default=datetime.utcnow)
+    sent_date = Column(DateTime, default=utc_now)
     sent_by = Column(String(255), nullable=False)
     status = Column(String(50), default="Sent") # Sent, Scheduled, Draft
     read_count = Column(Integer, default=0)
@@ -214,7 +218,7 @@ class ChedEvidence(Base):
     file_url = Column(String, nullable=False)
     uploaded_by = Column(String(255), nullable=False)
     status = Column(String(50), default="Pending Verification")
-    upload_date = Column(DateTime, default=datetime.utcnow)
+    upload_date = Column(DateTime, default=utc_now)
 
     requirement = relationship("ChedRequirement", back_populates="evidences")
 
@@ -242,8 +246,8 @@ class PaperTrailRecord(Base):
     remarks = Column(Text, nullable=True)
     storage_path = Column(String, nullable=True)
     file_url = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     logs = relationship("PaperTrailLog", back_populates="record", cascade="all, delete-orphan", order_by="PaperTrailLog.timestamp.desc()")
 
@@ -258,7 +262,7 @@ class PaperTrailLog(Base):
     actor_email = Column(String(255), nullable=False)
     actor_role = Column(String(50), nullable=False)
     notes = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utc_now)
 
     record = relationship("PaperTrailRecord", back_populates="logs")
 
@@ -274,7 +278,7 @@ class ISORequirement(Base):
     risk_level = Column(String(20), default="Medium") # High, Medium, Low
     status = Column(String(50), default="Not Compliant") # Compliant, Pending, Not Compliant
     cycle_year = Column(String(50), default="2025 Surveillance", nullable=False) # e.g. 2024 Initial Audit, 2025 Surveillance, 2026 Recertification
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     evidences = relationship("ISOEvidence", back_populates="requirement", cascade="all, delete-orphan")
     car_forms = relationship("CARForm", backref="iso_requirement", lazy="joined")
@@ -289,7 +293,7 @@ class ISOAuditCycle(Base):
     name = Column(String(100), unique=True, nullable=False)
     standard_version = Column(String(100), default="ISO 9001:2015", nullable=False)
     status = Column(String(20), default="ACTIVE", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     results = relationship("ISOAuditResult", back_populates="cycle", cascade="all, delete-orphan")
     audit_findings = relationship("ISOAuditFinding", back_populates="cycle")
@@ -308,7 +312,7 @@ class ISOAuditFinding(Base):
     finding_category = Column(String(50), default="UNKNOWN", nullable=False)
     source_type = Column(String(30), default="MANUAL", nullable=False)
     source_record_key = Column(String(100), unique=True, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     cycle = relationship("ISOAuditCycle", back_populates="audit_findings")
     iso_requirement = relationship("ISORequirement")
@@ -354,8 +358,8 @@ class ISOAuditResult(Base):
     created_by = Column(String(255), nullable=False)
     finalized_by = Column(String(255), nullable=True)
     finalized_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     cycle = relationship("ISOAuditCycle", back_populates="results")
 
@@ -368,7 +372,7 @@ class ISOEvidence(Base):
     storage_path = Column(String, nullable=True)
     file_url = Column(String, nullable=False)
     uploaded_by = Column(String(255), nullable=False)
-    upload_date = Column(DateTime, default=datetime.utcnow)
+    upload_date = Column(DateTime, default=utc_now)
     status = Column(String(50), default="Pending")
     admin_feedback = Column(Text, nullable=True) # NEW: Auditor assessment remarks
 
@@ -389,7 +393,7 @@ class IQASchedule(Base):
     day3_date = Column(String(100), default="Sept 12, 2025")
     day3_title = Column(String(255), default="Consolidation & Closing Meeting")
     day3_scope = Column(Text, default="Internal data cross-referencing, synthesis of observations, drafting the formal audit findings report, and the official closing meeting and findings presentation.")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class IQADaySchedule(Base):
@@ -401,7 +405,7 @@ class IQADaySchedule(Base):
     day_date = Column(String(50), nullable=False)
     title = Column(String(255), nullable=False)
     scope = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class QMSActionPlan(Base):
@@ -427,8 +431,8 @@ class QMSActionPlan(Base):
     assessment_date = Column(String(50), nullable=True) # e.g. "2025-09-12"
     assessment_notes = Column(Text, nullable=True) # Auditor/Lead remarks
     created_by = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     evidences = relationship("QMSEvidence", back_populates="action_plan", cascade="all, delete-orphan")
     car = relationship("CARForm", back_populates="action_plan")
@@ -459,7 +463,7 @@ class QMSEvidence(Base):
     storage_path = Column(String, nullable=True)
     file_url = Column(String, nullable=False)
     uploaded_by = Column(String(255), nullable=False)
-    upload_date = Column(DateTime, default=datetime.utcnow)
+    upload_date = Column(DateTime, default=utc_now)
 
     action_plan = relationship("QMSActionPlan", back_populates="evidences")
 
@@ -475,7 +479,7 @@ class CARVerificationEvidence(Base):
     sha256 = Column(String(64), nullable=False)
     notes = Column(Text, nullable=True)
     uploaded_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    uploaded_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    uploaded_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     car = relationship("CARForm", back_populates="verification_evidences")
     uploaded_by_user = relationship("User", foreign_keys=[uploaded_by_id])
@@ -494,7 +498,7 @@ class ProgramAccreditation(Base):
     status = Column(String(50), default="Active") # Active, Under Assessment, Expired
     active_areas = Column(String(500), default="Area I,Area II,Area III,Area IV,Area V,Area VI,Area VII,Area VIII,Area IX,Area X")
     valid_until = Column(DateTime, nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     history = relationship("AccreditationHistory", back_populates="program", cascade="all, delete-orphan", order_by="AccreditationHistory.date_granted.desc()")
     cycles = relationship("AccreditationCycle", back_populates="program", cascade="all, delete-orphan", order_by="AccreditationCycle.opened_at.desc()")
@@ -508,7 +512,7 @@ class AccreditationHistory(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     program_id = Column(UUID(as_uuid=True), ForeignKey("program_accreditations.id", ondelete="CASCADE"), nullable=False)
     level_achieved = Column(String(100), nullable=False)
-    date_granted = Column(DateTime, default=datetime.utcnow)
+    date_granted = Column(DateTime, default=utc_now)
     valid_until = Column(DateTime, nullable=True)
     certificate_storage_path = Column(String, nullable=True)
     certificate_url = Column(String, nullable=True)
@@ -538,14 +542,14 @@ class AccreditationCycle(Base):
     cycle_label = Column(String(255), nullable=False)
     status = Column(String(20), nullable=False, default="ACTIVE", server_default=text("'ACTIVE'"))
     source = Column(String(40), nullable=False, default="LEVEL_TRANSITION", server_default=text("'LEVEL_TRANSITION'"))
-    opened_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("now()"))
+    opened_at = Column(DateTime, nullable=False, default=utc_now, server_default=text("now()"))
     closed_at = Column(DateTime, nullable=True)
     valid_until = Column(DateTime, nullable=True)
     source_history_id = Column(UUID(as_uuid=True), ForeignKey("accreditation_history.id", ondelete="SET NULL"), unique=True, nullable=True)
     created_by = Column(String(255), nullable=False)
     closed_by = Column(String(255), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("now()"))
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow, server_default=text("now()"))
+    created_at = Column(DateTime, nullable=False, default=utc_now, server_default=text("now()"))
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now, server_default=text("now()"))
 
     program = relationship("ProgramAccreditation", back_populates="cycles")
     source_history = relationship("AccreditationHistory", foreign_keys=[source_history_id], uselist=False)
@@ -557,13 +561,13 @@ class AaccupRequirement(Base):
     area_code = Column(String(50), nullable=False) # e.g., "Area I"
     area_title = Column(String(255), nullable=False) # e.g., "Vision, Mission, Goals and Objectives"
     description = Column(Text, nullable=False) # e.g., "Approved Board Resolution of VMGO"
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class CssResponse(Base):
     __tablename__ = "css_responses"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     survey_year = Column(Integer, nullable=True, index=True)
     survey_date = Column(Date, nullable=True, index=True)
     client_type = Column(String(100), nullable=True)
@@ -594,7 +598,7 @@ class CssResponse(Base):
 class SurveySyncRun(Base):
     __tablename__ = "survey_sync_runs"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     status = Column(String(20), nullable=False, default="running")
     fetched_count = Column(Integer, nullable=False, default=0)
@@ -659,8 +663,8 @@ class CARForm(Base):
     follow_up_date = Column(String(50), nullable=True)
     comments_remarks = Column(Text, nullable=True)
     non_conformity_closed = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
     issued_at = Column(DateTime(timezone=True), nullable=True)
     acknowledged_at = Column(DateTime(timezone=True), nullable=True)
     in_progress_at = Column(DateTime(timezone=True), nullable=True)
@@ -744,7 +748,7 @@ class CARForm(Base):
             return 0
         try:
             target = datetime.strptime(self.target_date, "%Y-%m-%d").date()
-            return max(0, (datetime.utcnow().date() - target).days)
+            return max(0, (utc_now().date() - target).days)
         except (TypeError, ValueError):
             return 0
 
@@ -757,7 +761,7 @@ class CARNumberCounter(Base):
     __tablename__ = "car_number_counters"
     cycle_id = Column(UUID(as_uuid=True), ForeignKey("iso_audit_cycles.id", ondelete="CASCADE"), primary_key=True)
     next_number = Column(Integer, nullable=False, default=1)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class CARStatusHistory(Base):
@@ -768,7 +772,7 @@ class CARStatusHistory(Base):
     to_status = Column(String(50), nullable=False)
     reason = Column(Text, nullable=True)
     changed_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    changed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    changed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     car = relationship("CARForm", back_populates="status_history")
     changed_by_user = relationship("User")
 
@@ -783,7 +787,7 @@ class CARRevisionHistory(Base):
     car_id = Column(UUID(as_uuid=True), ForeignKey("car_forms.id", ondelete="CASCADE"), nullable=False)
     changed_fields = Column(JSONB, nullable=False)
     changed_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    changed_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    changed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     car = relationship("CARForm", back_populates="revision_history")
     changed_by_user = relationship("User")
 
@@ -799,7 +803,7 @@ class CARNotificationEvent(Base):
     car_id = Column(UUID(as_uuid=True), ForeignKey("car_forms.id", ondelete="CASCADE"), nullable=False)
     event_key = Column(String(120), nullable=False)
     recipient_email = Column(Text, nullable=False)
-    sent_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    sent_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
 class GeneratedDocument(Base):
@@ -823,8 +827,8 @@ class GeneratedDocument(Base):
     last_edited_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     finalized_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
     supersedes_id = Column(UUID(as_uuid=True), ForeignKey("generated_documents.id", ondelete="RESTRICT"), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     finalized_at = Column(DateTime(timezone=True), nullable=True)
     voided_at = Column(DateTime(timezone=True), nullable=True)
     void_reason = Column(Text, nullable=True)
@@ -838,4 +842,4 @@ class GeneratedDocumentEvent(Base):
     actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     actor_email = Column(Text, nullable=False)
     details = Column(JSONB, default=dict, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

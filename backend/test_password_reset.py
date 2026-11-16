@@ -1,7 +1,7 @@
 import ast
 import secrets
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -22,6 +22,7 @@ def load_reset_handlers():
         "VerifyPasswordResetCodeRequest",
         "update_password",
         "verify_password_reset_code",
+        "utc_now",
     }
     nodes = []
     for node in tree.body:
@@ -36,6 +37,7 @@ def load_reset_handlers():
         "Request": Request,
         "Session": Session,
         "datetime": datetime,
+        "timezone": timezone,
         "secrets": secrets,
         "models": models,
         "utils": utils,
@@ -100,7 +102,7 @@ class PasswordResetSecurityTests(unittest.TestCase):
         record = SimpleNamespace(
             email=user.email,
             otp_code="123456",
-            expires_at=datetime.utcnow() + timedelta(minutes=5),
+            expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
         )
         database = MagicMock()
         database.query.side_effect = [

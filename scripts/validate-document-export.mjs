@@ -13,7 +13,7 @@ const checks = [
   ["preview uses printable HTML", composer.includes("preparePrintableTemplateHtml(withLetterhead")],
   ["images and fonts finish before printing", composer.includes("frameDocument.fonts?.ready") && composer.includes("frameDocument.images")],
   ["isolated offline preview", preview.includes('sandbox="allow-same-origin allow-modals"') && preview.includes('referrerPolicy="no-referrer"')],
-  ["controlled composer excludes unreliable DOCX export", !composer.includes("DOCX") && !composer.includes("docx")],
+  ["controlled composer excludes unreliable DOCX export", !composer.includes("Download DOCX") && !composer.includes("downloadDocx") && composer.includes("Print / PDF")],
 ];
 
 const failures = checks.filter(([, passed]) => !passed);

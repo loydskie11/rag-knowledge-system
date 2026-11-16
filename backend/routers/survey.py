@@ -17,6 +17,9 @@ from permissions import filter_survey_records
 
 router = APIRouter(tags=["Client Satisfaction Survey"])
 
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 _sync_lock = threading.Lock()
 _cloud_survey_url = os.getenv("CLOUD_SURVEY_SUPABASE_URL", "").strip().rstrip("/")
 _cloud_survey_key = os.getenv("CLOUD_SURVEY_SUPABASE_SERVICE_KEY", "").strip()
@@ -67,7 +70,7 @@ def _sync_run_payload(run: Optional[models.SurveySyncRun], configured: bool) -> 
 def submit_css_response(req: schemas.CssResponseCreate, db: Session = Depends(get_db)):
     """Submits a Client Satisfaction Survey response and saves it to PostgreSQL / Supabase."""
     try:
-        now_dt = datetime.utcnow()
+        now_dt = utc_now()
         derived_year = req.survey_year
         if not derived_year:
             if req.date_of_service:

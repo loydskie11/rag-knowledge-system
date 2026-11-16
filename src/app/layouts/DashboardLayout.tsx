@@ -80,7 +80,7 @@ export function DashboardLayout() {
     activePaths?: string[];
   }> = [
     { path: "/app",                        label: "Dashboard",                  icon: LayoutDashboard,    permission: "canAccessDashboard"             },
-    { path: "/app/ask-policy",             label: "AskPolicy AI Assistant",     icon: Sparkles,           permission: "canAccessAskPolicy"             },
+    { path: "/app/ask-policy",             label: "Ask Policy",                icon: Sparkles,           permission: "canAccessAskPolicy"             },
     { path: "/app/knowledge-repository",   label: "Knowledge Repository",       icon: Database,           permission: "canAccessKnowledgeRepository"    },
     { path: "/app/paper-trail",            label: "Document Tracking",          icon: FileCheck,          permission: "canAccessPaperTrail"             },
     { path: "/app/accreditation-support",  label: "Accreditation Support",      icon: Award,              permission: "canAccessAccreditationSupport"   },
