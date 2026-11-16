@@ -62,6 +62,7 @@ export function GradeEvaluation() {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [result, setResult] = useState<EvaluationResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [expandedSemesters, setExpandedSemesters] = useState<number[]>([]);
@@ -156,6 +157,7 @@ export function GradeEvaluation() {
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       setSelectedFile(e.dataTransfer.files[0]);
+      setErrorMessage(null);
       setResult(null); setExpandedSemesters([]);
     }
   };
@@ -163,6 +165,7 @@ export function GradeEvaluation() {
   const handleRemoveFile = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevents opening the file dialog
     setSelectedFile(null);
+    setErrorMessage(null);
     setResult(null);
     setExpandedSemesters([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -171,6 +174,7 @@ export function GradeEvaluation() {
   const submitForEvaluation = async () => {
     if (!selectedFile) return;
     setIsEvaluating(true);
+    setErrorMessage(null);
     const formData = new FormData();
     formData.append("file", selectedFile);
 
@@ -183,7 +187,7 @@ export function GradeEvaluation() {
     } catch (error: any) {
       console.error("Evaluation Error:", error);
       const detail = error.response?.data?.detail || error.message || "Failed to evaluate grades. Ensure it is a valid PDF.";
-      alert(`Evaluation Error: ${detail}`);
+      setErrorMessage(detail);
     } finally {
       setIsEvaluating(false);
     }
@@ -249,7 +253,7 @@ export function GradeEvaluation() {
                     <p className="text-[11px] text-gray-400 mt-1">Supports official CTU grade slip PDF (Max 10MB)</p>
                   </div>
                 )}
-                <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
+                <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={(e) => { setSelectedFile(e.target.files?.[0] || null); setErrorMessage(null); setResult(null); }} />
               </div>
 
               <button
@@ -259,6 +263,13 @@ export function GradeEvaluation() {
               >
                 {isEvaluating ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing Grades...</> : "Evaluate Performance"}
               </button>
+
+              {errorMessage && (
+                <div role="alert" className="mt-3 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-[11px] leading-relaxed text-rose-700">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
 
               <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-2.5">
                 <AlertCircle className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />

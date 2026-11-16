@@ -24,6 +24,24 @@ class RetrievalRegressions(unittest.TestCase):
         answer = 'The mission is not provided. However, I can infer some values.'
         self.assertTrue(eval(compile(ast.Expression(condition), '<guard>', 'eval'), {'speculation_markers': markers, 'answer_lower': answer.lower()}))
 
+    def test_grade_evaluation_uses_configured_provider(self):
+        source = Path(__file__).with_name('main.py').read_text(encoding='utf-8')
+        tree = ast.parse(source)
+        fn = next(n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == 'evaluate_grades')
+        function_source = ast.get_source_segment(source, fn) or ''
+        self.assertIn('run_ai_chat', function_source)
+        self.assertIn('groq_model', function_source)
+        self.assertNotIn('groq/compound', function_source)
+
+    def test_grade_parser_rebuilds_cells_from_positioned_words(self):
+        source = Path(__file__).with_name('main.py').read_text(encoding='utf-8')
+        tree = ast.parse(source)
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'parse_grade_slip_universal')
+        function_source = ast.get_source_segment(source, fn) or ''
+        self.assertIn('page.get_text("words")', function_source)
+        self.assertIn('cell_words.sort', function_source)
+        self.assertNotIn('for row in tab.extract()', function_source)
+
 
 if __name__ == '__main__':
     unittest.main()

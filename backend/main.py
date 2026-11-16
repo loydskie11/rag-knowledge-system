@@ -643,7 +643,7 @@ def extract_pdf_text(contents: bytes) -> str:
     Fast, robust PDF text extraction with PyMuPDF (fitz) and selective OCR fallback.
     Prevents long OCR delays on multi-page PDFs with mixed text/graphic pages.
     """
-    import fitz
+    import pymupdf as fitz
 
     extracted_text = ""
     pdf_document = fitz.open(stream=contents, filetype="pdf")
@@ -932,18 +932,23 @@ def _groq_ai_client():
     return Groq(api_key=api_key)
 
 
-def run_ai_chat(*, messages, local_model, groq_model, provider_mode, temperature=0.0, max_tokens=600):
+def run_ai_chat(*, messages, local_model, groq_model, provider_mode, temperature=0.0, max_tokens=600, response_format=None):
     """Run one chat request without changing retrieval, authorization, or grounding."""
     mode = provider_mode if provider_mode in {"local", "automatic", "groq"} else "local"
     failures = []
+    request_options = {
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if response_format is not None:
+        request_options["response_format"] = response_format
 
     if mode in {"local", "automatic"}:
         try:
             response = local_ai_client.chat.completions.create(
-                messages=messages,
                 model=local_model,
-                temperature=temperature,
-                max_tokens=max_tokens,
+                **request_options,
             )
             return response, "local"
         except Exception as exc:
@@ -953,10 +958,8 @@ def run_ai_chat(*, messages, local_model, groq_model, provider_mode, temperature
 
     try:
         response = _groq_ai_client().chat.completions.create(
-            messages=messages,
             model=groq_model,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            **request_options,
         )
         return response, "groq"
     except Exception as exc:
@@ -5368,7 +5371,7 @@ def parse_grade_slip_universal(content_bytes: bytes) -> List[dict]:
     Uses PyMuPDF table geometry analysis (find_tables) to dynamically discover column layouts
     across any program, college, or campus.
     """
-    import fitz
+    import pymupdf as fitz
     import re
 
     try:
@@ -5395,12 +5398,33 @@ def parse_grade_slip_universal(content_bytes: bytes) -> List[dict]:
         tabs = page.find_tables()
         if tabs.tables:
             has_tables = True
+            page_words = page.get_text("words")
             for tab in tabs.tables:
-                for row in tab.extract():
+                for table_row in tab.rows:
+                    cleaned_row = []
+                    for cell in table_row.cells:
+                        if not cell:
+                            cleaned_row.append("")
+                            continue
+
+                        # Table.extract() can corrupt character order in some
+                        # official SIS PDFs (3.00 -> "300 .") and concatenate
+                        # words. Rebuild each cell from positioned PDF words so
+                        # decimal grades and human-readable labels are retained.
+                        rect = fitz.Rect(cell)
+                        cell_words = [
+                            word for word in page_words
+                            if rect.contains(fitz.Point(
+                                (word[0] + word[2]) / 2,
+                                (word[1] + word[3]) / 2,
+                            ))
+                        ]
+                        cell_words.sort(key=lambda word: (word[5], word[6], word[7]))
+                        cleaned_row.append(" ".join(word[4] for word in cell_words).strip())
+
                     # Keep empty cells: the CTU template has distinct columns
                     # for Midterm, Final Term, and Final Grade. Removing blanks
                     # shifts later values into the wrong grade column.
-                    cleaned_row = [c.replace('\n', ' ').strip() if c else "" for c in row]
                     if any(cleaned_row):
                         all_table_rows.append(cleaned_row)
 
@@ -5603,7 +5627,11 @@ def build_ctu_evaluation_result(semesters: List[dict]) -> dict:
 
 
 @app.post("/evaluate-grades")
-async def evaluate_grades(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+async def evaluate_grades(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Evaluates CTU grade slip PDFs.
     Uses universal PyMuPDF table geometry analysis (find_tables) for structured PDFs across all programs,
@@ -5661,26 +5689,24 @@ async def evaluate_grades(file: UploadFile = File(...), current_user: models.Use
         }
         """
 
-        # Use fast Groq Cloud if available, otherwise local Ollama
-        groq_key = os.getenv("GROQ_API_KEY")
-        client_to_use = local_ai_client
-        model_to_use = "llama3.1"
+        # Use the same administrator-controlled provider selection as Ask Policy.
+        # Automatic mode tries local Ollama first, then Groq only when local
+        # generation is unavailable.
+        settings = db.query(models.SystemSettings).filter(models.SystemSettings.id == 1).first()
+        provider_mode = getattr(settings, "ai_provider", "local") if settings else "local"
+        local_model = getattr(settings, "ai_model", "llama3.1") if settings else "llama3.1"
+        groq_model = getattr(settings, "groq_model", "qwen/qwen3.8-27b") if settings else "qwen/qwen3.8-27b"
 
-        if groq_key:
-            try:
-                from groq import Groq as GroqCloudClient
-                client_to_use = GroqCloudClient(api_key=groq_key)
-                model_to_use = "groq/compound"
-            except Exception as e:
-                print(f"[evaluate_grades] Groq Cloud client init warning: {e}")
-
-        response = client_to_use.chat.completions.create(
-            model=model_to_use,
+        response, _provider_used = run_ai_chat(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user",   "content": f"Here is the raw text from the grade slip:\n\n{raw_text[:8000]}"}
             ],
+            local_model=local_model,
+            groq_model=groq_model,
+            provider_mode=provider_mode,
             temperature=0.1,
+            max_tokens=1800,
             response_format={"type": "json_object"}
         )
 
@@ -5699,9 +5725,15 @@ async def evaluate_grades(file: UploadFile = File(...), current_user: models.Use
 
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Grade Evaluation Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to evaluate grades: {str(e)}")
+    except AIProviderUnavailable as e:
+        _log.warning("grade_evaluation_ai_unavailable", extra={"request_id": _request_id.get()})
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception:
+        _log.exception("grade_evaluation_failed", extra={"request_id": _request_id.get()})
+        raise HTTPException(
+            status_code=500,
+            detail="The grade slip could not be evaluated. Verify that it is a readable CTU PDF and try again.",
+        )
 
 
 

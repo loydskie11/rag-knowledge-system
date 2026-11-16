@@ -906,7 +906,7 @@ export function KnowledgeRepository() {
         </div>
 
         <div className="hidden flex-1 h-auto overflow-auto md:block">
-          <table className="w-full whitespace-nowrap relative table-fixed">
+          <table className="relative w-full min-w-[1160px] table-fixed whitespace-nowrap">
             <thead className="bg-gray-50/80 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 z-20">
               <tr>
                 <th className="w-[28%] px-4 py-3 text-left">Document Name</th>
@@ -915,7 +915,7 @@ export function KnowledgeRepository() {
                 <th className="w-[8%] px-4 py-3 text-left">Version</th>
                 <th className="w-[12%] px-4 py-3 text-left">Effectivity</th>
                 <th className="w-[8%] px-4 py-3 text-left">Status</th>
-                <th className="w-[10%] px-4 py-3 text-center">Actions</th>
+                <th className="w-[230px] px-3 py-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="h-auto divide-y divide-gray-200/70">
@@ -978,30 +978,30 @@ export function KnowledgeRepository() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => handleView(doc)} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer p-1" title="View Document">
-                          <Eye className="h-3.5 w-3.5" />
+                    <td className="w-[230px] px-3 py-3 text-center">
+                      <div className="flex min-w-[206px] items-center justify-center gap-1.5">
+                        <button onClick={() => handleView(doc)} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800" title="View Document" aria-label={`View ${doc.name}`}>
+                          <Eye className="h-4 w-4" />
                         </button>
-                        <button onClick={() => handleDownload(doc)} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer p-1" title="Download">
-                          <Download className="h-3.5 w-3.5" />
+                        <button onClick={() => handleDownload(doc)} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800" title="Download" aria-label={`Download ${doc.name}`}>
+                          <Download className="h-4 w-4" />
                         </button>
                         {canEdit && doc.can_manage && doc.status !== "Archived" && (
                           <>
-                            <button onClick={() => handleUpdateVersionClick(doc)} className="text-gray-400 hover:text-[#DD7230] transition-colors cursor-pointer p-1" title="Upload New Version">
-                              <UploadCloud className="h-3.5 w-3.5" />
+                            <button onClick={() => handleUpdateVersionClick(doc)} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-orange-50 hover:text-[#DD7230]" title="Upload New Version" aria-label={`Upload a new version of ${doc.name}`}>
+                              <UploadCloud className="h-4 w-4" />
                             </button>
-                            <button onClick={() => handleEditClick(doc)} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer p-1" title="Edit Metadata">
-                              <Edit className="h-3.5 w-3.5" />
+                            <button onClick={() => handleEditClick(doc)} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800" title="Edit Metadata" aria-label={`Edit metadata for ${doc.name}`}>
+                              <Edit className="h-4 w-4" />
                             </button>
-                            <button onClick={() => handleArchiveClick(doc)} className="text-gray-400 hover:text-rose-600 transition-colors cursor-pointer p-1" title="Archive Document">
-                              <Archive className="h-3.5 w-3.5" />
+                            <button onClick={() => handleArchiveClick(doc)} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-rose-50 hover:text-rose-600" title="Archive Document" aria-label={`Archive ${doc.name}`}>
+                              <Archive className="h-4 w-4" />
                             </button>
                           </>
                         )}
                         {doc.can_manage && doc.status === "Pending Review" && (
-                          <button onClick={() => approveDocument(doc)} className="text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer p-1" title="Approve and publish document">
-                            <CheckCircle className="h-3.5 w-3.5" />
+                          <button onClick={() => approveDocument(doc)} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800" title="Approve and publish document" aria-label={`Approve and publish ${doc.name}`}>
+                            <CheckCircle className="h-4 w-4" />
                           </button>
                         )}
                       </div>
